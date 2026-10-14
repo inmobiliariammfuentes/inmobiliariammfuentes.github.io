@@ -1,6 +1,6 @@
 // Cobranza Fuentes · Sistema de gestión de la inmobiliaria
 import {
-  sb, money, r2, pad5, esc, isoHoy, ymHoy, ymDe, ymSumar, periodo, fecha, diasEntre, MEDIOS,
+  sb, money, r2, pad5, esc, isoHoy, ymHoy, ymDe, ymSumar, ymDif, periodo, fecha, diasEntre, MEDIOS,
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL,
@@ -833,18 +833,21 @@ function finDesdeCuotas(inicio, cuotas) {
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
 // períodos de ajuste: Período 1 = alquiler inicial; los siguientes salen de los ajustes cargados
-function periodosDe(c, inicio, cuotas, meses) {
+// primer: mes del primer ajuste (si el primer tramo es distinto, como "3 cuotas y después cada 4")
+function periodosDe(c, inicio, cuotas, meses, primer) {
   const aj = ajustesValidos(ajDe(c)), ini = ymDe(inicio), hoy = ymHoy(), out = [];
-  const n = Math.max(1, +meses || 12), total = Math.ceil(cuotas / n);
+  const n = Math.max(1, +meses || 12), ultimo = ymSumar(ini, cuotas - 1);
+  let p1 = primer && primer > ini ? primer : ymSumar(ini, n);
+  const inicios = [ini]; for (let m = p1; m <= ultimo; m = ymSumar(m, n)) inicios.push(m);
   let previo = +c.monto_base || 0;
-  for (let k = 1; k <= total; k++) {
-    const desde = ymSumar(ini, (k - 1) * n), hastaC = Math.min(k * n, cuotas), hasta = ymSumar(ini, hastaC - 1);
+  inicios.forEach((desde, i) => {
+    const k = i + 1, hasta = i + 1 < inicios.length ? ymSumar(inicios[i + 1], -1) : ultimo;
     const a = k === 1 ? null : aj.filter((x) => x.desde === desde).pop();
     const monto = k === 1 ? +c.monto_base || 0 : a ? +a.monto : null;
-    out.push({ k, desde, hasta, cuotaDesde: (k - 1) * n + 1, cuotaHasta: hastaC, monto, ajuste: a, previo: k === 1 ? null : previo,
+    out.push({ k, desde, hasta, cuotaDesde: ymDif(ini, desde) + 1, cuotaHasta: ymDif(ini, hasta) + 1, monto, ajuste: a, previo: k === 1 ? null : previo,
       estado: desde > hoy ? "futuro" : hasta < hoy ? "pasado" : "actual" });
     if (monto) previo = monto;
-  }
+  });
   return out;
 }
 function filaPeriodo(x) {
@@ -863,7 +866,7 @@ function vContrato() {
   const c = S.contratos.get(S.ct); if (!c) return `<div class="empty">Contrato no encontrado.</div>`;
   const pi = P(c.inquilino_id), pp = P(c.propietario_id), cuotas = cuotasDe(c.inicio, c.fin);
   const nom = (p) => p.nombre + (p.dni ? " · DNI " + p.dni : "");
-  const per = periodosDe(c, c.inicio, cuotas, c.ajuste_meses);
+  const per = periodosDe(c, c.inicio, cuotas, c.ajuste_meses, c.ajuste_desde);
   const sal = deudaDe(c).reduce((s, x) => s + x.saldo, 0);
   return `<form id="f-ct" data-id="${c.id}" class="ct">
   <div class="head"><div><h1>${c.carpeta ? `<span class="muted">Carpeta ${c.carpeta} ·</span> ` : ""}${esc(c.direccion)}</h1>
@@ -889,6 +892,7 @@ function vContrato() {
       <div class="form">
         <label>Índice<select name="indice" id="ct-indice">${INDICES.map(([v, l]) => `<option value="${v}" ${c.indice === v ? "selected" : ""}>${l}</option>`).join("")}${INDICES.some(([v]) => v === c.indice) ? "" : `<option selected>${esc(c.indice)}</option>`}</select></label>
         <label>Ajusta<select name="ajuste_meses" id="ct-meses">${PERIODICIDAD.map(([v, l]) => `<option value="${v}" ${+c.ajuste_meses === v ? "selected" : ""}>${l} (cada ${v} ${v === 1 ? "mes" : "meses"})</option>`).join("")}${PERIODICIDAD.some(([v]) => v === +c.ajuste_meses) ? "" : `<option value="${c.ajuste_meses}" selected>Cada ${c.ajuste_meses} meses</option>`}</select></label>
+        <label>Primer ajuste<input type="month" name="ajuste_desde" id="ct-primer" data-auto="${c.ajuste_desde ? "0" : "1"}" value="${esc(c.ajuste_desde || ymSumar(ymDe(c.inicio), +c.ajuste_meses || 12))}"><span class="muted">Si el primer tramo es distinto (ej.: 3 meses y después cada 4), poné acá el mes del primer aumento.</span></label>
       </div>
       ${c.ajuste_revisar ? `<div class="banner">La periodicidad vino de SPOT sin confirmar: revisala y guardá.</div>` : ""}
       <div class="tw"><table class="ct-per"><thead><tr><th>Período</th><th>Cuotas</th><th>Meses</th><th>Aumento %</th><th>Alquiler</th><th></th></tr></thead>
@@ -920,10 +924,11 @@ function ctRefrescar() {
   const f = $("#f-ct"); if (!f) return; const c = S.contratos.get(+f.dataset.id);
   const inicio = f.inicio.value, cuotas = +f.cuotas.value; if (!inicio || !cuotas) return;
   $("#ct-hasta").value = finDesdeCuotas(inicio, cuotas);
+  if (f.ajuste_desde.dataset.auto === "1") f.ajuste_desde.value = ymSumar(ymDe(inicio), +f.ajuste_meses.value || 12);   // sin tramo especial: primer ajuste = inicio + periodicidad
   const escritos = {}; f.querySelectorAll(".ct-monto").forEach((i) => { escritos[i.name] = i.value; });
-  const per = periodosDe(c, inicio, cuotas, f.ajuste_meses.value);
+  const per = periodosDe(c, inicio, cuotas, f.ajuste_meses.value, f.ajuste_desde.value);
   $("#ct-periodos").innerHTML = per.map(filaPeriodo).join("");
-  if (+f.ajuste_meses.value === +c.ajuste_meses && inicio === c.inicio) f.querySelectorAll(".ct-monto").forEach((i) => { if (i.name in escritos) i.value = escritos[i.name]; });
+  if (+f.ajuste_meses.value === +c.ajuste_meses && inicio === c.inicio && (f.ajuste_desde.value || null) === (c.ajuste_desde || null)) f.querySelectorAll(".ct-monto").forEach((i) => { if (i.name in escritos) i.value = escritos[i.name]; });
   ctPorcentajes();
 }
 function ctPorcentajes() {                                           // recalcula los % según los montos
@@ -946,11 +951,12 @@ async function guardarContrato(f, v) {
   const fin = finDesdeCuotas(v.inicio, +v.cuotas);
   const data = { carpeta: +v.carpeta || 0, direccion: v.direccion.trim(), inicio: v.inicio, fin, monto_base: r2(v.monto1), deposito: r2(v.deposito),
     indice: v.indice, ajuste_meses: +v.ajuste_meses || 12, ajuste_revisar: false, forma_pago: v.forma_pago, comision: v.comision === "" ? null : +v.comision,
-    dia_vto: v.dia_vto ? +v.dia_vto : null, notas: (v.notas || "").trim() || null, inquilino_id: inqId, propietario_id: propId };
+    dia_vto: v.dia_vto ? +v.dia_vto : null, notas: (v.notas || "").trim() || null, inquilino_id: inqId, propietario_id: propId,
+    ajuste_desde: v.ajuste_desde && v.ajuste_desde !== ymSumar(ymDe(v.inicio), +v.ajuste_meses || 12) ? v.ajuste_desde : null };
   if (!(data.monto_base > 0)) { toast("Cargá el alquiler del Período 1", "bad"); return; }
   const { error } = await sb.from("contratos").update(data).eq("id", c.id); if (error) throw error;
   // ajustes por período: alta, cambio o baja
-  const cAct = { ...c, ...data }, per = periodosDe(cAct, data.inicio, +v.cuotas, data.ajuste_meses);
+  const cAct = { ...c, ...data }, per = periodosDe(cAct, data.inicio, +v.cuotas, data.ajuste_meses, data.ajuste_desde);
   let prev = data.monto_base, cambios = 0;
   for (const x of per) {
     if (x.k === 1) continue;
@@ -1240,7 +1246,8 @@ document.addEventListener("input", (ev) => {
   if (t.id === "q") { S.q = t.value; S.limite = 150; const pos = t.selectionStart; render(); const n = $("#q"); if (n) { n.focus(); n.setSelectionRange(pos, pos); } return; }
   if (t.closest("#f-planilla")) { planillaTotal(); return; }
   if (t.closest("#f-ct")) {
-    if (t.id === "ct-inicio" || t.id === "ct-cuotas" || t.id === "ct-meses") { ctRefrescar(); return; }
+    if (t.id === "ct-primer") t.dataset.auto = "0";
+    if (t.id === "ct-inicio" || t.id === "ct-cuotas" || t.id === "ct-meses" || t.id === "ct-primer") { ctRefrescar(); return; }
     if (t.classList.contains("ct-pct")) { ctDesdePct(t); return; }
     if (t.classList.contains("ct-monto")) { ctPorcentajes(); return; }
   }

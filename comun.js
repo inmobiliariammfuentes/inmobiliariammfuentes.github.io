@@ -115,14 +115,16 @@ export function division(c, cfg, alquiler, punitorio) {
 }
 
 export function proximoAjuste(c, aj, cfg) {
-  const paso = +c.ajuste_meses || 12, ini = ymDe(c.inicio), cur = ymHoy();
-  if (!ini || cur < ini) return null;
+  const paso = +c.ajuste_meses || 12, inicio = ymDe(c.inicio), cur = ymHoy();
+  if (!inicio || cur < inicio) return null;
+  // base de los ajustes: si hay "primer ajuste" pactado, los siguientes son cada "paso" meses desde ahí
+  const ini = c.ajuste_desde && c.ajuste_desde > inicio ? ymSumar(c.ajuste_desde, -paso) : inicio;
   const hechos = ajustesValidos(aj).map((a) => a.desde);
   let k = Math.max(1, Math.ceil(ymDif(ini, cur) / paso)), cand = ymSumar(ini, k * paso);
   while (cand < cfg.inicio_cobranza) cand = ymSumar(cand, paso);
   while (cand <= ymSumar(cur, 1) && hechos.includes(cand)) cand = ymSumar(cand, paso);
   const prev = ymSumar(cand, -paso);
-  if (prev > ini && prev >= cfg.inicio_cobranza && !hechos.includes(prev)) cand = prev;
+  if (prev > inicio && prev >= cfg.inicio_cobranza && !hechos.includes(prev)) cand = prev;
   return cand > ymDe(c.fin) ? null : cand;
 }
 
