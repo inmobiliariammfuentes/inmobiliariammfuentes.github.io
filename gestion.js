@@ -7,6 +7,7 @@ import {
 } from "./comun.js";
 import { iniciarChat } from "./chat.js";
 import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -271,13 +272,63 @@ function vMorosos() {
 
 function vAjustes() {
   const cur = ymHoy();
-  const act = [...S.contratos.values()].filter(contratoActivo).map((c) => ({ c, p: proximoAjuste(c, ajDe(c), S.cfg) })).filter((x) => x.p).sort((a, b) => (a.p < b.p ? -1 : a.p > b.p ? 1 : 0));
+  const act = [...S.contratos.values()].filter(contratoActivo).map((c) => ({ c, a: aumentoDe(c) })).filter((x) => x.a).sort((x, y) => (x.a.p < y.a.p ? -1 : x.a.p > y.a.p ? 1 : 0));
   const revisar = [...S.contratos.values()].filter((c) => contratoActivo(c) && c.ajuste_revisar).length;
-  const tabla = (arr) => `<div class="tw"><table><thead><tr><th>Dirección</th><th>Inquilino</th><th>Índice</th><th>Cada</th><th>Ajusta desde</th><th class="num">Alquiler actual</th><th></th></tr></thead><tbody>
-  ${arr.map((x) => `<tr><td>${esc(x.c.direccion)}</td><td>${esc(inq(x.c))}</td><td class="mono">${esc(x.c.indice)}</td><td>${x.c.ajuste_meses} meses ${x.c.ajuste_revisar ? `<span class="chip warn">Revisar</span>` : ""}</td><td><span class="chip ${x.p <= cur ? "warn" : "acc"}">${periodo(x.p)}</span></td><td class="num">${money(montoEn(x.c, ajDe(x.c), ymSumar(x.p, -1)))}</td><td class="num"><button class="btn small primary" data-ajustar="${x.c.id}">Aplicar ajuste</button></td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">Nada en este rango.</div></td></tr>`}</tbody></table></div>`;
-  return `<div class="head"><div><h1>Ajustes de precio</h1><p>Cargá el porcentaje del índice (de tu Calculadora) y se calcula el nuevo alquiler. El inquilino lo ve actualizado en el portal.</p></div></div>
-  ${revisar ? `<div class="banner">${revisar} contratos vigentes tienen la periodicidad sin confirmar (se cargó 12 meses para ICL y Casa Propia, 3 para IPC). Confirmala en "Datos del contrato".</div>` : ""}
-  <h2>Este mes y el próximo</h2>${tabla(act.filter((x) => x.p <= ymSumar(cur, 1)))}<h2>Próximos 3 meses</h2>${tabla(act.filter((x) => x.p > ymSumar(cur, 1) && x.p <= ymSumar(cur, 4)))}`;
+  const listos = act.filter((x) => !x.c.ajuste_revisar && x.a.p <= ymSumar(cur, 1) && x.a.calc && !x.a.calc.error && !x.a.calc.estimado);
+  const autos = [...S.aj.values()].flat().filter((a) => a.automatico && !a.anulado && a.desde >= ymSumar(cur, -1)).sort((a, b) => (a.desde < b.desde ? 1 : -1));
+  const tabla = (arr) => `<div class="tw"><table><thead><tr><th>Dirección</th><th>Inquilino</th><th>Índice</th><th>Aumenta en</th><th class="num">Alquiler actual</th><th>Calculado</th><th></th></tr></thead><tbody>
+  ${arr.map(({ c, a }) => `<tr><td><button class="carpeta" data-contrato="${c.id}">${c.carpeta || "—"}</button> ${esc(c.direccion)}</td><td>${esc(inq(c))}</td><td class="mono">${esc(c.indice)} · ${c.ajuste_meses}m ${c.ajuste_revisar ? `<span class="chip warn" title="La periodicidad vino de SPOT sin confirmar">Revisar</span>` : ""}</td>
+    <td><span class="chip ${a.p <= cur ? "warn" : "acc"}">${periodo(a.p)}</span></td><td class="num">${money(a.base)}</td><td>${celdaCalculo(a)}</td>
+    <td class="num acciones">${c.ajuste_revisar ? `<button class="btn small" data-contrato="${c.id}" title="Revisá cada cuántos meses ajusta y el primer ajuste">Confirmar periodicidad</button>` : `${a.calc && !a.calc.error ? `<button class="btn small primary" data-aplicaraumento="${c.id}">Aplicar</button> ` : ""}<button class="btn small" data-ajustar="${c.id}">${a.calc && !a.calc.error ? "Modificar" : "Cargar"}</button>`}</td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">No hay aumentos en este período.</div></td></tr>`}</tbody></table></div>`;
+  const ultimo = S.indices ? Object.entries(FUENTES).map(([k]) => S.indices[k] ? `${k}: ${S.indices[k].tipo === "diario" ? fecha(S.indices[k].ultima) : periodo(S.indices[k].ultimoMes.slice(0, 7))}` : "").filter(Boolean).join(" · ") : "bajando…";
+  return `<div class="head"><div><h1>Ajustes de precio</h1><p>El sistema calcula cada aumento con los índices oficiales (BCRA e INDEC), con las mismas reglas que la Calculadora de Alquileres. Cuando el índice ya está publicado, el aumento se carga solo el mes que corresponde; siempre se puede modificar.</p></div>
+    <div class="row"><button class="btn" data-a="indices">Actualizar índices</button>${listos.length ? `<button class="btn primary" data-a="aplicar-listos">Aplicar los ${listos.length} calculados</button>` : ""}</div></div>
+  <p class="muted" style="margin:0">Último dato publicado · ${esc(ultimo)}. "Estimado" = el índice de algún mes todavía no salió: se repite la última variación hasta que se publique.</p>
+  ${revisar ? `<div class="banner">${revisar} contratos vigentes vinieron de SPOT con la periodicidad sin confirmar: a esos no se les carga el aumento solo. Confirmala en la carpeta del contrato.</div>` : ""}
+  <h2>Este mes y el próximo</h2>${tabla(act.filter((x) => x.a.p <= ymSumar(cur, 1)))}
+  <h2>Próximos 3 meses</h2>${tabla(act.filter((x) => x.a.p > ymSumar(cur, 1) && x.a.p <= ymSumar(cur, 4)))}
+  ${autos.length ? `<h2>Cargados automáticamente</h2><div class="tw"><table><thead><tr><th>Dirección</th><th>Desde</th><th class="num">Anterior</th><th class="num">Nuevo</th><th>Detalle</th><th></th></tr></thead><tbody>
+    ${autos.map((a) => { const c = S.contratos.get(a.contrato_id); return c ? `<tr><td>${esc(c.direccion)}</td><td>${periodo(a.desde)}</td><td class="num">${money(a.monto_anterior)}</td><td class="num"><b>${money(a.monto)}</b> <span class="chip ok">+${String(a.pct ?? "").replace(".", ",")}%</span></td><td class="muted">${esc(a.detalle || "")}</td><td class="num"><button class="btn small" data-contrato="${c.id}">Ver / modificar</button></td></tr>` : ""; }).join("")}</tbody></table></div>` : ""}`;
+}
+
+function aumentoDe(c) {
+  const aj = ajDe(c), p = proximoAjuste(c, aj, S.cfg); if (!p) return null;
+  const n = +c.ajuste_meses || 12, ini = ymDe(c.inicio), dia = c.inicio.slice(8, 10);
+  const base = montoEn(c, aj, ymSumar(p, -1));
+  const prevYM = ymSumar(p, -n) > ini ? ymSumar(p, -n) : ini;
+  const desde = prevYM === ini ? c.inicio : prevYM + "-" + dia, hasta = p + "-" + dia;
+  const calc = base < 1000 ? { error: "Falta el alquiler actual (vino de SPOT con $ 1)" } : !indiceAutomatico(c.indice) ? { error: `${c.indice}: se calcula a mano` }
+    : S.indices ? calcularAumento(S.indices, c.indice, base, desde, hasta) : null;
+  return { p, base, desde, hasta, calc };
+}
+function celdaCalculo(a) {
+  if (!a.calc) return `<span class="muted">Bajando índices…</span>`;
+  if (a.calc.error) return `<span class="muted">${esc(a.calc.error)}</span>`;
+  return `<b class="mono">${money(a.calc.nuevo)}</b> <span class="chip ${a.calc.estimado ? "warn" : "ok"}" title="${esc(a.calc.detalle)}">+${String(a.calc.pct).replace(".", ",")}%${a.calc.estimado ? " · estimado" : ""}</span><div class="muted aum-det">${esc(a.calc.detalle)}</div>`;
+}
+async function guardarAumento(c, a, monto, auto) {
+  const { error } = await sb.from("ajustes").insert({ contrato_id: c.id, desde: a.p, monto_anterior: r2(a.base), monto: r2(monto),
+    pct: Math.round((monto / a.base - 1) * 10000) / 100, automatico: !!auto, detalle: a.calc && !a.calc.error ? a.calc.detalle : null });
+  if (error && !/duplicate|unique/i.test(error.message)) throw error;
+  return !error;
+}
+// Al entrar: se cargan solos los aumentos del mes cuyo índice ya está publicado (contratos con periodicidad confirmada)
+let autoHecho = false;
+async function autoAplicarAumentos() {
+  if (autoHecho || !S.indices) return; autoHecho = true;
+  const cur = ymHoy(); let n = 0;
+  for (const c of S.contratos.values()) {
+    if (!contratoActivo(c) || c.ajuste_revisar || !indiceAutomatico(c.indice)) continue;
+    const a = aumentoDe(c);
+    if (!a || a.p > cur || !a.calc || a.calc.error || a.calc.estimado) continue;
+    try { if (await guardarAumento(c, a, a.calc.nuevo, true)) n++; } catch {}
+  }
+  if (n) { await cargarTodo(); render(); toast(`Se calcularon y cargaron ${n} ${n === 1 ? "aumento" : "aumentos"} con los índices oficiales. Revisalos en Ajustes de precio.`); }
+}
+async function iniciarIndices(forzar) {
+  try { S.indices = await cargarIndices(forzar); if (S.indices.errores?.length) toast("No se pudieron actualizar algunos índices: " + S.indices.errores.join(" · "), "bad"); }
+  catch (e) { toast("No se pudieron bajar los índices: " + mensajeError(e), "bad"); }
+  render(); autoAplicarAumentos();
 }
 
 function pendientesLiquidar() {
@@ -389,6 +440,9 @@ function vPlanilla() {
   const cab = `<div class="head"><div><h1>Cobranza</h1><p><b>${esc(inq(c))}</b> · Carpeta ${c.carpeta || "—"} · ${esc(c.direccion)}</p>
     <p class="muted">Paga hasta el día ${c.dia_vto || S.cfg.dia_vto} · ${S.cfg.dias_gracia} días de tolerancia · Honorarios ${comisionDe(c, S.cfg)}% · ${c.forma_pago === "dividida" ? "Transferencia dividida" : "Paga en la inmobiliaria"}</p></div>
     <div class="row"><button class="btn" data-volver>Volver</button><button class="btn" data-ficha="${c.id}">Ficha del contrato</button><button class="btn" data-liqprop="${c.propietario_id}">Liquidación de ${esc(prop(c).split(",")[0])}</button></div></div>
+    ${(() => { const a = aumentoDe(c); if (!a || a.p > ymHoy()) return "";
+      return `<div class="banner aum-banner"><b>Corresponde aumento desde ${periodo(a.p)}</b> (${esc(c.indice)} cada ${c.ajuste_meses} meses) y todavía no está cargado. ${a.calc && !a.calc.error ? `Calculado: <b>${money(a.calc.nuevo)}</b> (+${String(a.calc.pct).replace(".", ",")}%${a.calc.estimado ? ", estimado" : ""}).` : ""}
+        <span class="row" style="margin-top:6px">${a.calc && !a.calc.error ? `<button class="btn small primary" data-aplicaraumento="${c.id}">Aplicar aumento</button>` : ""}<button class="btn small" data-ajustar="${c.id}">Modificar</button></span></div>`; })()}
     <div class="tabs" role="tablist">${t("planilla", "Planilla de cobro")}${t("conceptos", "Conceptos fijos")}${t("envios", "Comprobantes del portal")}</div>`;
   if (S.plTab === "conceptos") return cab + vConceptosFijos(c);
   if (S.plTab === "envios") return cab + vEnviosContrato(c);
@@ -859,7 +913,7 @@ function filaPeriodo(x) {
     <td>${mesCorto(x.desde)}${x.desde !== x.hasta ? " a " + mesCorto(x.hasta) : ""}<div class="muted">Fin: ${fecha(finDeMes(x.hasta))}</div></td>
     <td>${x.k === 1 ? `<span class="muted">Inicial</span>` : `<input type="number" step="0.01" class="ct-pct" name="pct${x.k}" value="${pct}" placeholder="%" aria-label="Porcentaje de aumento del período ${x.k}">`}</td>
     <td><input type="number" step="0.01" class="ct-monto" name="monto${x.k}" value="${x.monto ?? ""}" placeholder="${x.k === 1 ? "" : "Sin cargar"}" ${x.k === 1 ? "required" : ""} aria-label="Alquiler del período ${x.k}"></td>
-    <td>${falta ? `<span class="chip bad">Falta cargar</span>` : !x.monto ? `<span class="chip">A calcular</span>` : x.estado === "pasado" ? `<span class="chip ok">Cumplido</span>` : x.estado === "futuro" ? `<span class="chip">Cargado</span>` : ""}</td></tr>`;
+    <td>${!x.monto && x.k > 1 && x.estado !== "pasado" ? `<button type="button" class="btn small" data-calcper="${x.k}">Calcular</button> ` : ""}${falta ? `<span class="chip bad">Falta cargar</span>` : !x.monto ? `<span class="chip">A calcular</span>` : x.estado === "pasado" ? `<span class="chip ok">Cumplido</span>` : x.estado === "futuro" ? `<span class="chip">Cargado</span>` : ""}</td></tr>`;
 }
 function abrirContrato(id) { S.ct = +id; S.view = "contrato"; cerrarModal(); render(); scrollTo(0, 0); }
 function vContrato() {
@@ -1088,13 +1142,15 @@ function filasConceptos(p) {
 function buscarPago(pid) { for (const [cid, l] of S.pg) { const f = l.find((x) => x.id === +pid); if (f) return { p: f, c: S.contratos.get(cid) }; } return {}; }
 
 function modalAjuste(id) {
-  const c = S.contratos.get(+id); const p = proximoAjuste(c, ajDe(c), S.cfg) || ymHoy(); const ant = montoEn(c, ajDe(c), ymSumar(p, -1));
+  const c = S.contratos.get(+id); const a = aumentoDe(c); const p = a?.p || ymHoy(); const ant = a ? a.base : montoEn(c, ajDe(c), ymSumar(p, -1));
+  const ok = a && a.calc && !a.calc.error;
   abrirModal(`<div class="mh"><div><h2>Aplicar ajuste</h2><div class="muted">${esc(c.direccion)} · ${esc(c.indice)} cada ${c.ajuste_meses} meses</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
   <form class="form" id="f-ajuste" data-id="${c.id}" data-ant="${ant}">
     <label>Rige desde<input type="month" id="aj-desde" name="desde" value="${p}" required></label>
     <label>Alquiler anterior<input type="text" value="${money(ant)}" disabled id="aj-ant"></label>
-    <label>Variación del índice (%)<input type="number" step="0.0001" id="aj-pct" name="pct" autofocus></label>
-    <label>Nuevo alquiler<input type="number" step="0.01" id="aj-monto" name="monto" required></label>
+    <label>Variación del índice (%)<input type="number" step="0.0001" id="aj-pct" name="pct" value="${ok ? a.calc.pct : ""}" autofocus></label>
+    <label>Nuevo alquiler<input type="number" step="0.01" id="aj-monto" name="monto" value="${ok ? a.calc.nuevo : ""}" required></label>
+    ${ok ? `<p class="full muted" style="margin:0">Calculado con ${esc(a.calc.detalle)}${a.calc.estimado ? " (estimado)" : ""}. Podés modificar el % o el monto (por ejemplo para redondear).</p>` : a?.calc?.error ? `<p class="full muted" style="margin:0">${esc(a.calc.error)}: cargá el % o el monto.</p>` : ""}
     <div class="full row"><button class="btn primary" type="submit">Guardar ajuste</button><button class="btn" type="button" data-cerrar>Cancelar</button></div>
   </form>`);
 }
@@ -1210,6 +1266,23 @@ document.addEventListener("click", async (ev) => {
       <p>Mandale al propietario este link: ve y descarga la liquidación cuando quiera, sin cuenta.</p><div class="row">${botonesLinkLiq(l)}<button class="btn" data-abrirlink="${esc(linkComprobante(l.token))}">Ver cómo lo ve</button></div>`); return; }
     if (d.anularpago) { if (!confirmar("¿Anular el cobro?")) return; if (await rpc("anular_pago", { p_pago: +d.anularpago }, "Cobro anulado")) { cerrarModal(); await recargar(); } return; }
     if (d.ajustar) { modalAjuste(d.ajustar); return; }
+    if (d.calcper) { const f = $("#f-ct"), c = S.contratos.get(+f.dataset.id), k = +d.calcper;
+      const per = periodosDe(c, f.inicio.value, +f.cuotas.value, f.ajuste_meses.value, f.ajuste_desde.value), x = per[k - 1], ant = per[k - 2];
+      const filas = [...document.querySelectorAll("#ct-periodos tr")], prevMonto = +filas[k - 2]?.querySelector(".ct-monto").value;
+      if (!prevMonto) { toast("Primero tiene que estar el monto del período anterior", "bad"); return; }
+      if (!S.indices) { toast("Todavía se están bajando los índices", "bad"); return; }
+      const dia = f.inicio.value.slice(8, 10), r = calcularAumento(S.indices, f.indice.value, prevMonto, ant.k === 1 ? f.inicio.value : ant.desde + "-" + dia, x.desde + "-" + dia);
+      if (r.error) { toast(r.error, "bad"); return; }
+      filas[k - 1].querySelector(".ct-monto").value = r.nuevo; ctPorcentajes();
+      toast(`${money(r.nuevo)} (+${r.pct}%)${r.estimado ? " · estimado" : ""} — ${r.detalle}. Tocá Guardar cambios para confirmarlo.`); return; }
+    if (d.aplicaraumento) { const c = S.contratos.get(+d.aplicaraumento), a = aumentoDe(c); if (!a?.calc || a.calc.error) { modalAjuste(c.id); return; }
+      await guardarAumento(c, a, a.calc.nuevo, false); if (c.ajuste_revisar) await sb.from("contratos").update({ ajuste_revisar: false }).eq("id", c.id);
+      await recargar(`Aumento aplicado: ${money(a.calc.nuevo)} desde ${periodo(a.p)}`); return; }
+    if (d.a === "indices") { toast("Actualizando índices…"); await iniciarIndices(true); toast("Índices actualizados"); return; }
+    if (d.a === "aplicar-listos") { const cur = ymHoy(); let n = 0;
+      for (const c of S.contratos.values()) { if (!contratoActivo(c) || c.ajuste_revisar) continue; const a = aumentoDe(c);
+        if (a && a.p <= ymSumar(cur, 1) && a.calc && !a.calc.error && !a.calc.estimado && await guardarAumento(c, a, a.calc.nuevo, false)) n++; }
+      await recargar(`Se aplicaron ${n} aumentos`); return; }
     if (d.anularajuste) { if (!confirmar()) return; const { error } = await sb.from("ajustes").update({ anulado: true }).eq("id", +d.anularajuste); if (error) throw error; toast("Ajuste anulado"); cerrarModal(); await recargar(); return; }
     if (d.bonificar || d.desbonificar) {
       const [cid, per] = (d.bonificar || d.desbonificar).split("|");
@@ -1415,6 +1488,7 @@ async function iniciar() {
   try { await cargarTodo(); } catch (e) { $("#main").innerHTML = `<div class="panel"><h1>No se pudieron cargar los datos</h1><p>${esc(mensajeError(e))}</p></div>`; return; }
   render();
   iniciarChat(S.yo);
+  iniciarIndices(false);
   // Avisos en vivo de nuevos envíos del portal (y control cada 2 minutos por si se corta la conexión)
   sb.channel("envios").on("postgres_changes", { event: "INSERT", schema: "public", table: "envios" }, async () => { await cargarEnvios(); render(); toast("Llegó un nuevo envío del portal"); }).subscribe();
   setInterval(async () => { const antes = pendientesRevisar().length; await cargarEnvios().catch(() => {}); if (pendientesRevisar().length !== antes) render(); }, 120000);

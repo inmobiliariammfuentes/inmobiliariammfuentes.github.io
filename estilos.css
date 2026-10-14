@@ -319,3 +319,7 @@ body.chat-abierto .chat-fab{display:none}
 .nc-word-res li.ok span:first-child{color:var(--ok)}
 .nc-word-res li.falta span:first-child{color:var(--bad)}
 @media (max-width:900px){.nc-word-res ul{grid-template-columns:minmax(0,1fr)}}
+/* aumentos calculados */
+.aum-det{font-size:12.5px;line-height:1.3;margin-top:2px;max-width:260px}
+td.acciones{white-space:nowrap}
+.aum-banner{display:flex;flex-direction:column;gap:2px}
