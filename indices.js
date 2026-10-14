@@ -44,10 +44,12 @@ async function bajarBcra(id, desde) {
   }
   return out;
 }
+// Se piden la serie completa y los últimos 24 meses por separado: la consulta larga a veces viene sin el último mes publicado.
 async function bajarDatos(id) {
-  const r = await fetch(`${DATOS}?ids=${encodeURIComponent(id)}&start_date=2020-01-01&limit=1000&format=json`);
-  if (!r.ok) throw new Error("datos.gob.ar respondió " + r.status);
-  const j = await r.json(); return (j.data || []).map((x) => [String(x[0]), +x[1]]);
+  const pedir = async (q) => { const r = await fetch(`${DATOS}?ids=${encodeURIComponent(id)}&${q}&format=json`); if (!r.ok) throw new Error("datos.gob.ar respondió " + r.status); return (await r.json()).data || []; };
+  const [todo, ult] = await Promise.all([pedir("start_date=2020-01-01&limit=1000"), pedir("last=24")]);
+  const m = new Map(); for (const x of [...todo, ...ult]) m.set(String(x[0]), +x[1]);
+  return [...m.entries()];
 }
 let cache = null, cargando = null;
 export async function cargarIndices(forzar = false) {
