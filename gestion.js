@@ -136,6 +136,7 @@ function render() {
   if (S.view === "planilla" && S.plTab === "envios") cargarDocsPlanilla();
   if (S.view === "liqprop") liqPropTotal();
   if (S.view === "nuevo") nuevoResumen();
+  if (S.view === "config") mostrarNumeracion();
   if (S.view === "contratos" && (!document.activeElement || document.activeElement === document.body) && !$("#modal").innerHTML) $("#q")?.focus();
 }
 
@@ -361,7 +362,7 @@ function vConfig() {
     <label class="full">Controlar cobros desde el período<input type="month" id="cfg-inicio" name="inicio_cobranza" value="${esc(c.inicio_cobranza)}" ${dis}><span class="muted">Los meses anteriores no se cuentan como deuda.</span></label>
     ${puedeAdmin() ? `<div class="full row"><button class="btn primary" type="submit">Guardar configuración</button></div>` : ""}
   </form>
-  <section class="panel"><div class="ph"><h2>Numeración</h2>${puedeAdmin() ? `<button class="btn small" data-a="numeracion">Cambiar</button>` : ""}</div><div id="numeracion" class="muted">Consultando…</div></section>
+  <section class="panel"><div class="ph"><h2>Numeración</h2>${puedeAdmin() ? `<button class="btn small" data-a="numeracion">Cambiar</button>` : ""}</div><div id="numeracion" class="muted">${textoNumeracion(S.num)}</div></section>
   <section class="panel"><div class="ph"><h2>Equipo</h2>${puedeAdmin() ? `<button class="btn small primary" data-a="nuevo-staff">Sumar persona</button>` : ""}</div>
   <div class="tw"><table><tbody>${S.staff.map((s) => `<tr><td>${esc(s.nombre)}<div class="muted">Usuario: ${esc(usuarioDe(s.email))}</div></td><td>${s.rol === "admin" ? "Administrador" : "Operador"}</td><td>${s.activo ? `<span class="chip ok">Activo</span>` : `<span class="chip">Inactivo</span>`}</td><td class="num">${puedeAdmin() && s.user_id !== S.yo.user_id ? `<button class="btn small" data-staffclave="${s.user_id}">Nueva clave</button> <button class="btn small" data-staffactivo="${s.user_id}">${s.activo ? "Desactivar" : "Activar"}</button>` : ""}</td></tr>`).join("")}</tbody></table></div></section>`;
 }
@@ -1377,7 +1378,13 @@ async function cargarDocsPlanilla() {
   const el = document.getElementById("docs-planilla");
   if (el) el.innerHTML = (data || []).map((a) => `<button class="file" data-archivo="${esc(a.path)}">📄 ${esc(ETIQUETA_ARCHIVO[a.categoria])}${a.servicio ? " · " + esc(a.servicio) : ""} · ${periodo(a.periodo)}</button>`).join("") || `<span class="muted">Sin documentos.</span>`;
 }
-async function mostrarNumeracion() { const n = await rpc("ver_numeracion", {}); const el = $("#numeracion"); if (el && n) el.textContent = `Próximo recibo: N° ${pad5(n.recibo)} · Próxima liquidación: N° ${pad5(n.liquidacion)}`; }
+const textoNumeracion = (n) => n ? `Próximo recibo: N° ${n.recibo} · Próxima liquidación: N° ${n.liquidacion}` : "Consultando…";
+async function mostrarNumeracion() {
+  const { data, error } = await sb.rpc("ver_numeracion");
+  const el = $("#numeracion");
+  if (error || !data) { if (el) el.textContent = "No se pudo consultar la numeración" + (error ? ": " + mensajeError(error) : "."); return; }
+  S.num = data; if (el) el.textContent = textoNumeracion(data);
+}
 
 /* ================= sesión ================= */
 function pantallaLogin(msg) {
