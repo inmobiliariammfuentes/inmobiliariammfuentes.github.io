@@ -18,7 +18,7 @@ function vistaRecibo(d) {
     : [{ concepto: "Alquiler " + periodo(p.periodo), monto: p.alquiler, punitorio: p.punitorio, inquilino: 1 }];
   return `<section class="panel cp-doc">
     <div class="cp-tit"><div><span class="muted">Recibo</span><h1>N° ${esc(p.recibo_nro)}</h1></div>
-      <div class="cp-total"><span class="muted">Total abonado</span><b>${money(p.total)}</b></div></div>
+      <div class="cp-total"><span class="muted">Total abonado</span><b>${money(p.total, i.moneda)}</b></div></div>
     ${p.anulado ? `<div class="banner" style="background:var(--bad-soft);color:var(--bad)">Este recibo fue anulado.</div>` : ""}
     <dl class="dl">
       <div><dt>Fecha</dt><dd>${fecha(p.fecha)}</dd></div>
@@ -29,9 +29,9 @@ function vistaRecibo(d) {
       <div><dt>Forma de pago</dt><dd>${esc(p.medio || "")}</dd></div>
     </dl>
     <div class="tw"><table><thead><tr><th>Concepto</th><th class="num">Importe</th></tr></thead><tbody>
-      ${lineas.map((k) => fila(esc(k.concepto) + (k.inquilino < 0 ? ' <span class="muted">(descuento)</span>' : ""), (k.inquilino < 0 ? "- " : "") + money(k.monto))
-        + (+k.punitorio ? fila('<span class="muted">Punitorios</span>', money(k.punitorio)) : "")).join("")}
-      ${fila("<b>Total</b>", `<b>${money(p.total)}</b>`)}
+      ${lineas.map((k) => fila(esc(k.concepto) + (k.inquilino < 0 ? ' <span class="muted">(descuento)</span>' : ""), (k.inquilino < 0 ? "- " : "") + money(k.monto, i.moneda))
+        + (+k.punitorio ? fila('<span class="muted">Punitorios</span>', money(k.punitorio, i.moneda)) : "")).join("")}
+      ${fila("<b>Total</b>", `<b>${money(p.total, i.moneda)}</b>`)}
     </tbody></table></div>
     ${p.obs ? `<p class="muted">Observaciones: ${esc(p.obs)}</p>` : ""}
     <div class="row cp-btns"><button class="btn primary" id="cp-pdf">Descargar PDF</button><button class="btn" id="cp-ver">Ver para imprimir</button></div>
@@ -41,7 +41,7 @@ function vistaLiq(d) {
   const l = d.liq;
   return `<section class="panel cp-doc">
     <div class="cp-tit"><div><span class="muted">Liquidación</span><h1>N° ${esc(l.nro)}</h1></div>
-      <div class="cp-total"><span class="muted">${l.modalidad === "directa" ? "Transferido por el inquilino" : "Neto liquidado"}</span><b>${money(l.neto)}</b></div></div>
+      <div class="cp-total"><span class="muted">${l.modalidad === "directa" ? "Transferido por el inquilino" : "Neto liquidado"}</span><b>${money(l.neto, l.moneda)}</b></div></div>
     ${l.anulada ? `<div class="banner" style="background:var(--bad-soft);color:var(--bad)">Esta liquidación fue anulada.</div>` : ""}
     <dl class="dl">
       <div><dt>Fecha</dt><dd>${fecha(l.fecha)}</dd></div>
@@ -50,9 +50,9 @@ function vistaLiq(d) {
     </dl>
     <div class="tw"><table><thead><tr><th>Detalle</th><th class="num">Importe</th></tr></thead><tbody>
       ${(l.items || []).map((i) => i.tipo === "adelanto" || i.tipo === "particular"
-        ? fila(esc(i.descripcion || ""), money(i.neto))
-        : fila(`${esc(i.descripcion || "Alquiler " + periodo(i.periodo))}<div class="muted">${esc(i.direccion || "")}${i.inquilino ? " · " + esc(i.inquilino) : ""}${+i.comision ? " · Administración -" + money(i.comision) : ""}</div>`, money(i.neto ?? (i.cobrado - i.comision)))).join("")}
-      ${fila("<b>Total</b>", `<b>${money(l.neto)}</b>`)}
+        ? fila(esc(i.descripcion || ""), money(i.neto, l.moneda))
+        : fila(`${esc(i.descripcion || "Alquiler " + periodo(i.periodo))}<div class="muted">${esc(i.direccion || "")}${i.inquilino ? " · " + esc(i.inquilino) : ""}${+i.comision ? " · Administración -" + money(i.comision, l.moneda) : ""}</div>`, money(i.neto ?? (i.cobrado - i.comision), l.moneda))).join("")}
+      ${fila("<b>Total</b>", `<b>${money(l.neto, l.moneda)}</b>`)}
     </tbody></table></div>
     <div class="row cp-btns"><button class="btn primary" id="cp-pdf">Descargar PDF</button><button class="btn" id="cp-ver">Ver para imprimir</button></div>
   </section>`;

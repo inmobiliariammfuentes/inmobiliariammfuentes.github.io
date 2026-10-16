@@ -76,13 +76,13 @@ function render() {
   </main>`;
 }
 
-function cuentaBancaria(titulo, monto, datos) {
+function cuentaBancaria(titulo, monto, datos, mon) {
   const fila = (l, v) => v ? `<div class="dato"><span class="muted">${l}</span><span class="mono">${esc(v)}</span><button class="btn small ghost" data-copiar="${esc(v)}">Copiar</button></div>` : "";
   const falta = !datos.cbu && !datos.alias;
-  return `<div class="transfer"><div class="ph"><b>${titulo}</b><span class="mono monto">${money(monto)}</span></div>
+  return `<div class="transfer"><div class="ph"><b>${titulo}</b><span class="mono monto">${money(monto, mon)}</span></div>
     ${falta ? `<div class="muted">La inmobiliaria todavía no cargó estos datos bancarios. Consultalos antes de transferir.</div>` :
     fila("Titular", datos.titular) + fila("Banco", datos.banco) + fila("CBU/CVU", datos.cbu) + fila("Alias", datos.alias)}
-    <button class="btn small ghost" data-copiar="${money(monto).replace(/[^\d,]/g, "")}">Copiar importe</button></div>`;
+    <button class="btn small ghost" data-copiar="${money(monto, mon).replace(/[^\d,]/g, "")}">Copiar importe</button></div>`;
 }
 
 function tarjetaInquilino(c) {
@@ -93,22 +93,22 @@ function tarjetaInquilino(c) {
   let pagar;
   if (!actual) {
     const prox = ymSumar(ymHoy(), 1);
-    pagar = `<div class="estado ok"><b>Estás al día.</b> ${prox <= ymDe(c.fin) && montoEn(c, ajDe(c), prox) > 0 ? `El alquiler de ${periodo(prox)} es de ${money(montoEn(c, ajDe(c), prox))} y se paga del 1 al ${c.dia_vto || S.cfg.dia_vto}.` : ""}</div>`;
+    pagar = `<div class="estado ok"><b>Estás al día.</b> ${prox <= ymDe(c.fin) && montoEn(c, ajDe(c), prox) > 0 ? `El alquiler de ${periodo(prox)} es de ${money(montoEn(c, ajDe(c), prox), c)} y se paga del 1 al ${c.dia_vto || S.cfg.dia_vto}.` : ""}</div>`;
   } else {
     const ev = enRevision(actual.p);
     const lin = lineasDe(actual), div = divisionLineas(c, S.cfg, lin);
     const limiteSinPunitorio = fecha(ymSumar(actual.p, 0) + "-" + String(Math.min(28, (+c.dia_vto || +S.cfg.dia_vto) + (+S.cfg.dias_gracia || 0))).padStart(2, "0"));
     pagar = `<div class="apagar"><div class="ph"><div><span class="muted">A pagar</span><h3>${periodo(actual.p)}</h3></div>${ev ? `<span class="chip warn">Comprobante en revisión</span>` : actual.vencido && !actual.enTolerancia ? `<span class="chip bad">Vencido</span>` : `<span class="chip">Vence el ${fecha(actual.vto)}</span>`}</div>
-      <table><tbody>${lin.map((l) => `<tr><td>${l.parcial ? "Saldo s/ " : ""}${esc(l.descripcion)}</td><td class="num">${money(l.monto)}</td></tr>`).join("")}
-      ${actual.punitorio ? `<tr><td>Punitorio (${actual.dias} días × ${S.cfg.interes_diario}%)${actual.bonificado ? " · ajustado por la inmobiliaria" : ""}</td><td class="num">${money(actual.punitorio)}</td></tr>` : actual.bonificado ? `<tr><td>Punitorio bonificado</td><td class="num">${money(0)}</td></tr>` : ""}
-      <tr class="tot"><td>Total</td><td class="num">${money(div.total)}</td></tr></tbody></table>
+      <table><tbody>${lin.map((l) => `<tr><td>${l.parcial ? "Saldo s/ " : ""}${esc(l.descripcion)}</td><td class="num">${money(l.monto, c)}</td></tr>`).join("")}
+      ${actual.punitorio ? `<tr><td>Punitorio (${actual.dias} días × ${S.cfg.interes_diario}%)${actual.bonificado ? " · ajustado por la inmobiliaria" : ""}</td><td class="num">${money(actual.punitorio, c)}</td></tr>` : actual.bonificado ? `<tr><td>Punitorio bonificado</td><td class="num">${money(0, c)}</td></tr>` : ""}
+      <tr class="tot"><td>Total</td><td class="num">${money(div.total, c)}</td></tr></tbody></table>
       ${!actual.vencido ? `<p class="muted nota">Se paga del 1 al ${c.dia_vto || S.cfg.dia_vto}. Hasta el ${limiteSinPunitorio} no se cobra punitorio.</p>` : actual.enTolerancia ? `<p class="muted nota">Estás dentro de la tolerancia: si pagás hasta el ${limiteSinPunitorio} no se cobra punitorio.</p>` : `<p class="muted nota">El punitorio es el ${S.cfg.interes_diario}% diario desde el día ${(+c.dia_vto || +S.cfg.dia_vto) + 1}. La inmobiliaria puede ajustarlo.</p>`}
-      ${d.length > 1 ? `<p class="nota"><b>Además adeudás:</b> ${d.slice(1).map((x) => `${periodo(x.p)} (${money(x.saldo + x.punitorio)})`).join(", ")}.</p>` : ""}
+      ${d.length > 1 ? `<p class="nota"><b>Además adeudás:</b> ${d.slice(1).map((x) => `${periodo(x.p)} (${money(x.saldo + x.punitorio, c)})`).join(", ")}.</p>` : ""}
       ${rechazo ? `<div class="banner">Tu envío anterior fue rechazado: ${esc(rechazo.motivo_rechazo)}</div>` : ""}
       ${ev ? `<p class="nota">Enviaste los comprobantes el ${fecha(ev.created_at)}. Cuando la inmobiliaria los confirme, te llega el recibo.</p>` :
         c.forma_pago === "dividida" ? `<p class="nota">Hacé dos transferencias:</p>
-          ${cuentaBancaria("1 · Al propietario", div.propietario, { titular: c.prop_titular, banco: c.prop_banco, cbu: c.prop_cbu, alias: c.prop_alias })}
-          ${cuentaBancaria("2 · A la inmobiliaria (honorarios y gastos)", div.inmobiliaria, S.cfg)}
+          ${cuentaBancaria("1 · Al propietario", div.propietario, { titular: c.prop_titular, banco: c.prop_banco, cbu: c.prop_cbu, alias: c.prop_alias }, c)}
+          ${cuentaBancaria("2 · A la inmobiliaria (honorarios y gastos)", div.inmobiliaria, S.cfg, c)}
           <button class="btn primary grande" data-enviar="${c.id}">Ya transferí: enviar comprobantes</button>` :
         `<p class="nota">Este alquiler se paga en la inmobiliaria.</p>`}
     </div>`;
@@ -118,7 +118,7 @@ function tarjetaInquilino(c) {
   return `<section class="panel contrato"><div class="ph"><div><h2 class="dir">${esc(c.direccion)}</h2><div class="muted">Propietario: ${esc(c.propietario_nombre)} · Contrato hasta ${fecha(c.fin)}</div></div></div>
     ${pagar}
     <div class="row"><button class="btn" data-servicios="${c.id}">Enviar boletas de servicios pagados</button></div>
-    <details><summary>Recibos (${pagos.length})</summary>${recibos.length ? `<div class="tw"><table><tbody>${recibos.map((p) => `<tr><td>${periodo(p.periodo)}<div class="muted">Recibo ${pad5(p.recibo_nro)} · ${fecha(p.fecha)}</div></td><td class="num">${money(p.total)}</td><td class="num"><button class="btn small" data-recibo="${p.id}">PDF</button></td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">Todavía no hay recibos.</p>`}</details>
+    <details><summary>Recibos (${pagos.length})</summary>${recibos.length ? `<div class="tw"><table><tbody>${recibos.map((p) => `<tr><td>${periodo(p.periodo)}<div class="muted">Recibo ${pad5(p.recibo_nro)} · ${fecha(p.fecha)}</div></td><td class="num">${money(p.total, c)}</td><td class="num"><button class="btn small" data-recibo="${p.id}">PDF</button></td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">Todavía no hay recibos.</p>`}</details>
     <details><summary>Mis envíos (${envios.length})</summary>${misEnvios.length ? `<div class="tw"><table><tbody>${misEnvios.map((e) => `<tr><td>${e.tipo === "pago" ? "Pago" : "Servicios"} · ${periodo(e.periodo)}<div class="muted">${fecha(e.created_at)}${e.motivo_rechazo ? " · " + esc(e.motivo_rechazo) : ""}</div></td><td>${e.estado === "pendiente" ? `<span class="chip warn">En revisión</span>` : e.estado === "aprobado" ? `<span class="chip ok">Confirmado</span>` : `<span class="chip bad">Rechazado</span>`}</td><td class="files">${S.archivos.filter((a) => a.envio_id === e.id).map((a) => `<button class="file" data-archivo="${esc(a.path)}">${esc(a.servicio || ETIQUETA_ARCHIVO[a.categoria])}</button>`).join("")}</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">No enviaste nada todavía.</p>`}</details>
   </section>`;
 }
@@ -130,12 +130,12 @@ function tarjetaPropietario(c) {
   const estadoMes = pagoMes ? `<span class="chip ok">Cobrado</span>` : d.some((x) => x.p === cur) ? (d.find((x) => x.p === cur).vencido ? `<span class="chip bad">Pendiente, vencido</span>` : `<span class="chip warn">Pendiente</span>`) : `<span class="chip">—</span>`;
   const periodos = [...new Set([...pagos.map((p) => p.periodo), ...S.archivos.filter((a) => a.contrato_id === c.id && a.periodo).map((a) => a.periodo)])].sort().reverse().slice(0, 12);
   return `<section class="panel contrato"><div class="ph"><div><h2 class="dir">${esc(c.direccion)}</h2><div class="muted">Inquilino: ${esc(c.inquilino_nombre)} · Contrato hasta ${fecha(c.fin)}</div></div></div>
-    <dl class="dl"><div><dt>Alquiler ${periodo(cur)}</dt><dd class="mono">${money(montoEn(c, ajDe(c), cur))}</dd></div><div><dt>Estado del mes</dt><dd>${estadoMes}</dd></div><div><dt>Forma de pago</dt><dd>${c.forma_pago === "dividida" ? "El inquilino te transfiere directo" : "Cobra la inmobiliaria"}</dd></div></dl>
+    <dl class="dl"><div><dt>Alquiler ${periodo(cur)}</dt><dd class="mono">${money(montoEn(c, ajDe(c), cur), c)}</dd></div><div><dt>Estado del mes</dt><dd>${estadoMes}</dd></div><div><dt>Forma de pago</dt><dd>${c.forma_pago === "dividida" ? "El inquilino te transfiere directo" : "Cobra la inmobiliaria"}</dd></div></dl>
     ${d.filter((x) => x.vencido && !x.enTolerancia).length ? `<div class="banner">Hay ${d.filter((x) => x.vencido && !x.enTolerancia).length} período(s) vencido(s) sin pagar. La inmobiliaria está haciendo el seguimiento.</div>` : ""}
     <div class="tw"><table><thead><tr><th>Período</th><th class="num">Cobrado</th><th class="num">Te corresponde</th><th>Documentos</th></tr></thead><tbody>
     ${periodos.map((per) => { const ps = pagos.filter((p) => p.periodo === per); const docs = S.archivos.filter((a) => a.contrato_id === c.id && a.periodo === per);
       const liqs = [...new Set(ps.map((p) => p.liquidacion_id).filter(Boolean))].map((id) => S.liqs.find((l) => l.id === id)).filter(Boolean);
-      return `<tr><td>${periodo(per)}${ps[0] ? `<div class="muted">${fecha(ps[0].fecha)}</div>` : ""}</td><td class="num">${ps.length ? money(ps.reduce((s, p) => s + +p.total, 0)) : "—"}</td><td class="num">${ps.length ? money(ps.reduce((s, p) => s + +p.neto_propietario, 0)) : "—"}</td>
+      return `<tr><td>${periodo(per)}${ps[0] ? `<div class="muted">${fecha(ps[0].fecha)}</div>` : ""}</td><td class="num">${ps.length ? money(ps.reduce((s, p) => s + +p.total, 0), c) : "—"}</td><td class="num">${ps.length ? money(ps.reduce((s, p) => s + +p.neto_propietario, 0), c) : "—"}</td>
       <td class="files">${liqs.map((l) => `<button class="file" data-liq="${l.id}">Liquidación ${pad5(l.nro)}</button>`).join("")}${docs.map((a) => `<button class="file" data-archivo="${esc(a.path)}">${esc(a.categoria === "boleta" ? (a.servicio || "Boleta") : ETIQUETA_ARCHIVO[a.categoria])}</button>`).join("")}${!liqs.length && !docs.length ? `<span class="muted">${ps.length ? "Pendiente de liquidar" : "—"}</span>` : ""}</td></tr>`; }).join("") || `<tr><td colspan="4"><div class="empty">Todavía no hay cobros registrados.</div></td></tr>`}
     </tbody></table></div></section>`;
 }
@@ -144,7 +144,7 @@ function seccionLiquidaciones() {
   const ls = S.liqs.filter((l) => !l.anulada).slice(0, 24);
   if (!ls.length) return "";
   return `<section class="panel"><h2>Mis liquidaciones</h2><div class="tw"><table><tbody>${ls.map((l) => { const comp = S.archivos.filter((a) => a.liquidacion_id === l.id);
-    return `<tr><td>N° ${pad5(l.nro)}<div class="muted">${fecha(l.fecha)} · ${l.modalidad === "directa" ? "Transferencia directa del inquilino" : esc(l.medio || "")}</div></td><td class="num">${money(l.neto)}</td><td class="files"><button class="file" data-liq="${l.id}">PDF</button>${comp.map((a) => `<button class="file" data-archivo="${esc(a.path)}">Comprobante</button>`).join("")}</td></tr>`; }).join("")}</tbody></table></div></section>`;
+    return `<tr><td>N° ${pad5(l.nro)}<div class="muted">${fecha(l.fecha)} · ${l.modalidad === "directa" ? "Transferencia directa del inquilino" : esc(l.medio || "")}</div></td><td class="num">${money(l.neto, l)}</td><td class="files"><button class="file" data-liq="${l.id}">PDF</button>${comp.map((a) => `<button class="file" data-archivo="${esc(a.path)}">Comprobante</button>`).join("")}</td></tr>`; }).join("")}</tbody></table></div></section>`;
 }
 
 /* ---------- formularios de envío ---------- */
@@ -223,7 +223,7 @@ document.addEventListener("click", async (ev) => {
     if (d.enviar) { modalEnvioPago(d.enviar); return; }
     if (d.servicios) { modalEnvioServicios(d.servicios); return; }
     if (d.archivo) { await verArchivo(d.archivo); return; }
-    if (d.recibo) { const p = S.pg.find((x) => x.id === +d.recibo); const c = S.contratos.find((x) => x.id === p.contrato_id); const r = pdfRecibo(S.cfg, { direccion: c.direccion, inquilino: c.inquilino_nombre, carpeta: c.carpeta, propietario: c.propietario_nombre }, p); r.doc.save(r.nombre); return; }
+    if (d.recibo) { const p = S.pg.find((x) => x.id === +d.recibo); const c = S.contratos.find((x) => x.id === p.contrato_id); const r = pdfRecibo(S.cfg, { direccion: c.direccion, inquilino: c.inquilino_nombre, carpeta: c.carpeta, propietario: c.propietario_nombre, moneda: c.moneda }, p); r.doc.save(r.nombre); return; }
     if (d.liq) { const l = S.liqs.find((x) => x.id === +d.liq); const yo = S.yo.find((p) => p.id === l.propietario_id) || S.yo[0] || {}; const r = pdfLiquidacion(S.cfg, l, yo); r.doc.save(r.nombre); return; }
     if (d.a === "avisos") {
       abrirModal(`<div class="mh"><h2>Avisos</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div>${S.avisos.length ? S.avisos.map((a) => `<div class="aviso ${a.leida ? "" : "nuevo"}"><b>${esc(a.titulo)}</b><div>${esc(a.texto || "")}</div><div class="muted">${fecha(a.created_at)}</div></div>`).join("") : `<p class="muted">No tenés avisos.</p>`}`);

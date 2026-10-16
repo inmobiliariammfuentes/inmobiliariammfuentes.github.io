@@ -28,7 +28,10 @@ export const botonTema = () => temaActual() === "dark" ? `${ICONO_SOL}<span>Modo
 export const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 export const MEDIOS = ["Efectivo","Transferencia","Depósito","Cheque","Otro"];
 const fmtARS = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 2 });
-export const money = (n) => fmtARS.format(Math.round((+n || 0) * 100) / 100);
+const fmtUSD = new Intl.NumberFormat("es-AR", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
+// moneda: "USD" o un contrato con moneda "USD" -> dólares; cualquier otra cosa -> pesos
+export const esUSD = (m) => (m && typeof m === "object" ? m.moneda : m) === "USD";
+export const money = (n, m) => (esUSD(m) ? fmtUSD : fmtARS).format(Math.round((+n || 0) * 100) / 100);
 export const r2 = (n) => Math.round((+n || 0) * 100) / 100;
 export const pad = (n) => String(n).padStart(2, "0");
 export const pad5 = (n) => String(n || 0).padStart(5, "0");
@@ -189,7 +192,7 @@ function letras999(n) {
   if (r) t += (t ? " " : "") + (r < 30 ? UNI[r] : DEC[Math.floor(r / 10)] + (r % 10 ? " Y " + UNI[r % 10] : ""));
   return t;
 }
-export function numeroALetras(valor) {
+export function numeroALetras(valor, m) {
   const v = Math.abs(r2(valor)), ent = Math.floor(v), cent = Math.round((v - ent) * 100);
   let t;
   if (ent === 0) t = "CERO";
@@ -200,10 +203,12 @@ export function numeroALetras(valor) {
     if (resto) p.push(letras999(resto));
     t = p.join(" ");
   }
-  return t + (ent === 1e6 * Math.floor(ent / 1e6) && ent >= 1e6 ? " DE PESOS" : " PESOS") + (cent ? ` CON ${String(cent).padStart(2, "0")}/100` : "");
+  const mon = esUSD(m) ? "DÓLARES ESTADOUNIDENSES" : "PESOS";
+  return t + (ent === 1e6 * Math.floor(ent / 1e6) && ent >= 1e6 ? " DE " + mon : " " + mon) + (cent ? ` CON ${String(cent).padStart(2, "0")}/100` : "");
 }
 
-const pm = (n) => money(n).replace(/ /g, " ");                 // importe con espacio común (jsPDF)
+let MON = "ARS";                                                     // moneda del comprobante que se está armando
+const pm = (n) => money(n, MON).replace(/ /g, " ");                 // importe con espacio común (jsPDF)
 const neg = (n) => (r2(n) ? "-" + pm(Math.abs(n)) : pm(0));          // importe que resta
 const pad8 = (n) => String(n || 0).padStart(8, "0");
 const L = 15, R = 195;
@@ -257,7 +262,8 @@ const limpio = (s) => String(s || "").replace(/[^\wÁÉÍÓÚÑáéíóúñü ,.
 
 /* Recibo: página 1 original, página 2 copia */
 export function pdfRecibo(cfg, info, p) {
-  // info: {direccion, inquilino, carpeta, propietario, propietario_doc}
+  // info: {direccion, inquilino, carpeta, propietario, propietario_doc, moneda}
+  MON = (info && info.moneda) || "ARS";
   const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: "mm", format: "a4" });
   let lineas = Array.isArray(p.detalle) && p.detalle.length ? p.detalle : null;
   if (!lineas) {
@@ -299,7 +305,7 @@ export function pdfRecibo(cfg, info, p) {
     tot("Monto a Abonar", pm(aAbonar), false, true); tot("TOTAL ABONADO", pm(p.total), true); tot("Saldo Deudor", pm(saldoDeudor));
     y -= 2; doc.line(L, y, R, y); y += 4;
     doc.setFont("helvetica", "normal"); doc.setFontSize(7);
-    const leyenda = `POR MANDATO DEL LOCADOR RECIBÍ DEL LOCATARIO LA SUMA DE ${numeroALetras(p.total)} POR ${soloAlquiler ? "EL ALQUILER" : "EL ALQUILER Y LOS CONCEPTOS DETALLADOS"} DE UNA PROPIEDAD QUE OCUPA EN LA CALLE ${String(info.direccion || "").toUpperCase()}.`;
+    const leyenda = `POR MANDATO DEL LOCADOR RECIBÍ DEL LOCATARIO LA SUMA DE ${numeroALetras(p.total, MON)} POR ${soloAlquiler ? "EL ALQUILER" : "EL ALQUILER Y LOS CONCEPTOS DETALLADOS"} DE UNA PROPIEDAD QUE OCUPA EN LA CALLE ${String(info.direccion || "").toUpperCase()}.`;
     const ly = doc.splitTextToSize(leyenda, R - L - 4); doc.text(ly, L + 2, y); y += ly.length * 3 + 1;
     const nota = ["Medio de pago: " + (p.medio || "") + (p.modalidad === "dividida" ? ` (transferido al propietario ${pm(p.neto_propietario)} y a la inmobiliaria ${pm(p.honorarios)})` : ""), p.obs ? "Observaciones: " + p.obs : ""].filter(Boolean).join(" · ");
     const ln = doc.splitTextToSize(nota, R - L - 4); doc.setTextColor(90, 90, 90); doc.text(ln, L + 2, y); doc.setTextColor(0, 0, 0); y += ln.length * 3 + 10;
@@ -339,6 +345,7 @@ function encabezadoMedio(doc, cfg, y, titulo, filas, copia) {
 /* Liquidación al propietario: media hoja A4; original en la página 1 y copia en la página 2. */
 export function pdfLiquidacion(cfg, l, prop) {
   const pr = typeof prop === "object" && prop ? prop : { nombre: prop };
+  MON = l.moneda || "ARS";
   const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: "mm", format: "a4" });
   const cols = [{ t: "Fecha", x: L + 2 }, { t: "Descripción", x: 36 }, { t: "Monto", x: 120, a: "right" }, { t: "Punitorios", x: 142, a: "right" },
     { t: "Administración", x: 167, a: "right" }, { t: "Total", x: R - 2, a: "right" }];
@@ -396,8 +403,8 @@ export function pdfLiquidacion(cfg, l, prop) {
     d.text(neg(T.adm), 167, y + 4.1, { align: "right" }); d.text(pm(l.neto), R - 2, y + 4.1, { align: "right" }); y += 9.5;
     salto(22); d.setFont("helvetica", "normal"); d.setFontSize(7.5);
     const ley = l.modalidad === "directa"
-      ? `EL LOCATARIO TRANSFIRIÓ DIRECTAMENTE AL PROPIETARIO LA SUMA DE ${numeroALetras(l.neto)} CORRESPONDIENTE A LA LIQUIDACIÓN DE REFERENCIA.`
-      : `RECIBO LA SUMA DE ${numeroALetras(l.neto)} POR LA LIQUIDACIÓN DE REFERENCIA.`;
+      ? `EL LOCATARIO TRANSFIRIÓ DIRECTAMENTE AL PROPIETARIO LA SUMA DE ${numeroALetras(l.neto, MON)} CORRESPONDIENTE A LA LIQUIDACIÓN DE REFERENCIA.`
+      : `RECIBO LA SUMA DE ${numeroALetras(l.neto, MON)} POR LA LIQUIDACIÓN DE REFERENCIA.`;
     const ly = d.splitTextToSize(ley, R - L); d.text(ly, L, y); y += ly.length * 3.1 + 1;
     d.setTextColor(120, 130, 140); d.setFontSize(7.5);
     const notas = d.splitTextToSize("Notas: " + ["Forma de pago: " + (l.medio || ""), l.deducciones_detalle ? "Descuentos: " + l.deducciones_detalle : ""].filter(Boolean).join(" · "), 105);

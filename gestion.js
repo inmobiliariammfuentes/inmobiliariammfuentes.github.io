@@ -3,7 +3,7 @@ import {
   sb, money, r2, pad5, esc, isoHoy, ymHoy, ymDe, ymSumar, ymDif, periodo, fecha, diasEntre, MEDIOS,
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
-  pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL,
+  pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD,
 } from "./comun.js";
 import { iniciarChat } from "./chat.js";
 import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js";
@@ -20,13 +20,17 @@ const PORTAL_URL = new URL("./", location.href).href;
 const linkComprobante = (token) => token ? new URL("comprobante.html?c=" + token, PORTAL_URL).href : "";
 const waMensaje = (tel, msg) => (wa(tel) || "https://wa.me/") + "?text=" + encodeURIComponent(msg);
 const primerNombre = (n) => { const t = String(n || "").split(","); return (t.length > 1 ? t[1] : t[0]).trim().split(/\s+/)[0] || ""; };
+// sumas que pueden mezclar contratos en pesos y en dólares: { ars, usd }
+const sumaMon = (lista, monto, cont) => lista.reduce((t, x) => { const v = +monto(x) || 0; if (esUSD(cont(x))) t.usd += v; else t.ars += v; return t; }, { ars: 0, usd: 0 });
+const dosMon = (t) => (t.usd && !t.ars ? money(t.usd, "USD") : money(t.ars) + (t.usd ? ` + ${money(t.usd, "USD")}` : ""));
+const chipUSD = (c) => (esUSD(c) ? ' <span class="chip acc">US$</span>' : "");
 function msgRecibo(p, c) {
   const n = primerNombre(inq(c));
-  return `Hola${n ? " " + n : ""}! Te enviamos el recibo N° ${p.recibo_nro} de ${S.cfg.nombre} por ${money(p.total)} (${c.direccion}).\nLo podés ver y descargar cuando quieras en este link:\n${linkComprobante(p.token)}`;
+  return `Hola${n ? " " + n : ""}! Te enviamos el recibo N° ${p.recibo_nro} de ${S.cfg.nombre} por ${money(p.total, c)} (${c.direccion}).\nLo podés ver y descargar cuando quieras en este link:\n${linkComprobante(p.token)}`;
 }
 function msgLiq(l) {
   const n = primerNombre(P(l.propietario_id).nombre);
-  return `Hola${n ? " " + n : ""}! Te enviamos la liquidación N° ${l.nro} de ${S.cfg.nombre} por ${money(l.neto)}.\nLa podés ver y descargar cuando quieras en este link:\n${linkComprobante(l.token)}`;
+  return `Hola${n ? " " + n : ""}! Te enviamos la liquidación N° ${l.nro} de ${S.cfg.nombre} por ${money(l.neto, l)}.\nLa podés ver y descargar cuando quieras en este link:\n${linkComprobante(l.token)}`;
 }
 function botonesLinkLiq(l) {
   if (!l.token) return "";
@@ -71,6 +75,7 @@ async function cargarTodo() {
   S.aj = agrupar(aj, "contrato_id"); S.pg = agrupar(pg, "contrato_id");
   S.ov = new Map(); for (const o of ov) { if (!S.ov.has(o.contrato_id)) S.ov.set(o.contrato_id, {}); S.ov.get(o.contrato_id)[o.periodo] = +o.monto; }
   S.liqs = liq; S.staff = st;
+  for (const l of S.liqs) if (!l.moneda) l.moneda = (l.items || []).some((i) => esUSD(S.contratos.get(i.contrato_id))) ? "USD" : "ARS";
   await Promise.all([cargarEnvios(), cargarCaja()]);
   S.cargado = true;
 }
@@ -145,29 +150,31 @@ function render() {
 function vInicio() {
   const cur = ymHoy(), hoy = isoHoy(), cs = [...S.contratos.values()];
   const act = cs.filter((c) => contratoActivo(c) && c.inicio <= hoy);
-  const aCobrar = act.reduce((s, c) => s + montoEn(c, ajDe(c), cur), 0);
-  let mes = 0, dia = 0; for (const lst of S.pg.values()) for (const p of lst) if (!p.anulado) { if (ymDe(p.fecha) === cur) mes += +p.total; if (p.fecha === hoy) dia += +p.total; }
+  const aCobrar = sumaMon(act, (c) => montoEn(c, ajDe(c), cur), (c) => c);
+  const pagos = []; for (const lst of S.pg.values()) for (const p of lst) if (!p.anulado) pagos.push(p);
+  const pc = (p) => S.contratos.get(p.contrato_id);
+  const mes = sumaMon(pagos.filter((p) => ymDe(p.fecha) === cur), (p) => p.total, pc), dia = sumaMon(pagos.filter((p) => p.fecha === hoy), (p) => p.total, pc);
   const mor = cs.map((c) => ({ c, d: deudaDe(c).filter((x) => x.vencido && !x.enTolerancia) })).filter((x) => x.d.length)
     .map((x) => ({ ...x, tot: x.d.reduce((s, d) => s + d.saldo, 0) })).sort((a, b) => b.tot - a.tot);
   const rev = pendientesRevisar();
   const aj = act.map((c) => ({ c, p: proximoAjuste(c, ajDe(c), S.cfg) })).filter((x) => x.p && x.p <= ymSumar(cur, 1)).sort((a, b) => (a.p < b.p ? -1 : 1));
   const venc = cs.filter((c) => estadoContrato(c) === "porvencer").sort((a, b) => (a.fin < b.fin ? -1 : 1));
-  const liq = pendientesLiquidar(); const liqTot = liq.reduce((s, g) => s + g.neto, 0);
+  const liq = pendientesLiquidar(); const liqTot = sumaMon(liq, (g) => g.neto, (g) => g.moneda);
   const fila = (html) => `<div class="tw"><table><tbody>${html}</tbody></table></div>`;
   return `<div class="head"><div><h1>${periodo(cur)}</h1><p>${act.length} contratos vigentes · ${cs.length} en la base</p></div>
   <div class="row"><button class="btn primary" data-vista="cobrar">Cobrar en oficina</button></div></div>
   ${cur < S.cfg.inicio_cobranza ? `<div class="banner">El control de cobros empieza en ${periodo(S.cfg.inicio_cobranza)}. Los meses anteriores se gestionaron en SPOT.</div>` : ""}
   <div class="kpis">
     <div class="kpi ${rev.length ? "alert" : ""}"><span class="l">Pagos a revisar</span><span class="v">${rev.length}</span><span class="s">enviados desde el portal</span></div>
-    <div class="kpi"><span class="l">Cobrado este mes</span><span class="v">${money(mes)}</span><span class="s">de ${money(aCobrar)} · hoy ${money(dia)}</span></div>
-    <div class="kpi ${mor.length ? "alert" : ""}"><span class="l">Deuda vencida</span><span class="v">${money(mor.reduce((s, x) => s + x.tot, 0))}</span><span class="s">${mor.length} inquilinos (pasada la tolerancia)</span></div>
-    <div class="kpi"><span class="l">A liquidar a propietarios</span><span class="v">${money(liqTot)}</span><span class="s">${liq.length} propietarios</span></div>
+    <div class="kpi"><span class="l">Cobrado este mes</span><span class="v">${dosMon(mes)}</span><span class="s">de ${dosMon(aCobrar)} · hoy ${dosMon(dia)}</span></div>
+    <div class="kpi ${mor.length ? "alert" : ""}"><span class="l">Deuda vencida</span><span class="v">${dosMon(sumaMon(mor, (x) => x.tot, (x) => x.c))}</span><span class="s">${mor.length} inquilinos (pasada la tolerancia)</span></div>
+    <div class="kpi"><span class="l">A liquidar a propietarios</span><span class="v">${dosMon(liqTot)}</span><span class="s">${liq.length} propietarios</span></div>
   </div>
   <div class="grid2">
     <section class="panel"><div class="ph"><h2>Pagos a revisar</h2><button class="btn ghost small" data-vista="revisar">Ver todos</button></div>
       ${rev.length ? fila(rev.slice(0, 6).map((e) => { const c = S.contratos.get(e.contrato_id); return `<tr class="click" data-vista="revisar"><td>${esc(inq(c))}<div class="muted">${esc(c.direccion)}</div></td><td><span class="chip ${e.tipo === "pago" ? "warn" : "acc"}">${e.tipo === "pago" ? "Pago" : "Servicios"}</span></td><td class="num">${periodo(e.periodo)}</td></tr>`; }).join("")) : `<div class="empty">No hay nada pendiente de revisión.</div>`}</section>
     <section class="panel"><div class="ph"><h2>Morosos</h2><button class="btn ghost small" data-vista="morosos">Ver todos</button></div>
-      ${mor.length ? fila(mor.slice(0, 6).map((x) => `<tr class="click" data-ficha="${x.c.id}"><td>${esc(inq(x.c))}<div class="muted">${esc(x.c.direccion)}</div></td><td><span class="chip bad">${x.d.length} ${x.d.length > 1 ? "meses" : "mes"}</span></td><td class="num">${money(x.tot)}</td></tr>`).join("")) : `<div class="empty">No hay deudas vencidas.</div>`}</section>
+      ${mor.length ? fila(mor.slice(0, 6).map((x) => `<tr class="click" data-ficha="${x.c.id}"><td>${esc(inq(x.c))}<div class="muted">${esc(x.c.direccion)}</div></td><td><span class="chip bad">${x.d.length} ${x.d.length > 1 ? "meses" : "mes"}</span></td><td class="num">${money(x.tot, x.c)}</td></tr>`).join("")) : `<div class="empty">No hay deudas vencidas.</div>`}</section>
     <section class="panel"><div class="ph"><h2>Ajustes de precio próximos</h2><button class="btn ghost small" data-vista="ajustes">Ver todos</button></div>
       ${aj.length ? fila(aj.slice(0, 6).map((x) => `<tr class="click" data-ficha="${x.c.id}"><td>${esc(x.c.direccion)}<div class="muted">${esc(inq(x.c))}</div></td><td><span class="chip ${x.p <= cur ? "warn" : "acc"}">${periodo(x.p)}</span></td><td class="mono">${esc(x.c.indice)}</td></tr>`).join("")) : `<div class="empty">No hay ajustes este mes ni el próximo.</div>`}</section>
     <section class="panel"><div class="ph"><h2>Vencen en 90 días</h2><button class="btn ghost small" data-vista="contratos" data-filtro="porvencer">Ver todos</button></div>
@@ -196,9 +203,9 @@ function tarjetaEnvio(e) {
   return `<section class="panel"><div class="ph"><div><b>${esc(inq(c))}</b> · ${esc(c.direccion)}<div class="muted">${e.tipo === "pago" ? "Pago" : "Boletas de servicios"} de ${periodo(e.periodo)} · enviado el ${fecha(e.created_at)} ${new Date(e.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}</div></div>
     <span class="chip ${c.forma_pago === "dividida" ? "acc" : ""}">${c.forma_pago === "dividida" ? "Transferencia dividida" : "Paga en la inmobiliaria"}</span></div>
     ${e.tipo === "pago" ? `<div class="tw"><table><thead><tr><th></th><th class="num">Declaró</th><th class="num">Esperado</th></tr></thead><tbody>
-      <tr><td>Al propietario</td><td class="num">${money(e.monto_propietario)}</td><td class="num">${money(esp.propietario)}</td></tr>
-      <tr><td>A la inmobiliaria (honorarios ${comisionDe(c, S.cfg)}%)</td><td class="num">${money(e.monto_inmobiliaria)}</td><td class="num">${money(esp.inmobiliaria)}</td></tr>
-      <tr><td><b>Total pendiente hasta ${periodo(e.periodo)}</b>${pun ? ` <span class="muted">(incluye punitorio sugerido ${money(pun)}${d && d.bonificado ? ", bonificado" : ""})</span>` : ""}</td><td class="num"><b>${money(declarado)}</b></td><td class="num"><b>${money(esp.total)}</b></td></tr>
+      <tr><td>Al propietario</td><td class="num">${money(e.monto_propietario, c)}</td><td class="num">${money(esp.propietario, c)}</td></tr>
+      <tr><td>A la inmobiliaria (honorarios ${comisionDe(c, S.cfg)}%)</td><td class="num">${money(e.monto_inmobiliaria, c)}</td><td class="num">${money(esp.inmobiliaria, c)}</td></tr>
+      <tr><td><b>Total pendiente hasta ${periodo(e.periodo)}</b>${pun ? ` <span class="muted">(incluye punitorio sugerido ${money(pun, c)}${d && d.bonificado ? ", bonificado" : ""})</span>` : ""}</td><td class="num"><b>${money(declarado, c)}</b></td><td class="num"><b>${money(esp.total, c)}</b></td></tr>
     </tbody></table></div>${Math.abs(declarado - esp.total) > 1 ? `<div class="banner">Lo declarado no coincide con lo esperado. Revisalo antes de aprobar.</div>` : ""}` : ""}
     ${e.observaciones ? `<div><span class="muted">Observaciones del inquilino:</span> ${esc(e.observaciones)}</div>` : ""}
     <div class="files">${arch.map((a) => `<button class="file" data-archivo="${esc(a.path)}">📄 ${esc(ETIQUETA_ARCHIVO[a.categoria])}${a.servicio ? " · " + esc(a.servicio) : ""}</button>`).join("") || `<span class="muted">Sin archivos adjuntos.</span>`}</div>
@@ -242,9 +249,9 @@ function vContratos() {
   <div class="row"><span class="muted">Ordenar por</span><div class="seg">${o("direccion", "Dirección (A–Z)")}${o("vencimiento", "Vencimiento (más próximo primero)")}${o("reciente", "Más recientes")}</div></div>
   <div class="tw"><table><thead><tr><th>Carpeta</th><th>Vence</th><th>Dirección</th><th>Cobranza</th><th>Liquidación</th><th class="num">Saldo pendiente</th><th>Estado</th><th></th></tr></thead><tbody>
   ${shown.map((c) => { const dd = deudaDe(c), sal = dd.reduce((s, x) => s + x.saldo, 0), venc = dd.some((x) => x.vencido && !x.enTolerancia);
-    return `<tr><td class="mono"><button class="carpeta" data-contrato="${c.id}" title="Ver y editar el contrato">${c.carpeta || "—"}</button></td><td class="num">${fecha(c.fin)}</td><td>${esc(c.direccion)}${c.forma_pago === "dividida" ? ' <span class="chip acc">Dividida</span>' : ""}</td>
+    return `<tr><td class="mono"><button class="carpeta" data-contrato="${c.id}" title="Ver y editar el contrato">${c.carpeta || "—"}</button></td><td class="num">${fecha(c.fin)}</td><td>${esc(c.direccion)}${chipUSD(c)}${c.forma_pago === "dividida" ? ' <span class="chip acc">Dividida</span>' : ""}</td>
     <td><button class="link" data-planilla="${c.id}">${esc(inq(c))}</button></td><td><button class="link" data-liqprop="${c.propietario_id}">${esc(prop(c))}</button></td>
-    <td class="num" ${venc ? 'style="color:var(--bad)"' : ""}>${sal ? money(sal) : "—"}</td><td>${chipEstado(c)}</td><td class="num"><button class="btn small" data-contrato="${c.id}">Contrato</button></td></tr>`; }).join("") || `<tr><td colspan="8"><div class="empty">No hay contratos con ese filtro.</div></td></tr>`}
+    <td class="num" ${venc ? 'style="color:var(--bad)"' : ""}>${sal ? money(sal, c) : "—"}</td><td>${chipEstado(c)}</td><td class="num"><button class="btn small" data-contrato="${c.id}">Contrato</button></td></tr>`; }).join("") || `<tr><td colspan="8"><div class="empty">No hay contratos con ese filtro.</div></td></tr>`}
   </tbody></table></div>${list.length > shown.length ? `<div class="row"><button class="btn" data-a="mas">Mostrar más</button></div>` : ""}`;
 }
 
@@ -256,16 +263,16 @@ function vCobrar() {
   return `<div class="head"><div><h1>Cobrar en oficina</h1><p>Para pagos en efectivo o transferencias recibidas por la inmobiliaria.</p></div></div>
   <input type="search" id="q" class="search" placeholder="Inquilino, dirección o carpeta" value="${esc(S.q)}" autofocus>
   <div class="tw"><table><thead><tr><th>Inquilino</th><th>Dirección</th><th>Pendiente</th><th class="num">Saldo</th><th></th></tr></thead><tbody>
-  ${list.map(({ c, d }) => `<tr><td>${esc(inq(c))}</td><td>${esc(c.direccion)}</td><td>${d.length ? d.map((x) => `<span class="chip ${x.vencido && !x.enTolerancia ? "bad" : "warn"}">${periodo(x.p)}</span>`).join(" ") : `<span class="chip ok">Al día</span>`}</td><td class="num">${money(d.reduce((s, x) => s + x.saldo, 0))}</td><td class="num"><button class="btn small primary" data-cobrar="${c.id}">Cobrar</button> <button class="btn small" data-ficha="${c.id}">Ficha</button></td></tr>`).join("") || `<tr><td colspan="5"><div class="empty">Sin resultados.</div></td></tr>`}
+  ${list.map(({ c, d }) => `<tr><td>${esc(inq(c))}</td><td>${esc(c.direccion)}${chipUSD(c)}</td><td>${d.length ? d.map((x) => `<span class="chip ${x.vencido && !x.enTolerancia ? "bad" : "warn"}">${periodo(x.p)}</span>`).join(" ") : `<span class="chip ok">Al día</span>`}</td><td class="num">${money(d.reduce((s, x) => s + x.saldo, 0), c)}</td><td class="num"><button class="btn small primary" data-cobrar="${c.id}">Cobrar</button> <button class="btn small" data-ficha="${c.id}">Ficha</button></td></tr>`).join("") || `<tr><td colspan="5"><div class="empty">Sin resultados.</div></td></tr>`}
   </tbody></table></div>`;
 }
 
 function vMorosos() {
   const mor = [...S.contratos.values()].map((c) => ({ c, d: deudaDe(c).filter((x) => x.vencido) })).filter((x) => x.d.length)
     .map((x) => ({ ...x, tot: x.d.reduce((s, d) => s + d.saldo, 0), dias: Math.max(...x.d.map((d) => d.dias)) })).sort((a, b) => b.dias - a.dias || b.tot - a.tot);
-  return `<div class="head"><div><h1>Morosos</h1><p>${mor.length} inquilinos con períodos vencidos · ${money(mor.reduce((s, x) => s + x.tot, 0))}. Los que están dentro de los ${S.cfg.dias_gracia} días de tolerancia figuran en amarillo.</p></div></div>
+  return `<div class="head"><div><h1>Morosos</h1><p>${mor.length} inquilinos con períodos vencidos · ${dosMon(sumaMon(mor, (x) => x.tot, (x) => x.c))}. Los que están dentro de los ${S.cfg.dias_gracia} días de tolerancia figuran en amarillo.</p></div></div>
   <div class="tw"><table><thead><tr><th>Inquilino</th><th>Dirección</th><th>Celular</th><th>Períodos</th><th class="num">Días</th><th class="num">Deuda</th><th class="num">Punitorio sugerido</th><th></th></tr></thead><tbody>
-  ${mor.map((x) => `<tr><td>${esc(inq(x.c))}</td><td>${esc(x.c.direccion)}</td><td class="mono">${esc(P(x.c.inquilino_id).telefono || "—")}</td><td>${x.d.map((d) => `<span class="chip ${d.enTolerancia ? "warn" : "bad"}">${periodo(d.p)}</span>`).join(" ")}</td><td class="num">${x.dias}</td><td class="num">${money(x.tot)}</td><td class="num">${money(x.d.reduce((s, d) => s + d.punitorio, 0))}</td>
+  ${mor.map((x) => `<tr><td>${esc(inq(x.c))}</td><td>${esc(x.c.direccion)}</td><td class="mono">${esc(P(x.c.inquilino_id).telefono || "—")}</td><td>${x.d.map((d) => `<span class="chip ${d.enTolerancia ? "warn" : "bad"}">${periodo(d.p)}</span>`).join(" ")}</td><td class="num">${x.dias}</td><td class="num">${money(x.tot, x.c)}</td><td class="num">${money(x.d.reduce((s, d) => s + d.punitorio, 0), x.c)}</td>
   <td class="num"><button class="btn small" data-recordar="${x.c.id}">Copiar aviso</button> <button class="btn small primary" data-cobrar="${x.c.id}">Cobrar</button></td></tr>`).join("") || `<tr><td colspan="8"><div class="empty">No hay inquilinos con deuda vencida.</div></td></tr>`}
   </tbody></table></div>`;
 }
@@ -278,7 +285,7 @@ function vAjustes() {
   const autos = [...S.aj.values()].flat().filter((a) => a.automatico && !a.anulado && a.desde >= ymSumar(cur, -1)).sort((a, b) => (a.desde < b.desde ? 1 : -1));
   const tabla = (arr) => `<div class="tw"><table><thead><tr><th>Dirección</th><th>Inquilino</th><th>Índice</th><th>Aumenta en</th><th class="num">Alquiler actual</th><th>Calculado</th><th></th></tr></thead><tbody>
   ${arr.map(({ c, a }) => `<tr><td><button class="carpeta" data-contrato="${c.id}">${c.carpeta || "—"}</button> ${esc(c.direccion)}</td><td>${esc(inq(c))}</td><td class="mono">${esc(c.indice)} · ${c.ajuste_meses}m ${c.ajuste_revisar ? `<span class="chip warn" title="La periodicidad vino de SPOT sin confirmar">Revisar</span>` : ""}</td>
-    <td><span class="chip ${a.p <= cur ? "warn" : "acc"}">${periodo(a.p)}</span></td><td class="num">${money(a.base)}</td><td>${celdaCalculo(a)}</td>
+    <td><span class="chip ${a.p <= cur ? "warn" : "acc"}">${periodo(a.p)}</span></td><td class="num">${money(a.base, c)}</td><td>${celdaCalculo(a, c)}</td>
     <td class="num acciones">${c.ajuste_revisar ? `<button class="btn small" data-contrato="${c.id}" title="Revisá cada cuántos meses ajusta y el primer ajuste">Confirmar periodicidad</button>` : `${a.calc && !a.calc.error ? `<button class="btn small primary" data-aplicaraumento="${c.id}">Aplicar</button> ` : ""}<button class="btn small" data-ajustar="${c.id}">${a.calc && !a.calc.error ? "Modificar" : "Cargar"}</button>`}</td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">No hay aumentos en este período.</div></td></tr>`}</tbody></table></div>`;
   const ultimo = S.indices ? Object.entries(FUENTES).map(([k]) => S.indices[k] ? `${k}: ${S.indices[k].tipo === "diario" ? fecha(S.indices[k].ultima) : periodo(S.indices[k].ultimoMes.slice(0, 7))}` : "").filter(Boolean).join(" · ") : "bajando…";
   return `<div class="head"><div><h1>Ajustes de precio</h1><p>El sistema calcula cada aumento con los índices oficiales (BCRA e INDEC), con las mismas reglas que la Calculadora de Alquileres. Cuando el índice ya está publicado, el aumento se carga solo el mes que corresponde; siempre se puede modificar.</p></div>
@@ -288,7 +295,7 @@ function vAjustes() {
   <h2>Este mes y el próximo</h2>${tabla(act.filter((x) => x.a.p <= ymSumar(cur, 1)))}
   <h2>Próximos 3 meses</h2>${tabla(act.filter((x) => x.a.p > ymSumar(cur, 1) && x.a.p <= ymSumar(cur, 4)))}
   ${autos.length ? `<h2>Cargados automáticamente</h2><div class="tw"><table><thead><tr><th>Dirección</th><th>Desde</th><th class="num">Anterior</th><th class="num">Nuevo</th><th>Detalle</th><th></th></tr></thead><tbody>
-    ${autos.map((a) => { const c = S.contratos.get(a.contrato_id); return c ? `<tr><td>${esc(c.direccion)}</td><td>${periodo(a.desde)}</td><td class="num">${money(a.monto_anterior)}</td><td class="num"><b>${money(a.monto)}</b> <span class="chip ok">+${String(a.pct ?? "").replace(".", ",")}%</span></td><td class="muted">${esc(a.detalle || "")}</td><td class="num"><button class="btn small" data-contrato="${c.id}">Ver / modificar</button></td></tr>` : ""; }).join("")}</tbody></table></div>` : ""}`;
+    ${autos.map((a) => { const c = S.contratos.get(a.contrato_id); return c ? `<tr><td>${esc(c.direccion)}</td><td>${periodo(a.desde)}</td><td class="num">${money(a.monto_anterior, c)}</td><td class="num"><b>${money(a.monto, c)}</b> <span class="chip ok">+${String(a.pct ?? "").replace(".", ",")}%</span></td><td class="muted">${esc(a.detalle || "")}</td><td class="num"><button class="btn small" data-contrato="${c.id}">Ver / modificar</button></td></tr>` : ""; }).join("")}</tbody></table></div>` : ""}`;
 }
 
 function aumentoDe(c) {
@@ -297,14 +304,14 @@ function aumentoDe(c) {
   const base = montoEn(c, aj, ymSumar(p, -1));
   const prevYM = ymSumar(p, -n) > ini ? ymSumar(p, -n) : ini;
   const desde = prevYM === ini ? c.inicio : prevYM + "-" + dia, hasta = p + "-" + dia;
-  const calc = base < 1000 ? { error: "Falta el alquiler actual (vino de SPOT con $ 1)" } : !indiceAutomatico(c.indice) ? { error: `${c.indice}: se calcula a mano` }
+  const calc = esUSD(c) ? { error: "Contrato en dólares: el aumento se carga a mano" } : base < 1000 ? { error: "Falta el alquiler actual (vino de SPOT con $ 1)" } : !indiceAutomatico(c.indice) ? { error: `${c.indice}: se calcula a mano` }
     : S.indices ? calcularAumento(S.indices, c.indice, base, desde, hasta) : null;
   return { p, base, desde, hasta, calc };
 }
-function celdaCalculo(a) {
+function celdaCalculo(a, c) {
   if (!a.calc) return `<span class="muted">Bajando índices…</span>`;
   if (a.calc.error) return `<span class="muted">${esc(a.calc.error)}</span>`;
-  return `<b class="mono">${money(a.calc.nuevo)}</b> <span class="chip ${a.calc.estimado ? "warn" : "ok"}" title="${esc(a.calc.detalle)}">+${String(a.calc.pct).replace(".", ",")}%${a.calc.estimado ? " · estimado" : ""}</span><div class="muted aum-det">${esc(a.calc.detalle)}</div>`;
+  return `<b class="mono">${money(a.calc.nuevo, c)}</b> <span class="chip ${a.calc.estimado ? "warn" : "ok"}" title="${esc(a.calc.detalle)}">+${String(a.calc.pct).replace(".", ",")}%${a.calc.estimado ? " · estimado" : ""}</span><div class="muted aum-det">${esc(a.calc.detalle)}</div>`;
 }
 async function guardarAumento(c, a, monto, auto) {
   const { error } = await sb.from("ajustes").insert({ contrato_id: c.id, desde: a.p, monto_anterior: r2(a.base), monto: r2(monto),
@@ -332,10 +339,11 @@ async function iniciarIndices(forzar) {
 }
 
 function pendientesLiquidar() {
-  const by = new Map(); const g0 = (pid) => { if (!by.has(pid)) by.set(pid, { pid, items: [], adel: [] }); return by.get(pid); };
+  // un grupo por propietario y moneda (los alquileres en dólares se liquidan aparte)
+  const by = new Map(); const g0 = (pid, moneda) => { const k = pid + "|" + moneda; if (!by.has(k)) by.set(k, { pid, moneda, items: [], adel: [] }); return by.get(k); };
   for (const i of S.items) { const c = S.contratos.get(i.contrato_id), p = S.pagosById.get(i.pago_id);
-    if (!c || !p || p.anulado || p.modalidad !== "inmobiliaria") continue; g0(c.propietario_id).items.push(i); }
-  for (const a of S.adel) if (!a.liquidacion_id && !a.anulado) g0(a.propietario_id).adel.push(a);
+    if (!c || !p || p.anulado || p.modalidad !== "inmobiliaria") continue; g0(c.propietario_id, esUSD(c) ? "USD" : "ARS").items.push(i); }
+  for (const a of S.adel) if (!a.liquidacion_id && !a.anulado) g0(a.propietario_id, "ARS").adel.push(a);
   return [...by.values()].map((g) => { const com = r2(g.items.reduce((s, i) => s + +i.honorarios, 0)), neto = r2(g.items.reduce((s, i) => s + +i.neto_propietario, 0)), ade = r2(g.adel.reduce((s, a) => s + +a.monto, 0));
     return { ...g, bruto: r2(neto + com), com, ade, neto: r2(neto - ade) }; }).sort((a, b) => b.neto - a.neto);
 }
@@ -344,11 +352,11 @@ function vLiquidaciones() {
   return `<div class="head"><div><h1>Liquidaciones</h1><p>Elegí un propietario para ver su planilla: renglones cobrados, administración, adelantos a cuenta y conceptos particulares. Los pagos con transferencia dividida se liquidan solos al aprobarlos.</p></div></div>
   <h2>Pendientes de liquidar</h2>
   <div class="tw"><table><thead><tr><th>Propietario</th><th class="num">Renglones</th><th class="num">Cobrado</th><th class="num">Administración</th><th class="num">Adelantos</th><th class="num">A liquidar</th><th></th></tr></thead><tbody>
-  ${pend.map((g) => `<tr><td>${esc(P(g.pid).nombre)}</td><td class="num">${g.items.length}</td><td class="num">${money(g.bruto)}</td><td class="num">${money(g.com)}</td><td class="num">${g.ade ? "− " + money(g.ade) : "—"}</td><td class="num"><b>${money(g.neto)}</b></td><td class="num"><button class="btn small primary" data-liqprop="${g.pid}">Liquidar</button></td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">No hay cobros pendientes de liquidar.</div></td></tr>`}
+  ${pend.map((g) => `<tr><td>${esc(P(g.pid).nombre)}${chipUSD(g)}</td><td class="num">${g.items.length}</td><td class="num">${money(g.bruto, g)}</td><td class="num">${money(g.com, g)}</td><td class="num">${g.ade ? "− " + money(g.ade) : "—"}</td><td class="num"><b>${money(g.neto, g)}</b></td><td class="num"><button class="btn small primary" data-liqprop="${g.pid}" data-liqmon="${g.moneda}">Liquidar</button></td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">No hay cobros pendientes de liquidar.</div></td></tr>`}
   </tbody></table></div>
   <h2>Historial</h2>
   <div class="tw"><table><thead><tr><th>N°</th><th>Fecha</th><th>Propietario</th><th>Tipo</th><th class="num">Cobrado</th><th class="num">Honorarios</th><th class="num">Neto</th><th></th></tr></thead><tbody>
-  ${S.liqs.slice(0, 120).map((l) => `<tr><td class="mono">${pad5(l.nro)}</td><td class="num">${fecha(l.fecha)}</td><td>${esc(P(l.propietario_id).nombre)} ${l.anulada ? `<span class="chip bad">Anulada</span>` : ""}</td><td>${l.modalidad === "directa" ? `<span class="chip acc">Directa</span>` : "Oficina"}</td><td class="num">${money(l.bruto)}</td><td class="num">${money(l.comision)}</td><td class="num">${money(l.neto)}</td>
+  ${S.liqs.slice(0, 120).map((l) => `<tr><td class="mono">${pad5(l.nro)}</td><td class="num">${fecha(l.fecha)}</td><td>${esc(P(l.propietario_id).nombre)} ${l.anulada ? `<span class="chip bad">Anulada</span>` : ""}</td><td>${l.modalidad === "directa" ? `<span class="chip acc">Directa</span>` : "Oficina"}</td><td class="num">${money(l.bruto, l)}</td><td class="num">${money(l.comision, l)}</td><td class="num">${money(l.neto, l)}</td>
   <td class="num">${l.token ? `<button class="btn small" data-liqlink="${l.id}">Link</button> ` : ""}<button class="btn small" data-liqpdf="${l.id}">PDF</button> ${l.modalidad === "inmobiliaria" && !l.anulada ? `<button class="btn small" data-liqcomp="${l.id}">Comprobante</button> <button class="btn small danger" data-liqanular="${l.id}">Anular</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="8"><div class="empty">Todavía no hay liquidaciones.</div></td></tr>`}
   </tbody></table></div>`;
 }
@@ -357,30 +365,33 @@ function movsCaja() {
   const ym = S.cajaMes, out = [];
   for (const c of S.contratos.values()) for (const p of pgDe(c)) {
     if (p.anulado || ymDe(p.fecha) !== ym) continue;
-    if (p.modalidad === "dividida") out.push({ fecha: p.fecha, tipo: "ingreso", concepto: `Honorarios · Recibo ${pad5(p.recibo_nro)} · ${inq(c)} · ${periodo(p.periodo)}`, monto: +p.honorarios, medio: "Transferencia" });
-    else out.push({ fecha: p.fecha, tipo: "ingreso", concepto: `Recibo ${pad5(p.recibo_nro)} · ${inq(c)} · ${periodo(p.periodo)}`, monto: +p.total, medio: p.medio });
+    if (p.modalidad === "dividida") out.push({ fecha: p.fecha, tipo: "ingreso", concepto: `Honorarios · Recibo ${pad5(p.recibo_nro)} · ${inq(c)} · ${periodo(p.periodo)}`, monto: +p.honorarios, medio: "Transferencia", moneda: c.moneda });
+    else out.push({ fecha: p.fecha, tipo: "ingreso", concepto: `Recibo ${pad5(p.recibo_nro)} · ${inq(c)} · ${periodo(p.periodo)}`, monto: +p.total, medio: p.medio, moneda: c.moneda });
   }
-  for (const l of S.liqs) if (!l.anulada && l.modalidad === "inmobiliaria" && ymDe(l.fecha) === ym) out.push({ fecha: l.fecha, tipo: "egreso", concepto: `Liquidación ${pad5(l.nro)} · ${P(l.propietario_id).nombre}`, monto: +l.neto, medio: l.medio || "Transferencia" });
+  for (const l of S.liqs) if (!l.anulada && l.modalidad === "inmobiliaria" && ymDe(l.fecha) === ym) out.push({ fecha: l.fecha, tipo: "egreso", concepto: `Liquidación ${pad5(l.nro)} · ${P(l.propietario_id).nombre}`, monto: +l.neto, medio: l.medio || "Transferencia", moneda: l.moneda });
   for (const a of S.adel) if (!a.anulado && ymDe(a.fecha) === ym) out.push({ fecha: a.fecha, tipo: "egreso", concepto: `${a.concepto} · ${P(a.propietario_id).nombre}`, monto: +a.monto, medio: a.medio });
   for (const m of S.caja) if (!m.anulado) out.push({ ...m, monto: +m.monto, manual: true });
   return out.sort((a, b) => (a.fecha < b.fecha ? -1 : 1));
 }
 function vCaja() {
   const movs = movsCaja(), dia = S.cajaDia;
-  const porDia = {}; for (const m of movs) { const d = porDia[m.fecha] || (porDia[m.fecha] = { i: 0, e: 0 }); m.tipo === "ingreso" ? (d.i += m.monto) : (d.e += m.monto); }
-  const dias = Object.keys(porDia).sort(), max = Math.max(1, ...dias.map((d) => porDia[d].i));
-  const tI = movs.filter((m) => m.tipo === "ingreso").reduce((s, m) => s + m.monto, 0), tE = movs.filter((m) => m.tipo === "egreso").reduce((s, m) => s + m.monto, 0);
+  // pesos y dólares se suman por separado
+  const mon = (m) => m.moneda, sm = (l) => sumaMon(l, (m) => m.monto, mon);
+  const porDia = {}; for (const m of movs) (porDia[m.fecha] = porDia[m.fecha] || []).push(m);
+  const dias = Object.keys(porDia).sort(), ingDia = (d) => sm(porDia[d].filter((m) => m.tipo === "ingreso")), egrDia = (d) => sm(porDia[d].filter((m) => m.tipo === "egreso"));
+  const max = Math.max(1, ...dias.map((d) => ingDia(d).ars));
+  const tI = sm(movs.filter((m) => m.tipo === "ingreso")), tE = sm(movs.filter((m) => m.tipo === "egreso")), tS = { ars: tI.ars - tE.ars, usd: tI.usd - tE.usd };
   const delDia = movs.filter((m) => m.fecha === dia); const medios = {};
-  for (const m of delDia) medios[m.medio] = (medios[m.medio] || 0) + (m.tipo === "ingreso" ? m.monto : -m.monto);
+  for (const m of delDia) { const k = m.medio + (esUSD(m.moneda) ? " (US$)" : ""); medios[k] = (medios[k] || 0) + (m.tipo === "ingreso" ? m.monto : -m.monto); }
   return `<div class="head"><div><h1>Caja</h1><p>Solo lo que entra y sale de la inmobiliaria: en los pagos divididos cuentan únicamente los honorarios.</p></div>
   <div class="row"><input type="month" id="caja-mes" value="${S.cajaMes}" style="width:auto"><button class="btn primary" data-a="mov-nuevo">Nuevo movimiento</button></div></div>
-  <div class="kpis"><div class="kpi"><span class="l">Ingresos</span><span class="v">${money(tI)}</span></div><div class="kpi"><span class="l">Egresos</span><span class="v">${money(tE)}</span></div><div class="kpi"><span class="l">Saldo</span><span class="v">${money(tI - tE)}</span></div><div class="kpi"><span class="l">Días con movimiento</span><span class="v">${dias.length}</span></div></div>
+  <div class="kpis"><div class="kpi"><span class="l">Ingresos</span><span class="v">${dosMon(tI)}</span></div><div class="kpi"><span class="l">Egresos</span><span class="v">${dosMon(tE)}</span></div><div class="kpi"><span class="l">Saldo</span><span class="v">${dosMon(tS)}</span></div><div class="kpi"><span class="l">Días con movimiento</span><span class="v">${dias.length}</span></div></div>
   <div class="grid2"><section class="panel"><h2>Ingreso por día</h2><div class="tw"><table><thead><tr><th>Día</th><th style="width:40%"></th><th class="num">Ingresos</th><th class="num">Egresos</th></tr></thead><tbody>
-  ${dias.map((d) => `<tr class="click" data-dia="${d}" ${d === dia ? 'style="background:var(--accent-soft)"' : ""}><td class="num">${fecha(d)}</td><td><div class="bar" style="width:${Math.round(porDia[d].i / max * 100)}%"></div></td><td class="num">${money(porDia[d].i)}</td><td class="num">${money(porDia[d].e)}</td></tr>`).join("") || `<tr><td colspan="4"><div class="empty">Sin movimientos en ${periodo(S.cajaMes)}.</div></td></tr>`}
+  ${dias.map((d) => `<tr class="click" data-dia="${d}" ${d === dia ? 'style="background:var(--accent-soft)"' : ""}><td class="num">${fecha(d)}</td><td><div class="bar" style="width:${Math.round(ingDia(d).ars / max * 100)}%"></div></td><td class="num">${dosMon(ingDia(d))}</td><td class="num">${dosMon(egrDia(d))}</td></tr>`).join("") || `<tr><td colspan="4"><div class="empty">Sin movimientos en ${periodo(S.cajaMes)}.</div></td></tr>`}
   </tbody></table></div></section>
   <section class="panel"><div class="ph"><h2>Detalle del ${fecha(dia)}</h2><input type="date" id="caja-dia" value="${dia}" style="width:auto"></div>
-  ${Object.keys(medios).length ? `<div class="row">${Object.entries(medios).map(([k, v]) => `<span class="chip acc">${esc(k)}: ${money(v)}</span>`).join("")}</div>` : ""}
-  <div class="tw"><table><tbody>${delDia.map((m) => `<tr><td>${esc(m.concepto)}<div class="muted">${esc(m.medio)}</div></td><td class="num" style="color:var(--${m.tipo === "ingreso" ? "ok" : "bad"})">${m.tipo === "ingreso" ? "+" : "−"} ${money(m.monto)}</td><td class="num">${m.manual ? `<button class="btn small danger" data-movanular="${m.id}">Anular</button>` : ""}</td></tr>`).join("") || `<tr><td><div class="empty">Sin movimientos este día.</div></td></tr>`}</tbody></table></div>
+  ${Object.keys(medios).length ? `<div class="row">${Object.entries(medios).map(([k, v]) => `<span class="chip acc">${esc(k)}: ${money(v, k.endsWith("(US$)") ? "USD" : "ARS")}</span>`).join("")}</div>` : ""}
+  <div class="tw"><table><tbody>${delDia.map((m) => `<tr><td>${esc(m.concepto)}<div class="muted">${esc(m.medio)}</div></td><td class="num" style="color:var(--${m.tipo === "ingreso" ? "ok" : "bad"})">${m.tipo === "ingreso" ? "+" : "−"} ${money(m.monto, m.moneda)}</td><td class="num">${m.manual ? `<button class="btn small danger" data-movanular="${m.id}">Anular</button>` : ""}</td></tr>`).join("") || `<tr><td><div class="empty">Sin movimientos este día.</div></td></tr>`}</tbody></table></div>
   </section></div>`;
 }
 
@@ -437,11 +448,11 @@ function vPlanilla() {
   const c = S.contratos.get(S.pl.cid); if (!c) return `<div class="empty">Contrato no encontrado.</div>`;
   const e = S.pl.eid ? S.envios.find((x) => x.id === S.pl.eid) : null;
   const t = (k, l) => `<button data-pltab="${k}" aria-selected="${S.plTab === k}">${l}</button>`;
-  const cab = `<div class="head"><div><h1>Cobranza</h1><p><b>${esc(inq(c))}</b> · Carpeta ${c.carpeta || "—"} · ${esc(c.direccion)}</p>
+  const cab = `<div class="head"><div><h1>Cobranza</h1><p><b>${esc(inq(c))}</b> · Carpeta ${c.carpeta || "—"} · ${esc(c.direccion)}${chipUSD(c)}</p>
     <p class="muted">Paga hasta el día ${c.dia_vto || S.cfg.dia_vto} · ${S.cfg.dias_gracia} días de tolerancia · Honorarios ${comisionDe(c, S.cfg)}% · ${c.forma_pago === "dividida" ? "Transferencia dividida" : "Paga en la inmobiliaria"}</p></div>
     <div class="row"><button class="btn" data-volver>Volver</button><button class="btn" data-ficha="${c.id}">Ficha del contrato</button><button class="btn" data-liqprop="${c.propietario_id}">Liquidación de ${esc(prop(c).split(",")[0])}</button></div></div>
     ${(() => { const a = aumentoDe(c); if (!a || a.p > ymHoy()) return "";
-      return `<div class="banner aum-banner"><b>Corresponde aumento desde ${periodo(a.p)}</b> (${esc(c.indice)} cada ${c.ajuste_meses} meses) y todavía no está cargado. ${a.calc && !a.calc.error ? `Calculado: <b>${money(a.calc.nuevo)}</b> (+${String(a.calc.pct).replace(".", ",")}%${a.calc.estimado ? ", estimado" : ""}).` : ""}
+      return `<div class="banner aum-banner"><b>Corresponde aumento desde ${periodo(a.p)}</b> (${esc(c.indice)} cada ${c.ajuste_meses} meses) y todavía no está cargado. ${a.calc && !a.calc.error ? `Calculado: <b>${money(a.calc.nuevo, c)}</b> (+${String(a.calc.pct).replace(".", ",")}%${a.calc.estimado ? ", estimado" : ""}).` : ""}
         <span class="row" style="margin-top:6px">${a.calc && !a.calc.error ? `<button class="btn small primary" data-aplicaraumento="${c.id}">Aplicar aumento</button>` : ""}<button class="btn small" data-ajustar="${c.id}">Modificar</button></span></div>`; })()}
     <div class="tabs" role="tablist">${t("planilla", "Planilla de cobro")}${t("conceptos", "Conceptos fijos")}${t("envios", "Comprobantes del portal")}</div>`;
   if (S.plTab === "conceptos") return cab + vConceptosFijos(c);
@@ -457,14 +468,14 @@ function vPlanilla() {
         <td><input type="checkbox" class="pl-sel" aria-label="Cobrar este renglón" ${x.p <= hasta ? "checked" : ""}></td>
         <td class="num">${fechaPer(x.p)}</td>
         <td>${parcial ? `<span class="chip warn">Saldo s/</span> ` : ""}${esc(g.descripcion)}${g.propietario === 0 ? ' <span class="chip">No va al propietario</span>' : g.propietario === -1 ? ' <span class="chip">Resta al propietario</span>' : ""}${x.vencido && g.tipo === "alquiler" ? (x.enTolerancia ? ' <span class="chip warn">En tolerancia</span>' : ` <span class="chip bad">${x.dias} días</span>`) : ""}</td>
-        <td class="num">${money(g.saldo)}</td>
+        <td class="num">${money(g.saldo, c)}</td>
         <td><input type="number" class="pl-monto" step="0.01" min="0" max="${g.saldo}" value="${g.saldo}" aria-label="Importe a cobrar"></td>
-        <td>${g.tipo === "alquiler" ? `<input type="number" class="pl-pun" step="0.01" min="0" value="${pu}" aria-label="Punitorio" title="${x.punitorioSugerido ? "Sugerido " + money(x.punitorioSugerido) : ""}">` : `<input type="number" class="pl-pun" step="0.01" min="0" value="0" aria-label="Punitorio">`}</td>
+        <td>${g.tipo === "alquiler" ? `<input type="number" class="pl-pun" step="0.01" min="0" value="${pu}" aria-label="Punitorio" title="${x.punitorioSugerido ? "Sugerido " + money(x.punitorioSugerido, c) : ""}">` : `<input type="number" class="pl-pun" step="0.01" min="0" value="0" aria-label="Punitorio">`}</td>
         <td style="text-align:center"><input type="checkbox" class="pl-adm" aria-label="Aplica administración" ${g.admin ? "checked" : ""}></td>
         <td class="num pl-tot"></td></tr>`);
     }
   }
-  const banner = e ? `<section class="panel"><div class="ph"><div><b>Envío del portal · ${periodo(e.periodo)}</b><div class="muted">Enviado el ${fecha(e.created_at)} · declaró ${money(e.monto_propietario)} al propietario y ${money(e.monto_inmobiliaria)} a la inmobiliaria</div></div><button class="btn danger" data-rechazar="${e.id}">Rechazar</button></div>
+  const banner = e ? `<section class="panel"><div class="ph"><div><b>Envío del portal · ${periodo(e.periodo)}</b><div class="muted">Enviado el ${fecha(e.created_at)} · declaró ${money(e.monto_propietario, c)} al propietario y ${money(e.monto_inmobiliaria, c)} a la inmobiliaria</div></div><button class="btn danger" data-rechazar="${e.id}">Rechazar</button></div>
       ${e.observaciones ? `<div><span class="muted">Observaciones:</span> ${esc(e.observaciones)}</div>` : ""}
       <div class="files">${(S.archEnvio.get(e.id) || []).map((a) => `<button class="file" data-archivo="${esc(a.path)}">📄 ${esc(ETIQUETA_ARCHIVO[a.categoria])}${a.servicio ? " · " + esc(a.servicio) : ""}</button>`).join("") || `<span class="muted">Sin archivos.</span>`}</div></section>` : "";
   return cab + banner + `
@@ -487,7 +498,7 @@ function leerPlanilla() {
   const f = $("#f-planilla"); if (!f) return null;
   const items = [...f.querySelectorAll("tr[data-cargo]")].map((r) => {
     const sel = r.querySelector(".pl-sel").checked, m = r2(r.querySelector(".pl-monto").value), pu = r2(r.querySelector(".pl-pun").value), adm = r.querySelector(".pl-adm").checked;
-    r.querySelector(".pl-tot").textContent = sel ? money(m + pu) : "—"; r.classList.toggle("apagado", !sel);
+    r.querySelector(".pl-tot").textContent = sel ? money(m + pu, S.contratos.get(+f.dataset.cid)) : "—"; r.classList.toggle("apagado", !sel);
     return sel ? { cargo_id: +r.dataset.cargo, monto: m, punitorio: pu, admin: adm, propietario: +r.dataset.prop } : null;
   }).filter(Boolean);
   return { f, items, extras: leerConceptos(f) };
@@ -498,10 +509,10 @@ function planillaTotal() {
   let total = base.total, prop = base.propietario, hon = base.honorarios;
   for (const k of x.extras) { const h = k.admin ? r2(k.monto * base.pct / 100) : 0; total += k.inquilino * k.monto; prop += k.propietario * k.monto - h; hon += h; }
   const pun = x.items.reduce((s, i) => s + i.punitorio, 0);
-  $("#pl-resumen").innerHTML = `<div class="total-line"><span>Total a abonar</span><span class="mono">${money(total)}</span></div>
-    <div class="linea"><span>Incluye punitorios</span><span class="mono">${money(pun)}</span></div>
-    <div class="linea"><span>Honorarios de administración (${base.pct}%)</span><span class="mono">${money(hon)}</span></div>
-    <div class="linea"><span>Le corresponde al propietario</span><span class="mono">${money(prop)}</span></div>`;
+  $("#pl-resumen").innerHTML = `<div class="total-line"><span>Total a abonar</span><span class="mono">${money(total, c)}</span></div>
+    <div class="linea"><span>Incluye punitorios</span><span class="mono">${money(pun, c)}</span></div>
+    <div class="linea"><span>Honorarios de administración (${base.pct}%)</span><span class="mono">${money(hon, c)}</span></div>
+    <div class="linea"><span>Le corresponde al propietario</span><span class="mono">${money(prop, c)}</span></div>`;
 }
 
 function vConceptosFijos(c) {
@@ -509,7 +520,7 @@ function vConceptosFijos(c) {
   const efecto = (n) => (n === 1 ? "Suma" : n === -1 ? "Resta" : "No afecta");
   return `<section class="panel"><div class="ph"><div><h2>Conceptos extras</h2><p class="muted" style="margin:4px 0 0">Se agregan solos a la planilla todos los meses (TSG, Aysa, Expensas…). Si cambiás el importe, se actualizan los meses que todavía no se cobraron.</p></div><button class="btn primary small" data-concepto-nuevo="${c.id}">Agregar un nuevo concepto</button></div>
   <div class="tw"><table><thead><tr><th>Concepto</th><th class="num">Monto</th><th class="num">Porcentual</th><th>Adm.</th><th>Propietario</th><th>Desde</th><th>Hasta</th><th></th></tr></thead><tbody>
-  ${cs.map((k) => `<tr class="${k.activo ? "" : "apagado"}"><td>${esc(k.nombre)}${k.activo ? "" : ' <span class="chip">De baja</span>'}</td><td class="num">${+k.porcentaje > 0 ? "—" : money(k.monto)}</td><td class="num">${+k.porcentaje > 0 ? (+k.porcentaje).toLocaleString("es-AR") + "% del alquiler" : "0%"}</td><td>${k.admin ? "Sí" : "No"}</td><td>${efecto(k.propietario)}</td><td>${k.desde ? periodo(k.desde) : "—"}</td><td>${k.hasta ? periodo(k.hasta) : "—"}</td>
+  ${cs.map((k) => `<tr class="${k.activo ? "" : "apagado"}"><td>${esc(k.nombre)}${k.activo ? "" : ' <span class="chip">De baja</span>'}</td><td class="num">${+k.porcentaje > 0 ? "—" : money(k.monto, c)}</td><td class="num">${+k.porcentaje > 0 ? (+k.porcentaje).toLocaleString("es-AR") + "% del alquiler" : "0%"}</td><td>${k.admin ? "Sí" : "No"}</td><td>${efecto(k.propietario)}</td><td>${k.desde ? periodo(k.desde) : "—"}</td><td>${k.hasta ? periodo(k.hasta) : "—"}</td>
     <td class="num">${k.activo ? `<button class="btn small" data-concepto-editar="${k.id}">Editar</button> <button class="btn small danger" data-concepto-baja="${k.id}">Dar de baja</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="8"><div class="empty">Este contrato no tiene conceptos extras.</div></td></tr>`}
   </tbody></table></div></section>`;
 }
@@ -531,14 +542,14 @@ function modalConceptoFijo(cid, kid) {
 function vEnviosContrato(c) {
   const es = S.envios.filter((e) => e.contrato_id === c.id);
   return `<section class="panel"><h2>Comprobantes enviados desde el portal</h2><div class="tw"><table><thead><tr><th>Fecha</th><th>Período</th><th>Tipo</th><th class="num">Declarado</th><th>Estado</th><th></th></tr></thead><tbody>
-  ${es.map((e) => `<tr><td class="num">${fecha(e.created_at)}</td><td>${periodo(e.periodo)}</td><td>${e.tipo === "pago" ? "Pago" : "Servicios"}</td><td class="num">${e.tipo === "pago" ? money(+e.monto_propietario + +e.monto_inmobiliaria) : "—"}</td>
+  ${es.map((e) => `<tr><td class="num">${fecha(e.created_at)}</td><td>${periodo(e.periodo)}</td><td>${e.tipo === "pago" ? "Pago" : "Servicios"}</td><td class="num">${e.tipo === "pago" ? money(+e.monto_propietario + +e.monto_inmobiliaria, c) : "—"}</td>
     <td>${e.estado === "pendiente" ? `<span class="chip warn">Pendiente</span>` : e.estado === "aprobado" ? `<span class="chip ok">Aprobado</span>` : `<span class="chip bad">Rechazado</span>`}</td>
     <td class="num">${e.estado === "pendiente" && e.tipo === "pago" ? `<button class="btn small primary" data-aprobar="${e.id}">Revisar</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="6"><div class="empty">No hay envíos de los últimos meses.</div></td></tr>`}
   </tbody></table></div><div id="docs-planilla" class="files"><span class="muted">Cargando documentos…</span></div></section>`;
 }
 
 /* ================= planilla de liquidación por propietario ================= */
-function abrirLiqProp(pid) { S.lp = +pid; S.view = "liqprop"; cerrarModal(); render(); scrollTo(0, 0); }
+function abrirLiqProp(pid, mon) { S.lp = +pid; S.lpMon = mon || null; S.view = "liqprop"; cerrarModal(); render(); scrollTo(0, 0); }
 function itemsPendientes(pid) {
   return S.items.filter((i) => { const c = S.contratos.get(i.contrato_id), p = S.pagosById.get(i.pago_id);
     return c && c.propietario_id === pid && p && !p.anulado && p.modalidad === "inmobiliaria"; })
@@ -546,16 +557,21 @@ function itemsPendientes(pid) {
 }
 const adelantosPendientes = (pid) => S.adel.filter((a) => a.propietario_id === pid && !a.liquidacion_id && !a.anulado);
 function vLiqProp() {
-  const pid = S.lp, per = P(pid), its = itemsPendientes(pid), ads = adelantosPendientes(pid);
+  // pesos y dólares se liquidan por separado: si el propietario tiene de las dos, se elige cuál
+  const pid = S.lp, per = P(pid), todos = itemsPendientes(pid), monDe = (i) => (esUSD(S.contratos.get(i.contrato_id)) ? "USD" : "ARS");
+  const hayUSD = todos.some((i) => monDe(i) === "USD"), hayARS = todos.some((i) => monDe(i) === "ARS") || adelantosPendientes(pid).length;
+  const mon = S.lpMon && ((S.lpMon === "USD" && hayUSD) || (S.lpMon === "ARS" && hayARS)) ? S.lpMon : hayARS ? "ARS" : hayUSD ? "USD" : "ARS";
+  const its = todos.filter((i) => monDe(i) === mon), ads = mon === "ARS" ? adelantosPendientes(pid) : [];
   return `<div class="head"><div><h1>Liquidación</h1><p><b>${esc(per.nombre)}</b>${per.alias || per.cbu ? ` · ${esc(per.alias || per.cbu)}` : " · sin datos bancarios cargados"}</p></div>
     <div class="row"><button class="btn" data-volver>Volver</button><button class="btn" data-persona="${pid}">Datos del propietario</button><button class="btn" data-adelanto="${pid}">Adelantar pago (a cuenta)</button></div></div>
-  <form id="f-liqprop" class="panel" data-pid="${pid}">
+  ${hayUSD && hayARS ? `<div class="row"><div class="seg"><button data-lpmon="ARS" aria-pressed="${mon === "ARS"}">Alquileres en pesos</button><button data-lpmon="USD" aria-pressed="${mon === "USD"}">Alquileres en dólares</button></div><span class="muted">Se hace una liquidación para cada moneda.</span></div>` : mon === "USD" ? `<div class="banner">Alquileres en dólares: la liquidación sale en US$.</div>` : ""}
+  <form id="f-liqprop" class="panel" data-pid="${pid}" data-mon="${mon}">
     <label class="check"><input type="checkbox" id="lp-todos" checked> Seleccionar todos</label>
     <div class="tw"><table class="planilla"><thead><tr><th></th><th>Cuenta</th><th>Fecha</th><th>Descripción</th><th class="num">Monto</th><th class="num">Punitorios</th><th class="num">Administración</th><th class="num">Total</th></tr></thead><tbody>
     ${its.map((i) => { const c = S.contratos.get(i.contrato_id), p = S.pagosById.get(i.pago_id);
       return `<tr data-item="${i.id}" data-neto="${i.neto_propietario}" data-hon="${i.honorarios}"><td><input type="checkbox" class="lp-sel" checked aria-label="Liquidar este renglón"></td><td>Liquidación</td><td class="num">${fecha(p.fecha)}</td>
       <td><span class="acc-t">${esc(c.direccion)}</span><div class="muted">Inquilino: ${esc(inq(c))} · Carpeta: ${c.carpeta || "—"} · Honorarios: ${+i.comision_pct ? +i.comision_pct + "%" : "0"} · Rec. ${pad5(p.recibo_nro)}</div>${esc(i.descripcion)}</td>
-      <td class="num">${money(i.propietario * i.monto)}</td><td class="num">${money(i.propietario * i.punitorio)}</td><td class="num">− ${money(i.honorarios)}</td><td class="num"><b>${money(i.neto_propietario)}</b></td></tr>`; }).join("")}
+      <td class="num">${money(i.propietario * i.monto, c)}</td><td class="num">${money(i.propietario * i.punitorio, c)}</td><td class="num">− ${money(i.honorarios, c)}</td><td class="num"><b>${money(i.neto_propietario, c)}</b></td></tr>`; }).join("")}
     ${ads.map((a) => `<tr data-adel="${a.id}" data-neto="${-a.monto}" data-hon="0"><td><input type="checkbox" class="lp-sel" checked aria-label="Descontar este adelanto"></td><td>Liquidación</td><td class="num">${fecha(a.fecha)}</td><td>${esc(a.concepto)} <span class="chip">Adelanto</span></td><td></td><td></td><td></td><td class="num"><b>${money(-a.monto)}</b></td></tr>`).join("")}
     ${!its.length && !ads.length ? `<tr><td colspan="8"><div class="empty">No hay renglones pendientes de liquidar para este propietario.</div></td></tr>` : ""}
     </tbody></table></div>
@@ -584,7 +600,7 @@ function leerLiqProp() {
   return { f, items: sel.filter((r) => r.dataset.item).map((r) => +r.dataset.item), adel: sel.filter((r) => r.dataset.adel).map((r) => +r.dataset.adel),
     neto: r2(sel.reduce((s, r) => s + +r.dataset.neto, 0) + part.reduce((s, x) => s + x.signo * x.monto, 0)), hon: r2(sel.reduce((s, r) => s + +r.dataset.hon, 0)), part };
 }
-function liqPropTotal() { const x = leerLiqProp(); if (!x) return; $("#lp-resumen").innerHTML = `<div class="linea"><span>Administración descontada</span><span class="mono">${money(x.hon)}</span></div><div class="total-line"><span>Total a liquidar</span><span class="mono">${money(x.neto)}</span></div>`; }
+function liqPropTotal() { const x = leerLiqProp(); if (!x) return; $("#lp-resumen").innerHTML = `<div class="linea"><span>Administración descontada</span><span class="mono">${money(x.hon, x.f.dataset.mon)}</span></div><div class="total-line"><span>Total a liquidar</span><span class="mono">${money(x.neto, x.f.dataset.mon)}</span></div>`; }
 
 
 /* ================= alta rápida de contratos (y renovación) ================= */
@@ -604,7 +620,7 @@ function abrirRenovacion(cid) {
   const meses = Math.max(1, Math.round((new Date(c.fin) - new Date(c.inicio)) / (30.44 * 864e5)));
   const ini = isoMas(c.fin, 0, 1);
   abrirNuevo({ renovacion_de: c.id, direccion: c.direccion, carpeta: c.carpeta, inquilino_id: c.inquilino_id, propietario_id: c.propietario_id,
-    inicio: ini, duracion: [12, 24, 36].includes(meses) ? meses : "otra", fin: isoMas(ini, meses, -1), monto_base: montoEn(c, ajDe(c), ymDe(c.fin)), deposito: c.deposito,
+    inicio: ini, duracion: [12, 24, 36].includes(meses) ? meses : "otra", fin: isoMas(ini, meses, -1), monto_base: montoEn(c, ajDe(c), ymDe(c.fin)), deposito: c.deposito, moneda: c.moneda,
     indice: c.indice, ajuste_meses: c.ajuste_meses, forma_pago: c.forma_pago, comision: c.comision ?? "", dia_vto: c.dia_vto ?? "",
     conceptos: (S.cf.get(c.id) || []).filter((k) => k.activo).map((k) => ({ nombre: k.nombre, monto: k.monto, porcentaje: k.porcentaje, admin: k.admin, propietario: k.propietario })) });
 }
@@ -649,6 +665,7 @@ function vNuevo() {
       <label>Duración<select id="nc-duracion" name="duracion">${[12, 24, 36].map((m) => `<option value="${m}" ${+n.duracion === m ? "selected" : ""}>${m} meses</option>`).join("")}<option value="otra" ${n.duracion === "otra" ? "selected" : ""}>Otra (elegí el fin)</option></select></label>
       <label>Fin<input type="date" id="nc-fin" name="fin" value="${esc(n.fin)}" required></label>
       <label>Se paga hasta el día<input type="number" min="1" max="28" id="nc-diavto" name="dia_vto" value="${esc(n.dia_vto)}" placeholder="${S.cfg.dia_vto}"></label>
+      <label>Moneda<select id="nc-moneda" name="moneda"><option value="ARS">Pesos</option><option value="USD" ${n.moneda === "USD" ? "selected" : ""}>Dólares (US$)</option></select></label>
       <label>Alquiler inicial<input type="number" step="0.01" min="0" id="nc-monto" name="monto_base" value="${esc(n.monto_base || "")}" required></label>
       <label>Depósito <button type="button" class="link" data-deposito-igual>= 1 mes</button><input type="number" step="0.01" min="0" id="nc-deposito" name="deposito" value="${esc(n.deposito || "")}"></label>
       <label>Índice<select id="nc-indice" name="indice">${Object.keys(AJUSTE_DEF).map((i) => `<option ${n.indice === i ? "selected" : ""}>${i}</option>`).join("")}</select></label>
@@ -677,10 +694,10 @@ function nuevoResumen() {
   for (const t of ["inquilino", "propietario"]) { const nuevo = !idPersonaDesdeTexto(v[t] || "", t) && (v[t] || "").trim(); const box = $(`#nc-${t}-nuevo`); if (box) box.hidden = !nuevo; }
   $("#nc-resumen").innerHTML = `<dl class="dl" style="grid-template-columns:minmax(0,1fr)">
     <div><dt>Duración</dt><dd>${meses} cuotas · ${fecha(ini)} al ${fecha(fin)}</dd></div>
-    <div><dt>Primer mes</dt><dd class="mono">${money(monto + conc.reduce((s, x) => s + x.m, 0))}</dd><dd class="muted">Alquiler ${money(monto)}${conc.map((x) => ` + ${esc(x.n)} ${money(x.m)}`).join("")}</dd></div>
+    <div><dt>Primer mes</dt><dd class="mono">${money(monto + conc.reduce((s, x) => s + x.m, 0), v.moneda)}</dd><dd class="muted">Alquiler ${money(monto, v.moneda)}${conc.map((x) => ` + ${esc(x.n)} ${money(x.m, v.moneda)}`).join("")}</dd></div>
     <div><dt>Ajuste</dt><dd>${esc(v.indice)} cada ${v.ajuste_meses || "?"} meses · primero en ${periodo(prim)}</dd></div>
-    <div><dt>Honorarios</dt><dd>${pct}% · ${money(monto * pct / 100)} por mes</dd></div>
-    <div><dt>Depósito</dt><dd class="mono">${money(v.deposito)}</dd></div></dl>`;
+    <div><dt>Honorarios</dt><dd>${pct}% · ${money(monto * pct / 100, v.moneda)} por mes</dd></div>
+    <div><dt>Depósito</dt><dd class="mono">${money(v.deposito, v.moneda)}</dd></div></dl>`;
 }
 function nuevoDireccionCambio() {
   const f = $("#f-nuevo"); const dir = f.direccion.value.trim().toLowerCase(); if (!dir) return;
@@ -704,6 +721,7 @@ async function guardarNuevo(f, modo) {
       propietario: r.querySelector('[data-c="propietario"]').value, admin: r.querySelector('[data-c="admin"]').checked })) };
   const id = await rpc("crear_contrato", { p }, S.nc.renovacion_de ? "Renovación guardada" : "Contrato guardado");
   if (!id) return;
+  if (v.moneda === "USD") { const { error } = await sb.from("contratos").update({ moneda: "USD" }).eq("id", id); if (error) toast("No se pudo marcar el contrato en dólares: " + mensajeError(error), "bad"); }
   await cargarTodo();
   if (S.ncArchivo) { await guardarArchivoContrato(id); await cargarTodo(); }
   if (modo === "otro") abrirNuevo(); else { S.view = "contratos"; render(); fichaTab = "cuenta"; await abrirFicha(id); }
@@ -814,20 +832,20 @@ async function abrirFicha(id) {
   const tab = (k, l) => `<button data-fichatab="${k}" data-id="${c.id}" aria-selected="${fichaTab === k}">${l}</button>`;
   let cuerpo = "";
   if (fichaTab === "cuenta") {
-    cuerpo = `<h2>Períodos pendientes</h2>${d.length ? `<div class="tw"><table><thead><tr><th>Período</th><th>Vence</th><th class="num">Saldo</th><th class="num">Punitorio</th><th></th></tr></thead><tbody>${d.map((x) => `<tr><td>${periodo(x.p)}</td><td class="num">${fecha(x.vto)}</td><td class="num">${money(x.saldo)}</td><td class="num">${x.bonificado ? `${money(x.punitorio)} <span class="chip ok">Bonificado</span>` : x.punitorio ? money(x.punitorio) : x.enTolerancia ? `<span class="chip warn">En tolerancia</span>` : "—"}</td>
+    cuerpo = `<h2>Períodos pendientes</h2>${d.length ? `<div class="tw"><table><thead><tr><th>Período</th><th>Vence</th><th class="num">Saldo</th><th class="num">Punitorio</th><th></th></tr></thead><tbody>${d.map((x) => `<tr><td>${periodo(x.p)}</td><td class="num">${fecha(x.vto)}</td><td class="num">${money(x.saldo, c)}</td><td class="num">${x.bonificado ? `${money(x.punitorio, c)} <span class="chip ok">Bonificado</span>` : x.punitorio ? money(x.punitorio, c) : x.enTolerancia ? `<span class="chip warn">En tolerancia</span>` : "—"}</td>
       <td class="num">${x.bonificado ? `<button class="btn small" data-desbonificar="${c.id}|${x.p}">Quitar bonificación</button>` : x.punitorio ? `<button class="btn small" data-bonificar="${c.id}|${x.p}">Bonificar punitorio</button>` : ""}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">Al día.</div>`}
-      <h2>Cobros</h2>${pagos.length ? `<div class="tw"><table><thead><tr><th>Recibo</th><th>Fecha</th><th>Período</th><th>Forma</th><th class="num">Total</th><th></th></tr></thead><tbody>${pagos.map((p) => `<tr><td class="mono">${pad5(p.recibo_nro)}</td><td class="num">${fecha(p.fecha)}</td><td>${periodo(p.periodo)}</td><td>${p.modalidad === "dividida" ? "Dividida" : esc(p.medio)}</td><td class="num">${money(p.total)}</td><td class="num">${p.anulado ? `<span class="chip bad">Anulado</span>` : `${p.liquidacion_id ? `<span class="chip ok">Liquidado</span>` : ""} <button class="btn small" data-recibo="${p.id}">Recibo</button> <button class="btn small danger" data-anularpago="${p.id}">Anular</button>`}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">Sin cobros registrados.</div>`}
+      <h2>Cobros</h2>${pagos.length ? `<div class="tw"><table><thead><tr><th>Recibo</th><th>Fecha</th><th>Período</th><th>Forma</th><th class="num">Total</th><th></th></tr></thead><tbody>${pagos.map((p) => `<tr><td class="mono">${pad5(p.recibo_nro)}</td><td class="num">${fecha(p.fecha)}</td><td>${periodo(p.periodo)}</td><td>${p.modalidad === "dividida" ? "Dividida" : esc(p.medio)}</td><td class="num">${money(p.total, c)}</td><td class="num">${p.anulado ? `<span class="chip bad">Anulado</span>` : `${p.liquidacion_id ? `<span class="chip ok">Liquidado</span>` : ""} <button class="btn small" data-recibo="${p.id}">Recibo</button> <button class="btn small danger" data-anularpago="${p.id}">Anular</button>`}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">Sin cobros registrados.</div>`}
       <h2>Documentos</h2><div id="docs-ficha" class="files"><span class="muted">Cargando…</span></div>`;
   } else if (fichaTab === "ajustes") {
     cuerpo = `<div class="row"><span>Ajusta por <b>${esc(c.indice)}</b> cada <b>${c.ajuste_meses} meses</b>.</span>${c.ajuste_revisar ? `<span class="chip warn">Periodicidad sin confirmar</span>` : ""}${pa ? `<span class="chip acc">Próximo: ${periodo(pa)}</span> <button class="btn small primary" data-ajustar="${c.id}">Aplicar ajuste</button>` : ""}</div>
     <div class="tw"><table><thead><tr><th>Desde</th><th class="num">Anterior</th><th class="num">%</th><th class="num">Nuevo alquiler</th><th>Cargado</th><th></th></tr></thead><tbody>
-    <tr><td>Monto base${c.origen === "SPOT" ? " (importado de SPOT)" : ""}</td><td></td><td></td><td class="num">${money(c.monto_base)}</td><td></td><td></td></tr>
-    ${aj.map((a) => `<tr><td>${periodo(a.desde)}</td><td class="num">${money(a.monto_anterior)}</td><td class="num">${a.pct != null ? (+a.pct).toFixed(2) + "%" : "—"}</td><td class="num">${money(a.monto)}</td><td class="num">${fecha(a.created_at)}</td><td class="num"><button class="btn small danger" data-anularajuste="${a.id}">Anular</button></td></tr>`).join("")}</tbody></table></div>`;
+    <tr><td>Monto base${c.origen === "SPOT" ? " (importado de SPOT)" : ""}</td><td></td><td></td><td class="num">${money(c.monto_base, c)}</td><td></td><td></td></tr>
+    ${aj.map((a) => `<tr><td>${periodo(a.desde)}</td><td class="num">${money(a.monto_anterior, c)}</td><td class="num">${a.pct != null ? (+a.pct).toFixed(2) + "%" : "—"}</td><td class="num">${money(a.monto, c)}</td><td class="num">${fecha(a.created_at)}</td><td class="num"><button class="btn small danger" data-anularajuste="${a.id}">Anular</button></td></tr>`).join("")}</tbody></table></div>`;
   } else cuerpo = formContrato(c);
   abrirModal(`<div class="mh"><div><h2>${esc(c.direccion)}</h2><div class="row muted">${c.carpeta ? `Carpeta ${c.carpeta} ·` : ""} ${fecha(c.inicio)} al ${fecha(c.fin)} ${chipEstado(c)}</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
   <dl class="dl">
-    <div><dt>Inquilino</dt><dd><button class="link" data-persona="${pi.id}">${esc(pi.nombre)}</button> ${pi.user_id ? `<span class="chip ok">Portal</span>` : ""}</dd></div><div><dt>Celular</dt><dd class="mono">${esc(pi.telefono || "—")}</dd></div><div><dt>Alquiler ${periodo(ymHoy())}</dt><dd class="mono">${money(montoHoy(c))}</dd></div>
-    <div><dt>Propietario</dt><dd><button class="link" data-persona="${pp.id}">${esc(pp.nombre)}</button> ${pp.user_id ? `<span class="chip ok">Portal</span>` : ""}</dd></div><div><dt>Celular</dt><dd class="mono">${esc(pp.telefono || "—")}</dd></div><div><dt>Depósito</dt><dd class="mono">${money(c.deposito)}</dd></div>
+    <div><dt>Inquilino</dt><dd><button class="link" data-persona="${pi.id}">${esc(pi.nombre)}</button> ${pi.user_id ? `<span class="chip ok">Portal</span>` : ""}</dd></div><div><dt>Celular</dt><dd class="mono">${esc(pi.telefono || "—")}</dd></div><div><dt>Alquiler ${periodo(ymHoy())}</dt><dd class="mono">${money(montoHoy(c), c)}</dd></div>
+    <div><dt>Propietario</dt><dd><button class="link" data-persona="${pp.id}">${esc(pp.nombre)}</button> ${pp.user_id ? `<span class="chip ok">Portal</span>` : ""}</dd></div><div><dt>Celular</dt><dd class="mono">${esc(pp.telefono || "—")}</dd></div><div><dt>Depósito</dt><dd class="mono">${money(c.deposito, c)}</dd></div>
     <div><dt>Forma de pago</dt><dd>${c.forma_pago === "dividida" ? "Transferencia dividida" : "En la inmobiliaria"}</dd></div><div><dt>Honorarios</dt><dd>${comisionDe(c, S.cfg)}%</dd></div><div><dt>Índice</dt><dd>${esc(c.indice)} cada ${c.ajuste_meses} meses</dd></div>
   </dl>
   <div class="row"><button class="btn primary" data-cobrar="${c.id}">Cobrar en oficina</button>${wa(pi.telefono) ? `<a class="btn" href="${wa(pi.telefono)}" target="_blank" rel="noopener">WhatsApp inquilino</a>` : ""}${wa(pp.telefono) ? `<a class="btn" href="${wa(pp.telefono)}" target="_blank" rel="noopener">WhatsApp propietario</a>` : ""}</div>
@@ -852,6 +870,7 @@ function formContrato(c) {
     <datalist id="dl-inq">${opcionesPersonas("inquilino")}</datalist><datalist id="dl-prop">${opcionesPersonas("propietario")}</datalist>
     <label>Inicio<input type="date" id="fc-inicio" name="inicio" value="${esc(c.inicio || "")}" required></label>
     <label>Fin<input type="date" id="fc-fin" name="fin" value="${esc(c.fin || "")}" required></label>
+    <label>Moneda<select id="fc-moneda" name="moneda"><option value="ARS">Pesos</option><option value="USD" ${c.moneda === "USD" ? "selected" : ""}>Dólares (US$)</option></select></label>
     <label>${nuevo ? "Alquiler inicial" : "Alquiler base"}<input type="number" step="0.01" id="fc-monto" name="monto_base" value="${esc(c.monto_base || "")}" required></label>
     <label>Depósito<input type="number" step="0.01" id="fc-deposito" name="deposito" value="${esc(c.deposito || "")}"></label>
     <label>Índice<select id="fc-indice" name="indice">${["ICL", "IPC", "Casa Propia", "CAC", "UVA", "RIPTE", "Fijo"].map((i) => `<option ${c.indice === i ? "selected" : ""}>${i}</option>`).join("")}</select></label>
@@ -923,8 +942,8 @@ function vContrato() {
   const per = periodosDe(c, c.inicio, cuotas, c.ajuste_meses, c.ajuste_desde);
   const sal = deudaDe(c).reduce((s, x) => s + x.saldo, 0);
   return `<form id="f-ct" data-id="${c.id}" class="ct">
-  <div class="head"><div><h1>${c.carpeta ? `<span class="muted">Carpeta ${c.carpeta} ·</span> ` : ""}${esc(c.direccion)}</h1>
-    <p>${chipEstado(c)} ${c.renovacion_de ? '<span class="chip">Renovación</span>' : ""} Alquiler actual <b class="mono">${money(montoHoy(c))}</b> · Saldo pendiente <b class="mono" ${sal ? 'style="color:var(--bad)"' : ""}>${money(sal)}</b></p></div>
+  <div class="head"><div><h1>${c.carpeta ? `<span class="muted">Carpeta ${c.carpeta} ·</span> ` : ""}${esc(c.direccion)}${chipUSD(c)}</h1>
+    <p>${chipEstado(c)} ${c.renovacion_de ? '<span class="chip">Renovación</span>' : ""} Alquiler actual <b class="mono">${money(montoHoy(c), c)}</b> · Saldo pendiente <b class="mono" ${sal ? 'style="color:var(--bad)"' : ""}>${money(sal, c)}</b></p></div>
     <div class="muted">Fecha de alta ${fecha(String(c.created_at || "").slice(0, 10))}</div></div>
 
   <section class="panel"><div class="form">
@@ -959,6 +978,7 @@ function vContrato() {
     <label>Se paga hasta el día<input type="number" min="1" max="28" name="dia_vto" value="${esc(c.dia_vto || "")}" placeholder="${S.cfg.dia_vto} (general)"></label>
     <label>Honorarios de administración (%)<input type="number" step="0.01" name="comision" value="${esc(c.comision ?? "")}" placeholder="${S.cfg.comision} (general)"></label>
     <label>Depósito<input type="number" step="0.01" name="deposito" value="${esc(c.deposito || "")}"></label>
+    <label>Moneda del contrato<select name="moneda"><option value="ARS">Pesos</option><option value="USD" ${c.moneda === "USD" ? "selected" : ""}>Dólares (US$)</option></select></label>
     <label>Forma de pago<select name="forma_pago"><option value="inmobiliaria" ${c.forma_pago === "inmobiliaria" ? "selected" : ""}>Paga en la inmobiliaria</option><option value="dividida" ${c.forma_pago === "dividida" ? "selected" : ""}>Transferencia dividida (propietario + honorarios)</option></select></label>
     <label class="full">Notas<textarea name="notas" rows="2">${esc(c.notas || "")}</textarea></label>
   </div>${c.rescindido ? `<div class="banner">Rescindido desde ${periodo(c.rescision_desde)}${c.rescision_motivo ? " · " + esc(c.rescision_motivo) : ""}</div>` : ""}</section>
@@ -1003,7 +1023,7 @@ async function guardarContrato(f, v) {
   const inqId = idPersonaDesdeTexto(v.inquilino, "inquilino"), propId = idPersonaDesdeTexto(v.propietario, "propietario");
   if (!inqId || !propId) { toast("Elegí el inquilino y el propietario de la lista (para uno nuevo usá Inquilinos y propietarios).", "bad"); return; }
   const fin = finDesdeCuotas(v.inicio, +v.cuotas);
-  const data = { carpeta: +v.carpeta || 0, direccion: v.direccion.trim(), inicio: v.inicio, fin, monto_base: r2(v.monto1), deposito: r2(v.deposito),
+  const data = { carpeta: +v.carpeta || 0, direccion: v.direccion.trim(), inicio: v.inicio, fin, monto_base: r2(v.monto1), deposito: r2(v.deposito), moneda: v.moneda === "USD" ? "USD" : "ARS",
     indice: v.indice, ajuste_meses: +v.ajuste_meses || 12, ajuste_revisar: false, forma_pago: v.forma_pago, comision: v.comision === "" ? null : +v.comision,
     dia_vto: v.dia_vto ? +v.dia_vto : null, notas: (v.notas || "").trim() || null, inquilino_id: inqId, propietario_id: propId,
     ajuste_desde: v.ajuste_desde && v.ajuste_desde !== ymSumar(ymDe(v.inicio), +v.ajuste_meses || 12) ? v.ajuste_desde : null };
@@ -1031,7 +1051,7 @@ function modalCobro(id) {
   const opts = d.map((x) => x.p); for (const p of [cur, ymSumar(cur, 1)]) if (!opts.includes(p) && p <= ymDe(c.fin) && p >= ymDe(c.inicio)) opts.push(p);
   abrirModal(`<div class="mh"><div><h2>Cobrar en oficina</h2><div class="muted">${esc(inq(c))} · ${esc(c.direccion)}</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
   <form class="form" id="f-cobro" data-id="${c.id}">
-    <label>Período<select id="co-periodo" name="periodo">${opts.map((p) => { const x = d.find((y) => y.p === p); return `<option value="${p}">${periodo(p)}${x ? " · debe " + money(x.saldo) : ""}</option>`; }).join("")}</select></label>
+    <label>Período<select id="co-periodo" name="periodo">${opts.map((p) => { const x = d.find((y) => y.p === p); return `<option value="${p}">${periodo(p)}${x ? " · debe " + money(x.saldo, c) : ""}</option>`; }).join("")}</select></label>
     <label>Fecha de cobro<input type="date" id="co-fecha" name="fecha" value="${isoHoy()}" required></label>
     <label>Alquiler<input type="number" step="0.01" id="co-alquiler" name="alquiler" required></label>
     <label>Punitorio <span id="co-punit-ayuda"></span><input type="number" step="0.01" id="co-punitorio" name="punitorio" value="0"></label>
@@ -1048,7 +1068,7 @@ function cobroPeriodo() {
   const x = deudaDe(c).find((y) => y.p === f.periodo.value);
   f.alquiler.value = x ? x.saldo : montoEn(c, ajDe(c), f.periodo.value);
   f.punitorio.value = x ? x.punitorio : 0;
-  $("#co-punit-ayuda").textContent = x && x.punitorioSugerido ? `(sugerido ${money(x.punitorioSugerido)} por ${x.dias} días; 0 para bonificar)` : x && x.enTolerancia ? "(en tolerancia)" : "";
+  $("#co-punit-ayuda").textContent = x && x.punitorioSugerido ? `(sugerido ${money(x.punitorioSugerido, c)} por ${x.dias} días; 0 para bonificar)` : x && x.enTolerancia ? "(en tolerancia)" : "";
   cobroTotal();
 }
 function cobroTotal() { const f = $("#f-cobro"); if (f) $("#co-resumen").innerHTML = resumenCobro(f, S.contratos.get(+f.dataset.id)); }
@@ -1086,9 +1106,9 @@ function calcularCobro(f, c) {
 }
 function resumenCobro(f, c) {
   const x = calcularCobro(f, c);
-  return `<div class="total-line"><span>Total a cobrar al inquilino</span><span class="mono">${money(x.total)}</span></div>
-    <div class="linea"><span>Honorarios de administración (${x.pct}%)</span><span class="mono">${money(x.hon)}</span></div>
-    <div class="linea"><span>Le corresponde al propietario</span><span class="mono">${money(x.neto)}</span></div>`;
+  return `<div class="total-line"><span>Total a cobrar al inquilino</span><span class="mono">${money(x.total, c)}</span></div>
+    <div class="linea"><span>Honorarios de administración (${x.pct}%)</span><span class="mono">${money(x.hon, c)}</span></div>
+    <div class="linea"><span>Le corresponde al propietario</span><span class="mono">${money(x.neto, c)}</span></div>`;
 }
 
 function modalAprobar(eid) {
@@ -1102,7 +1122,7 @@ function modalAprobar(eid) {
   abrirModal(`<div class="mh"><div><h2>Aprobar pago</h2><div class="muted">${esc(inq(c))} · ${esc(c.direccion)} · ${periodo(e.periodo)}</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
   <form class="form" id="f-aprobar" data-id="${e.id}">
     <label>Alquiler<input type="number" step="0.01" id="ap-alquiler" name="alquiler" value="${alq}" required></label>
-    <label>Punitorio ${d && d.punitorioSugerido ? `(sugerido ${money(d.punitorioSugerido)}; 0 = bonificado)` : ""}<input type="number" step="0.01" id="ap-punitorio" name="punitorio" value="${pun}"></label>
+    <label>Punitorio ${d && d.punitorioSugerido ? `(sugerido ${money(d.punitorioSugerido, c)}; 0 = bonificado)` : ""}<input type="number" step="0.01" id="ap-punitorio" name="punitorio" value="${pun}"></label>
     <label>Fecha del pago<input type="date" id="ap-fecha" name="fecha" value="${ymDe(e.created_at) ? e.created_at.slice(0, 10) : isoHoy()}"></label>
     <label>Observaciones para el recibo<input type="text" id="ap-obs" name="obs" value="${esc(e.observaciones || "")}"></label>
     ${bloqueConceptos("ap")}
@@ -1126,18 +1146,18 @@ function modalRecibo(pid) {
   const i = P(c.inquilino_id);
   abrirModal(`<div class="mh"><h2>Recibo ${pad5(p.recibo_nro)}</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
   <div class="recibo"><div class="rt"><div><b>${esc(S.cfg.nombre)}</b><div class="muted">${esc(S.cfg.domicilio)}</div></div><div class="num"><b>N° ${pad5(p.recibo_nro)}</b><div class="muted">${fecha(p.fecha)}</div></div></div>
-  <p>Recibimos de <b>${esc(i.nombre)}</b> la suma de <b>${money(p.total)}</b> en concepto de alquiler del período <b>${periodo(p.periodo)}</b> de <b>${esc(c.direccion)}</b>.</p>
-  <div class="tw"><table><tbody>${Array.isArray(p.detalle) && p.detalle.length ? "" : `<tr><td>Alquiler</td><td class="num">${money(p.alquiler)}</td></tr>${+p.punitorio ? `<tr><td>Punitorios</td><td class="num">${money(p.punitorio)}</td></tr>` : ""}`}${filasConceptos(p)}<tr><td><b>Total</b> · ${esc(p.medio)}</td><td class="num"><b>${money(p.total)}</b></td></tr></tbody></table></div>
+  <p>Recibimos de <b>${esc(i.nombre)}</b> la suma de <b>${money(p.total, c)}</b> en concepto de alquiler del período <b>${periodo(p.periodo)}</b> de <b>${esc(c.direccion)}</b>.</p>
+  <div class="tw"><table><tbody>${Array.isArray(p.detalle) && p.detalle.length ? "" : `<tr><td>Alquiler</td><td class="num">${money(p.alquiler, c)}</td></tr>${+p.punitorio ? `<tr><td>Punitorios</td><td class="num">${money(p.punitorio, c)}</td></tr>` : ""}`}${filasConceptos(p, c)}<tr><td><b>Total</b> · ${esc(p.medio)}</td><td class="num"><b>${money(p.total, c)}</b></td></tr></tbody></table></div>
   ${p.anulado ? `<span class="chip bad">Anulado</span>` : ""}</div>
   <div class="row">${p.token ? `<a class="btn primary" href="${esc(waMensaje(i.telefono, msgRecibo(p, c)))}" target="_blank" rel="noopener">Enviar link por WhatsApp${i.telefono ? "" : " (elegir contacto)"}</a><button class="btn" data-recibotxt="${p.id}">Copiar mensaje con link</button>` : ""}<button class="btn" data-recibopdf="${p.id}">Descargar PDF</button></div>
   <p class="muted" style="margin:0">Con el link, el inquilino ve y descarga el recibo cuando quiera, sin cuenta y sin que ustedes tengan que mandar archivos. ${p.token ? `<button class="link" data-abrirlink="${esc(linkComprobante(p.token))}">Ver cómo lo ve el inquilino</button>` : ""}</p>`);
 }
-function filasConceptos(p) {
+function filasConceptos(p, c) {
   const det = Array.isArray(p.detalle) && p.detalle.length ? p.detalle : null;
-  if (det) return det.map((k) => `<tr><td>${esc(k.concepto)}${k.inquilino < 0 ? ' <span class="muted">(se descuenta)</span>' : ""}</td><td class="num">${k.inquilino < 0 ? "− " : ""}${money(k.monto)}</td></tr>${+k.punitorio ? `<tr><td class="muted">&nbsp;&nbsp;Punitorios</td><td class="num">${money(k.punitorio)}</td></tr>` : ""}`).join("");
+  if (det) return det.map((k) => `<tr><td>${esc(k.concepto)}${k.inquilino < 0 ? ' <span class="muted">(se descuenta)</span>' : ""}</td><td class="num">${k.inquilino < 0 ? "− " : ""}${money(k.monto, c)}</td></tr>${+k.punitorio ? `<tr><td class="muted">&nbsp;&nbsp;Punitorios</td><td class="num">${money(k.punitorio, c)}</td></tr>` : ""}`).join("");
   const cs = Array.isArray(p.conceptos) ? p.conceptos : [];
-  if (!cs.length) return +p.otros ? `<tr><td>${esc(p.otros_detalle || "Otros")}</td><td class="num">${money(p.otros)}</td></tr>` : "";
-  return cs.map((k) => `<tr><td>${esc(k.concepto)}${k.inquilino < 0 ? ' <span class="muted">(se descuenta)</span>' : ""}</td><td class="num">${k.inquilino < 0 ? "− " : ""}${money(k.monto)}</td></tr>`).join("");
+  if (!cs.length) return +p.otros ? `<tr><td>${esc(p.otros_detalle || "Otros")}</td><td class="num">${money(p.otros, c)}</td></tr>` : "";
+  return cs.map((k) => `<tr><td>${esc(k.concepto)}${k.inquilino < 0 ? ' <span class="muted">(se descuenta)</span>' : ""}</td><td class="num">${k.inquilino < 0 ? "− " : ""}${money(k.monto, c)}</td></tr>`).join("");
 }
 function buscarPago(pid) { for (const [cid, l] of S.pg) { const f = l.find((x) => x.id === +pid); if (f) return { p: f, c: S.contratos.get(cid) }; } return {}; }
 
@@ -1147,7 +1167,7 @@ function modalAjuste(id) {
   abrirModal(`<div class="mh"><div><h2>Aplicar ajuste</h2><div class="muted">${esc(c.direccion)} · ${esc(c.indice)} cada ${c.ajuste_meses} meses</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
   <form class="form" id="f-ajuste" data-id="${c.id}" data-ant="${ant}">
     <label>Rige desde<input type="month" id="aj-desde" name="desde" value="${p}" required></label>
-    <label>Alquiler anterior<input type="text" value="${money(ant)}" disabled id="aj-ant"></label>
+    <label>Alquiler anterior<input type="text" value="${money(ant, c)}" disabled id="aj-ant"></label>
     <label>Variación del índice (%)<input type="number" step="0.0001" id="aj-pct" name="pct" value="${ok ? a.calc.pct : ""}" autofocus></label>
     <label>Nuevo alquiler<input type="number" step="0.01" id="aj-monto" name="monto" value="${ok ? a.calc.nuevo : ""}" required></label>
     ${ok ? `<p class="full muted" style="margin:0">Calculado con ${esc(a.calc.detalle)}${a.calc.estimado ? " (estimado)" : ""}. Podés modificar el % o el monto (por ejemplo para redondear).</p>` : a?.calc?.error ? `<p class="full muted" style="margin:0">${esc(a.calc.error)}: cargá el % o el monto.</p>` : ""}
@@ -1238,7 +1258,8 @@ document.addEventListener("click", async (ev) => {
     if (d.persona) { modalPersona(d.persona); return; }
     if (d.cobrar) { abrirPlanilla(d.cobrar); return; }
     if (d.planilla) { abrirPlanilla(d.planilla); return; }
-    if (d.liqprop) { abrirLiqProp(d.liqprop); return; }
+    if (d.liqprop) { abrirLiqProp(d.liqprop, d.liqmon); return; }
+    if (d.lpmon) { S.lpMon = d.lpmon; render(); return; }
     if (d.volver !== undefined) { S.view = (S.view === "planilla" && S.pl?.volver && S.pl.volver !== "planilla") ? S.pl.volver : S.view === "liqprop" ? "liquidaciones" : "cobrar"; render(); return; }
     if (d.pltab) { S.plTab = d.pltab; render(); return; }
     if (d.adelantar || d.atrasar) { const r = await rpc(d.adelantar ? "adelantar_periodo" : "atrasar_periodo", { p_contrato: +(d.adelantar || d.atrasar) }); if (r) { await recargar(`Período generado hasta ${periodo(r)}`); } return; }
@@ -1257,12 +1278,12 @@ document.addEventListener("click", async (ev) => {
     if (d.servicios) { if (await rpc("revisar_servicios", { p_envio: +d.servicios }, "Revisado. Le avisamos al propietario.")) await recargar(); return; }
     if (d.archivo) { await verArchivo(d.archivo); return; }
     if (d.recibo) { modalRecibo(d.recibo); return; }
-    if (d.recibopdf) { const { p, c } = buscarPago(d.recibopdf); const r = pdfRecibo(S.cfg, { direccion: c.direccion, inquilino: inq(c), carpeta: c.carpeta, propietario: P(c.propietario_id).nombre, propietario_doc: P(c.propietario_id).dni }, p); r.doc.save(r.nombre); return; }
+    if (d.recibopdf) { const { p, c } = buscarPago(d.recibopdf); const r = pdfRecibo(S.cfg, { direccion: c.direccion, inquilino: inq(c), carpeta: c.carpeta, propietario: P(c.propietario_id).nombre, propietario_doc: P(c.propietario_id).dni, moneda: c.moneda }, p); r.doc.save(r.nombre); return; }
     if (d.recibotxt) { const { p, c } = buscarPago(d.recibotxt); copiar(msgRecibo(p, c)); return; }
     if (d.copiarlink) { copiar(d.copiarlink); return; }
     if (d.copiarliq) { const l = S.liqs.find((x) => x.id === +d.copiarliq) || S.ultLiq; if (l) copiar(msgLiq(l)); return; }
     if (d.abrirlink) { window.open(d.abrirlink, "_blank", "noopener"); return; }
-    if (d.liqlink) { const l = S.liqs.find((x) => x.id === +d.liqlink); abrirModal(`<div class="mh"><div><h2>Liquidación N° ${l.nro}</h2><div class="muted">${esc(P(l.propietario_id).nombre)} · ${money(l.neto)}</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
+    if (d.liqlink) { const l = S.liqs.find((x) => x.id === +d.liqlink); abrirModal(`<div class="mh"><div><h2>Liquidación N° ${l.nro}</h2><div class="muted">${esc(P(l.propietario_id).nombre)} · ${money(l.neto, l)}</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
       <p>Mandale al propietario este link: ve y descarga la liquidación cuando quiera, sin cuenta.</p><div class="row">${botonesLinkLiq(l)}<button class="btn" data-abrirlink="${esc(linkComprobante(l.token))}">Ver cómo lo ve</button></div>`); return; }
     if (d.anularpago) { if (!confirmar("¿Anular el cobro?")) return; if (await rpc("anular_pago", { p_pago: +d.anularpago }, "Cobro anulado")) { cerrarModal(); await recargar(); } return; }
     if (d.ajustar) { modalAjuste(d.ajustar); return; }
@@ -1274,10 +1295,10 @@ document.addEventListener("click", async (ev) => {
       const dia = f.inicio.value.slice(8, 10), r = calcularAumento(S.indices, f.indice.value, prevMonto, ant.k === 1 ? f.inicio.value : ant.desde + "-" + dia, x.desde + "-" + dia);
       if (r.error) { toast(r.error, "bad"); return; }
       filas[k - 1].querySelector(".ct-monto").value = r.nuevo; ctPorcentajes();
-      toast(`${money(r.nuevo)} (+${r.pct}%)${r.estimado ? " · estimado" : ""} — ${r.detalle}. Tocá Guardar cambios para confirmarlo.`); return; }
+      toast(`${money(r.nuevo, c)} (+${r.pct}%)${r.estimado ? " · estimado" : ""} — ${r.detalle}. Tocá Guardar cambios para confirmarlo.`); return; }
     if (d.aplicaraumento) { const c = S.contratos.get(+d.aplicaraumento), a = aumentoDe(c); if (!a?.calc || a.calc.error) { modalAjuste(c.id); return; }
       await guardarAumento(c, a, a.calc.nuevo, false); if (c.ajuste_revisar) await sb.from("contratos").update({ ajuste_revisar: false }).eq("id", c.id);
-      await recargar(`Aumento aplicado: ${money(a.calc.nuevo)} desde ${periodo(a.p)}`); return; }
+      await recargar(`Aumento aplicado: ${money(a.calc.nuevo, c)} desde ${periodo(a.p)}`); return; }
     if (d.a === "indices") { toast("Actualizando índices…"); await iniciarIndices(true); toast("Índices actualizados"); return; }
     if (d.a === "aplicar-listos") { const cur = ymHoy(); let n = 0;
       for (const c of S.contratos.values()) { if (!contratoActivo(c) || c.ajuste_revisar) continue; const a = aumentoDe(c);
@@ -1295,7 +1316,7 @@ document.addEventListener("click", async (ev) => {
     if (d.liqanular) { if (!confirmar()) return; if (await rpc("anular_liquidacion", { p_liq: +d.liqanular }, "Liquidación anulada")) await recargar(); return; }
     if (d.dia) { S.cajaDia = d.dia; render(); return; }
     if (d.movanular) { if (!confirmar()) return; const { error } = await sb.from("caja_movimientos").update({ anulado: true }).eq("id", +d.movanular); if (error) throw error; await cargarCaja(); render(); return; }
-    if (d.recordar) { const c = S.contratos.get(+d.recordar); const dd = deudaDe(c).filter((x) => x.vencido); copiar(`Hola ${inq(c).split(",").pop().trim()}, te escribimos de ${S.cfg.nombre}. Figura pendiente el alquiler de ${c.direccion} de ${dd.map((x) => periodo(x.p)).join(", ")}, por ${money(dd.reduce((s, x) => s + x.saldo, 0))}. Podés ver el detalle y enviar el comprobante en ${PORTAL_URL}. ¡Gracias!`); return; }
+    if (d.recordar) { const c = S.contratos.get(+d.recordar); const dd = deudaDe(c).filter((x) => x.vencido); copiar(`Hola ${inq(c).split(",").pop().trim()}, te escribimos de ${S.cfg.nombre}. Figura pendiente el alquiler de ${c.direccion} de ${dd.map((x) => periodo(x.p)).join(", ")}, por ${money(dd.reduce((s, x) => s + x.saldo, 0), c)}. Podés ver el detalle y enviar el comprobante en ${PORTAL_URL}. ¡Gracias!`); return; }
     if (d.rescindir) { modalRescindir(d.rescindir); return; }
     if (d.reactivar) { if (!confirmar("¿Quitar la rescisión?")) return; if (await rpc("quitar_rescision", { p_contrato: +d.reactivar }, "Rescisión quitada")) { cerrarModal(); await recargar(); } return; }
     if (d.acceso) {
@@ -1371,7 +1392,7 @@ document.addEventListener("submit", async (ev) => {
         const file = $("#lp-comp").files[0];
         if (file) { try { await subirComprobanteLiquidacion(lq, file); } catch (e) { toast("La liquidación se guardó, pero no se pudo subir el comprobante: " + mensajeError(e), "bad"); } }
         await cargarTodo(); S.view = "liquidaciones"; render();
-        abrirModal(`<div class="mh"><h2>Liquidación N° ${pad5(lq.nro)}</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div><p>Total liquidado: <b>${money(lq.neto)}</b></p><div class="row">${botonesLinkLiq(lq)}<button class="btn" data-liqpdf="${lq.id}">Descargar PDF</button>${file ? "" : `<button class="btn" data-liqcomp="${lq.id}">Subir comprobante de transferencia</button>`}</div>`);
+        abrirModal(`<div class="mh"><h2>Liquidación N° ${pad5(lq.nro)}</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div><p>Total liquidado: <b>${money(lq.neto, S.liqs.find((y) => y.id === lq.id) || lq)}</b></p><div class="row">${botonesLinkLiq(lq)}<button class="btn" data-liqpdf="${lq.id}">Descargar PDF</button>${file ? "" : `<button class="btn" data-liqcomp="${lq.id}">Subir comprobante de transferencia</button>`}</div>`);
       }
       return;
     }
@@ -1400,13 +1421,13 @@ document.addEventListener("submit", async (ev) => {
       const { error } = await sb.from("ajustes").insert({ contrato_id: c.id, desde: v.desde, monto_anterior: r2(f.dataset.ant), monto, pct: v.pct === "" ? null : +v.pct });
       if (error) throw error;
       if (c.ajuste_revisar) await sb.from("contratos").update({ ajuste_revisar: false }).eq("id", c.id);
-      cerrarModal(); await recargar("Ajuste guardado: " + money(monto)); return;
+      cerrarModal(); await recargar("Ajuste guardado: " + money(monto, c)); return;
     }
     if (f.id === "f-ct") { await guardarContrato(f, v); return; }
     if (f.id === "f-contrato") {
       const inqId = idPersonaDesdeTexto(v.inquilino, "inquilino"), propId = idPersonaDesdeTexto(v.propietario, "propietario");
       const crear = async (nombre, tipo) => { const { data, error } = await sb.from("personas").insert({ nombre: nombre.trim(), tipo }).select().single(); if (error) throw error; return data.id; };
-      const data = { carpeta: +v.carpeta || 0, direccion: v.direccion.trim(), inicio: v.inicio, fin: v.fin, monto_base: r2(v.monto_base), deposito: r2(v.deposito),
+      const data = { carpeta: +v.carpeta || 0, direccion: v.direccion.trim(), inicio: v.inicio, fin: v.fin, monto_base: r2(v.monto_base), deposito: r2(v.deposito), moneda: v.moneda === "USD" ? "USD" : "ARS",
         indice: v.indice, ajuste_meses: +v.ajuste_meses || 12, ajuste_revisar: false, forma_pago: v.forma_pago, comision: v.comision === "" ? null : +v.comision,
         dia_vto: v.dia_vto ? +v.dia_vto : null, notas: v.notas.trim() || null,
         inquilino_id: inqId || (await crear(v.inquilino, "inquilino")), propietario_id: propId || (await crear(v.propietario, "propietario")) };
