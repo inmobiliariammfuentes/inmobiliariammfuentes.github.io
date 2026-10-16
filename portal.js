@@ -4,7 +4,7 @@ import {
   estadoContrato, contratoActivo, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, vtoDe,
   toast, abrirModal, cerrarModal, copiar, mensajeError, rutaArchivo, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, temaActual,
-} from "./comun.js?v=202610161348";
+} from "./comun.js?v=202610161404";
 
 const $ = (s) => document.querySelector(s);
 const S = { cfg: null, contratos: [], yo: [], aj: [], pg: [], ov: [], cargos: [], envios: [], archivos: [], liqs: [], avisos: [], rol: null, anteriores: false, esStaff: false };
@@ -110,6 +110,9 @@ function tarjetaInquilino(c) {
           ${cuentaBancaria("1 · Al propietario", div.propietario, { titular: c.prop_titular, banco: c.prop_banco, cbu: c.prop_cbu, alias: c.prop_alias }, c)}
           ${cuentaBancaria("2 · A la inmobiliaria (honorarios y gastos)", div.inmobiliaria, S.cfg, c)}
           <button class="btn primary grande" data-enviar="${c.id}">Ya transferí: enviar comprobantes</button>` :
+        c.forma_pago === "propietario" ? `<p class="nota">Transferí el total al propietario:</p>
+          ${cuentaBancaria("Al propietario", div.total, { titular: c.prop_titular, banco: c.prop_banco, cbu: c.prop_cbu, alias: c.prop_alias }, c)}
+          <button class="btn primary grande" data-enviar="${c.id}">Ya transferí: enviar comprobante</button>` :
         `<p class="nota">Este alquiler se paga en la inmobiliaria.</p>`}
     </div>`;
   }
@@ -130,7 +133,7 @@ function tarjetaPropietario(c) {
   const estadoMes = pagoMes ? `<span class="chip ok">Cobrado</span>` : d.some((x) => x.p === cur) ? (d.find((x) => x.p === cur).vencido ? `<span class="chip bad">Pendiente, vencido</span>` : `<span class="chip warn">Pendiente</span>`) : `<span class="chip">—</span>`;
   const periodos = [...new Set([...pagos.map((p) => p.periodo), ...S.archivos.filter((a) => a.contrato_id === c.id && a.periodo).map((a) => a.periodo)])].sort().reverse().slice(0, 12);
   return `<section class="panel contrato"><div class="ph"><div><h2 class="dir">${esc(c.direccion)}</h2><div class="muted">Inquilino: ${esc(c.inquilino_nombre)} · Contrato hasta ${fecha(c.fin)}</div></div></div>
-    <dl class="dl"><div><dt>Alquiler ${periodo(cur)}</dt><dd class="mono">${money(montoEn(c, ajDe(c), cur), c)}</dd></div><div><dt>Estado del mes</dt><dd>${estadoMes}</dd></div><div><dt>Forma de pago</dt><dd>${c.forma_pago === "dividida" ? "El inquilino te transfiere directo" : "Cobra la inmobiliaria"}</dd></div></dl>
+    <dl class="dl"><div><dt>Alquiler ${periodo(cur)}</dt><dd class="mono">${money(montoEn(c, ajDe(c), cur), c)}</dd></div><div><dt>Estado del mes</dt><dd>${estadoMes}</dd></div><div><dt>Forma de pago</dt><dd>${c.forma_pago === "dividida" ? "El inquilino te transfiere directo" : c.forma_pago === "propietario" ? "El inquilino te paga todo a vos (la administración se descuenta al liquidar)" : "Cobra la inmobiliaria"}</dd></div></dl>
     ${d.filter((x) => x.vencido && !x.enTolerancia).length ? `<div class="banner">Hay ${d.filter((x) => x.vencido && !x.enTolerancia).length} período(s) vencido(s) sin pagar. La inmobiliaria está haciendo el seguimiento.</div>` : ""}
     <div class="tw"><table><thead><tr><th>Período</th><th class="num">Cobrado</th><th class="num">Te corresponde</th><th>Documentos</th></tr></thead><tbody>
     ${periodos.map((per) => { const ps = pagos.filter((p) => p.periodo === per); const docs = S.archivos.filter((a) => a.contrato_id === c.id && a.periodo === per);
@@ -148,18 +151,20 @@ function seccionLiquidaciones() {
 }
 
 /* ---------- formularios de envío ---------- */
+// cuánto va a cada uno: si le paga todo al propietario, todo va al propietario
+const divEnvio = (c, lin) => { const d = divisionLineas(c, S.cfg, lin); return c.forma_pago === "propietario" ? { ...d, propietario: d.total, inmobiliaria: 0 } : d; };
 function modalEnvioPago(cid) {
   const c = contratoKey(S.contratos.find((x) => x.id === +cid && x.rol === "inquilino")); const d = deudaDe(c);
   const pend = d.filter((x) => !S.envios.some((e) => e.contrato_id === c.id && e.periodo === x.p && e.tipo === "pago" && e.estado === "pendiente"));
   if (!pend.length) { toast("No hay períodos pendientes para informar."); return; }
-  const x = pend[0], div = divisionLineas(c, S.cfg, lineasDe(x));
+  const x = pend[0], div = divEnvio(c, lineasDe(x)), soloProp = c.forma_pago === "propietario";
   abrirModal(`<div class="mh"><div><h2>Enviar comprobantes</h2><div class="muted">${esc(c.direccion)}</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
   <form class="form" id="f-pago" data-id="${c.id}">
     <label class="full">Período que pagaste<select id="ep-periodo" name="periodo">${pend.map((y) => `<option value="${y.p}">${periodo(y.p)}</option>`).join("")}</select></label>
     <label>Transferiste al propietario<input type="number" step="0.01" id="ep-prop" name="monto_propietario" value="${div.propietario}" required></label>
-    <label>Transferiste a la inmobiliaria<input type="number" step="0.01" id="ep-inmo" name="monto_inmobiliaria" value="${div.inmobiliaria}" required></label>
+    ${soloProp ? `<input type="hidden" id="ep-inmo" name="monto_inmobiliaria" value="0">` : `<label>Transferiste a la inmobiliaria<input type="number" step="0.01" id="ep-inmo" name="monto_inmobiliaria" value="${div.inmobiliaria}" required></label>`}
     <label class="full">Comprobante de la transferencia al propietario<input type="file" id="ep-f1" name="f1" accept="${ARCHIVOS_OK}" required></label>
-    <label class="full">Comprobante de la transferencia a la inmobiliaria<input type="file" id="ep-f2" name="f2" accept="${ARCHIVOS_OK}" required></label>
+    ${soloProp ? "" : `<label class="full">Comprobante de la transferencia a la inmobiliaria<input type="file" id="ep-f2" name="f2" accept="${ARCHIVOS_OK}" required></label>`}
     <label class="full">Boletas de servicios pagados (opcional, podés elegir varias)<input type="file" id="ep-bol" name="boletas" accept="${ARCHIVOS_OK}" multiple></label>
     <label class="full">¿Qué servicios pagaste? (opcional)<input type="text" id="ep-serv" name="servicio" placeholder="Ej.: Luz, gas, ABL"></label>
     <label class="full">Observaciones (opcional)<textarea id="ep-obs" name="observaciones" rows="2"></textarea></label>
@@ -192,7 +197,7 @@ async function subir(cid, per, envioId, categoria, file, servicio) {
 async function enviar(f, tipo) {
   const cid = +f.dataset.id, v = Object.fromEntries(new FormData(f).entries());
   const archivos = [];
-  if (tipo === "pago") { archivos.push(["comp_propietario", f.f1.files[0]], ["comp_inmobiliaria", f.f2.files[0]]); }
+  if (tipo === "pago") { archivos.push(["comp_propietario", f.f1.files[0]]); if (f.f2) archivos.push(["comp_inmobiliaria", f.f2.files[0]]); }
   for (const b of f.boletas.files) archivos.push(["boleta", b]);
   for (const [, a] of archivos) if (a && a.size > MAX_MB * 1048576) { toast(`"${a.name}" pesa más de ${MAX_MB} MB. Achicá la foto o subí un PDF.`, "bad"); return; }
   const prog = f.querySelector("[aria-live]"); const boton = f.querySelector("[type=submit]"); boton.disabled = true;
@@ -241,7 +246,7 @@ document.addEventListener("change", (ev) => {
   if (ev.target.id === "ep-periodo") {
     const f = ev.target.form; const c = contratoKey(S.contratos.find((x) => x.id === +f.dataset.id && x.rol === "inquilino"));
     const x = deudaDe(c).find((y) => y.p === ev.target.value); if (!x) return;
-    const div = divisionLineas(c, S.cfg, lineasDe(x)); f.monto_propietario.value = div.propietario; f.monto_inmobiliaria.value = div.inmobiliaria;
+    const div = divEnvio(c, lineasDe(x)); f.monto_propietario.value = div.propietario; f.monto_inmobiliaria.value = div.inmobiliaria;
   }
 });
 document.addEventListener("submit", async (ev) => {

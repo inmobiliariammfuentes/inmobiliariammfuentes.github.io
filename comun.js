@@ -1,6 +1,6 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202610161348";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202610161404";
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: "cobranza-fuentes" },
@@ -307,7 +307,7 @@ export function pdfRecibo(cfg, info, p) {
     doc.setFont("helvetica", "normal"); doc.setFontSize(7);
     const leyenda = `POR MANDATO DEL LOCADOR RECIBÍ DEL LOCATARIO LA SUMA DE ${numeroALetras(p.total, MON)} POR ${soloAlquiler ? "EL ALQUILER" : "EL ALQUILER Y LOS CONCEPTOS DETALLADOS"} DE UNA PROPIEDAD QUE OCUPA EN LA CALLE ${String(info.direccion || "").toUpperCase()}.`;
     const ly = doc.splitTextToSize(leyenda, R - L - 4); doc.text(ly, L + 2, y); y += ly.length * 3 + 1;
-    const nota = ["Medio de pago: " + (p.medio || "") + (p.modalidad === "dividida" ? ` (transferido al propietario ${pm(p.neto_propietario)} y a la inmobiliaria ${pm(p.honorarios)})` : ""), p.obs ? "Observaciones: " + p.obs : ""].filter(Boolean).join(" · ");
+    const nota = ["Medio de pago: " + (p.medio || "") + (p.modalidad === "dividida" ? ` (transferido al propietario ${pm(p.neto_propietario)} y a la inmobiliaria ${pm(p.honorarios)})` : p.modalidad === "propietario" ? " (abonado directamente al propietario)" : ""), p.obs ? "Observaciones: " + p.obs : ""].filter(Boolean).join(" · ");
     const ln = doc.splitTextToSize(nota, R - L - 4); doc.setTextColor(90, 90, 90); doc.text(ln, L + 2, y); doc.setTextColor(0, 0, 0); y += ln.length * 3 + 10;
     firma(doc, cfg, y); y += 6;
     return y;
@@ -404,6 +404,7 @@ export function pdfLiquidacion(cfg, l, prop) {
     salto(22); d.setFont("helvetica", "normal"); d.setFontSize(7.5);
     const ley = l.modalidad === "directa"
       ? `EL LOCATARIO TRANSFIRIÓ DIRECTAMENTE AL PROPIETARIO LA SUMA DE ${numeroALetras(l.neto, MON)} CORRESPONDIENTE A LA LIQUIDACIÓN DE REFERENCIA.`
+      : +l.neto < 0 ? `EL PROPIETARIO ABONA A LA INMOBILIARIA LA SUMA DE ${numeroALetras(l.neto, MON)} EN CONCEPTO DE HONORARIOS Y GASTOS DE LA LIQUIDACIÓN DE REFERENCIA.`
       : `RECIBO LA SUMA DE ${numeroALetras(l.neto, MON)} POR LA LIQUIDACIÓN DE REFERENCIA.`;
     const ly = d.splitTextToSize(ley, R - L); d.text(ly, L, y); y += ly.length * 3.1 + 1;
     d.setTextColor(120, 130, 140); d.setFontSize(7.5);
