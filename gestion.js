@@ -4,10 +4,10 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD,
-} from "./comun.js?v=202610161458";
-import { iniciarChat } from "./chat.js?v=202610161458";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610161458";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610161458";
+} from "./comun.js?v=202610161502";
+import { iniciarChat } from "./chat.js?v=202610161502";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610161502";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610161502";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -1516,7 +1516,24 @@ async function login(v) {
   if (error) { pantallaLogin("Usuario o clave incorrectos."); return; }
   location.reload();
 }
+// Aviso de versión nueva: si se publicó un cambio mientras la pestaña estaba abierta, ofrece recargar
+function vigilarVersion() {
+  const mia = new URL(import.meta.url).searchParams.get("v"); if (!mia) return;   // solo en la versión publicada
+  const revisar = async () => {
+    try {
+      const html = await fetch(new URL("gestion.html", location.href).href, { cache: "no-store" }).then((r) => r.text());
+      const nueva = (html.match(/gestion\.js\?v=(\w+)/) || [])[1];
+      if (nueva && nueva !== mia && !document.getElementById("aviso-version")) {
+        const d = document.createElement("div"); d.id = "aviso-version"; d.className = "aviso-version"; d.setAttribute("role", "status");
+        d.innerHTML = `<span>Hay una versión nueva del sistema.</span><button class="btn small primary" type="button">Actualizar</button>`;
+        d.querySelector("button").onclick = () => location.reload(); document.body.appendChild(d);
+      }
+    } catch {}
+  };
+  setInterval(revisar, 5 * 60e3); addEventListener("focus", revisar); setTimeout(revisar, 30e3);
+}
 async function iniciar() {
+  vigilarVersion();
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return pantallaLogin();
   const { data: yo } = await sb.from("staff").select("*").eq("user_id", session.user.id).maybeSingle();
