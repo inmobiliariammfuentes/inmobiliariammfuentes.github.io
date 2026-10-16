@@ -4,10 +4,10 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD,
-} from "./comun.js?v=202610161404";
-import { iniciarChat } from "./chat.js?v=202610161404";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610161404";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610161404";
+} from "./comun.js?v=202610161458";
+import { iniciarChat } from "./chat.js?v=202610161458";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610161458";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610161458";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -443,7 +443,7 @@ function lineasEsperadas(c, hastaPer) {
   for (const x of deudaDe(c)) {
     if (hastaPer && x.p > hastaPer) continue;
     let puesto = false;
-    for (const g of x.cargos) { const pu = !puesto && g.tipo === "alquiler" ? x.punitorio : 0; if (pu) puesto = true; out.push({ monto: +g.saldo, punitorio: pu, admin: g.admin, propietario: g.propietario }); }
+    for (const g of x.cargos) { const pu = !puesto && g.tipo === "alquiler" ? x.punitorio : 0; if (pu) puesto = true; out.push({ monto: +g.saldo, punitorio: pu, admin: g.admin, propietario: g.propietario, inquilino: g.inquilino }); }
   }
   return out;
 }
@@ -470,11 +470,12 @@ function vPlanilla() {
     for (const g of x.cargos) {
       const pu = !puesto && g.tipo === "alquiler" ? x.punitorio : 0; if (g.tipo === "alquiler") puesto = true;
       const parcial = +g.saldo < +g.monto - 0.009;
-      filas.push(`<tr data-cargo="${g.id}" data-prop="${g.propietario}">
+      const si = g.inquilino ?? 1;
+      filas.push(`<tr data-cargo="${g.id}" data-prop="${g.propietario}" data-inq="${si}">
         <td><input type="checkbox" class="pl-sel" aria-label="Cobrar este renglón" ${x.p <= hasta ? "checked" : ""}></td>
         <td class="num">${fechaPer(x.p)}</td>
-        <td>${parcial ? `<span class="chip warn">Saldo s/</span> ` : ""}${esc(g.descripcion)}${g.propietario === 0 ? ' <span class="chip">No va al propietario</span>' : g.propietario === -1 ? ' <span class="chip">Resta al propietario</span>' : ""}${x.vencido && g.tipo === "alquiler" ? (x.enTolerancia ? ' <span class="chip warn">En tolerancia</span>' : ` <span class="chip bad">${x.dias} días</span>`) : ""}</td>
-        <td class="num">${money(g.saldo, c)}</td>
+        <td>${parcial ? `<span class="chip warn">Saldo s/</span> ` : ""}${esc(g.descripcion)}${si === -1 ? ' <span class="chip acc">Resta al inquilino</span>' : si === 0 ? ' <span class="chip">No afecta al inquilino</span>' : ""}${g.propietario === 0 ? ' <span class="chip">No va al propietario</span>' : g.propietario === -1 ? ' <span class="chip">Resta al propietario</span>' : ""}${x.vencido && g.tipo === "alquiler" ? (x.enTolerancia ? ' <span class="chip warn">En tolerancia</span>' : ` <span class="chip bad">${x.dias} días</span>`) : ""}</td>
+        <td class="num">${si === -1 ? "− " : ""}${money(g.saldo, c)}</td>
         <td><input type="number" class="pl-monto" step="0.01" min="0" max="${g.saldo}" value="${g.saldo}" aria-label="Importe a cobrar"></td>
         <td>${g.tipo === "alquiler" ? `<input type="number" class="pl-pun" step="0.01" min="0" value="${pu}" aria-label="Punitorio" title="${x.punitorioSugerido ? "Sugerido " + money(x.punitorioSugerido, c) : ""}">` : `<input type="number" class="pl-pun" step="0.01" min="0" value="0" aria-label="Punitorio">`}</td>
         <td style="text-align:center"><input type="checkbox" class="pl-adm" aria-label="Aplica administración" ${g.admin ? "checked" : ""}></td>
@@ -505,8 +506,9 @@ function leerPlanilla() {
   const f = $("#f-planilla"); if (!f) return null;
   const items = [...f.querySelectorAll("tr[data-cargo]")].map((r) => {
     const sel = r.querySelector(".pl-sel").checked, m = r2(r.querySelector(".pl-monto").value), pu = r2(r.querySelector(".pl-pun").value), adm = r.querySelector(".pl-adm").checked;
-    r.querySelector(".pl-tot").textContent = sel ? money(m + pu, S.contratos.get(+f.dataset.cid)) : "—"; r.classList.toggle("apagado", !sel);
-    return sel ? { cargo_id: +r.dataset.cargo, monto: m, punitorio: pu, admin: adm, propietario: +r.dataset.prop } : null;
+    const si = +(r.dataset.inq ?? 1);
+    r.querySelector(".pl-tot").textContent = sel ? (si === -1 ? "− " : "") + money(si === 0 ? pu : m + pu, S.contratos.get(+f.dataset.cid)) : "—"; r.classList.toggle("apagado", !sel);
+    return sel ? { cargo_id: +r.dataset.cargo, monto: m, punitorio: pu, admin: adm, propietario: +r.dataset.prop, inquilino: si } : null;
   }).filter(Boolean);
   return { f, items, extras: leerConceptos(f) };
 }
@@ -531,19 +533,20 @@ function vConceptosFijos(c) {
   const cs = (S.cf.get(c.id) || []).slice().sort((a, b) => (b.activo - a.activo) || a.nombre.localeCompare(b.nombre));
   const efecto = (n) => (n === 1 ? "Suma" : n === -1 ? "Resta" : "No afecta");
   return `<section class="panel"><div class="ph"><div><h2>Conceptos extras</h2><p class="muted" style="margin:4px 0 0">Se agregan solos a la planilla todos los meses (TSG, Aysa, Expensas…). Si cambiás el importe, se actualizan los meses que todavía no se cobraron.</p></div><button class="btn primary small" data-concepto-nuevo="${c.id}">Agregar un nuevo concepto</button></div>
-  <div class="tw"><table><thead><tr><th>Concepto</th><th class="num">Monto</th><th class="num">Porcentual</th><th>Adm.</th><th>Propietario</th><th>Desde</th><th>Hasta</th><th></th></tr></thead><tbody>
-  ${cs.map((k) => `<tr class="${k.activo ? "" : "apagado"}"><td>${esc(k.nombre)}${k.activo ? "" : ' <span class="chip">De baja</span>'}</td><td class="num">${+k.porcentaje > 0 ? "—" : money(k.monto, c)}</td><td class="num">${+k.porcentaje > 0 ? (+k.porcentaje).toLocaleString("es-AR") + "% del alquiler" : "0%"}</td><td>${k.admin ? "Sí" : "No"}</td><td>${efecto(k.propietario)}</td><td>${k.desde ? periodo(k.desde) : "—"}</td><td>${k.hasta ? periodo(k.hasta) : "—"}</td>
-    <td class="num">${k.activo ? `<button class="btn small" data-concepto-editar="${k.id}">Editar</button> <button class="btn small danger" data-concepto-baja="${k.id}">Dar de baja</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="8"><div class="empty">Este contrato no tiene conceptos extras.</div></td></tr>`}
+  <div class="tw"><table><thead><tr><th>Concepto</th><th class="num">Monto</th><th class="num">Porcentual</th><th>Adm.</th><th>Inquilino</th><th>Propietario</th><th>Desde</th><th>Hasta</th><th></th></tr></thead><tbody>
+  ${cs.map((k) => `<tr class="${k.activo ? "" : "apagado"}"><td>${esc(k.nombre)}${k.activo ? "" : ' <span class="chip">De baja</span>'}</td><td class="num">${+k.porcentaje > 0 ? "—" : money(k.monto, c)}</td><td class="num">${+k.porcentaje > 0 ? (+k.porcentaje).toLocaleString("es-AR") + "% del alquiler" : "0%"}</td><td>${k.admin ? "Sí" : "No"}</td><td>${efecto(k.inquilino ?? 1)}</td><td>${efecto(k.propietario)}</td><td>${k.desde ? periodo(k.desde) : "—"}</td><td>${k.hasta ? periodo(k.hasta) : "—"}</td>
+    <td class="num">${k.activo ? `<button class="btn small" data-concepto-editar="${k.id}">Editar</button> <button class="btn small danger" data-concepto-baja="${k.id}">Dar de baja</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="9"><div class="empty">Este contrato no tiene conceptos extras.</div></td></tr>`}
   </tbody></table></div></section>`;
 }
 function modalConceptoFijo(cid, kid) {
-  const k = kid ? [...S.cf.values()].flat().find((x) => x.id === +kid) : { nombre: "", monto: "", porcentaje: 0, admin: false, propietario: 1, desde: ymHoy() };
+  const k = kid ? [...S.cf.values()].flat().find((x) => x.id === +kid) : { nombre: "", monto: "", porcentaje: 0, admin: false, propietario: 1, inquilino: 1, desde: ymHoy() };
   abrirModal(`<div class="mh"><h2>${kid ? "Editar concepto" : "Nuevo concepto extra"}</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
   <form class="form" id="f-concepto" data-cid="${cid}" data-kid="${kid || ""}">
     <label class="full">Concepto<input type="text" id="cf-nombre" name="nombre" list="dl-conceptos-f" value="${esc(k.nombre)}" required autofocus placeholder="Ej.: TSG, Aysa, Expensas Comunes">
       <datalist id="dl-conceptos-f">${CONCEPTOS_SUG.concat(["TSG", "Aysa", "Expensas Comunes"]).map((x) => `<option value="${x}"></option>`).join("")}</datalist></label>
     <label>Monto fijo<input type="number" step="0.01" min="0" id="cf-monto" name="monto" value="${esc(k.monto)}"></label>
     <label>O porcentaje del alquiler (%)<input type="number" step="0.001" min="0" id="cf-pct" name="porcentaje" value="${esc(k.porcentaje || 0)}"></label>
+    <label>Para el inquilino<select id="cf-inq" name="inquilino"><option value="1" ${(k.inquilino ?? 1) === 1 ? "selected" : ""}>Suma al inquilino</option><option value="-1" ${k.inquilino === -1 ? "selected" : ""}>Resta al inquilino</option><option value="0" ${k.inquilino === 0 ? "selected" : ""}>No afecta al inquilino</option></select></label>
     <label>Para el propietario<select id="cf-prop" name="propietario"><option value="1" ${k.propietario === 1 ? "selected" : ""}>Suma al propietario</option><option value="0" ${k.propietario === 0 ? "selected" : ""}>No afecta al propietario</option><option value="-1" ${k.propietario === -1 ? "selected" : ""}>Resta al propietario</option></select></label>
     <label class="check" style="align-self:end"><input type="checkbox" id="cf-admin" name="admin" ${k.admin ? "checked" : ""}> Aplica administración</label>
     <label>Desde el período<input type="month" id="cf-desde" name="desde" value="${esc(k.desde || ymHoy())}"></label>
@@ -634,12 +637,13 @@ function abrirRenovacion(cid) {
   abrirNuevo({ renovacion_de: c.id, direccion: c.direccion, carpeta: c.carpeta, inquilino_id: c.inquilino_id, propietario_id: c.propietario_id,
     inicio: ini, duracion: [12, 24, 36].includes(meses) ? meses : "otra", fin: isoMas(ini, meses, -1), monto_base: montoEn(c, ajDe(c), ymDe(c.fin)), deposito: c.deposito, moneda: c.moneda,
     indice: c.indice, ajuste_meses: c.ajuste_meses, forma_pago: c.forma_pago, comision: c.comision ?? "", dia_vto: c.dia_vto ?? "",
-    conceptos: (S.cf.get(c.id) || []).filter((k) => k.activo).map((k) => ({ nombre: k.nombre, monto: k.monto, porcentaje: k.porcentaje, admin: k.admin, propietario: k.propietario })) });
+    conceptos: (S.cf.get(c.id) || []).filter((k) => k.activo).map((k) => ({ nombre: k.nombre, monto: k.monto, porcentaje: k.porcentaje, admin: k.admin, propietario: k.propietario, inquilino: k.inquilino })) });
 }
 function filaConceptoNuevo(k = {}) {
   return `<div class="concepto-fila nc-concepto">
     <input type="text" data-c="nombre" list="dl-conceptos-f" value="${esc(k.nombre || "")}" placeholder="Concepto" aria-label="Concepto">
     <input type="number" step="0.01" min="0" data-c="monto" value="${esc(k.monto || "")}" placeholder="Monto por mes" aria-label="Monto por mes">
+    <select data-c="inquilino" aria-label="Para el inquilino"><option value="1" ${k.inquilino === 0 || k.inquilino === -1 ? "" : "selected"}>Inquilino: suma</option><option value="-1" ${k.inquilino === -1 ? "selected" : ""}>Inquilino: resta</option><option value="0" ${k.inquilino === 0 ? "selected" : ""}>Inquilino: no afecta</option></select>
     <select data-c="propietario" aria-label="Para el propietario"><option value="1" ${k.propietario === 0 || k.propietario === -1 ? "" : "selected"}>Propietario: suma</option><option value="0" ${k.propietario === 0 ? "selected" : ""}>Propietario: no afecta</option><option value="-1" ${k.propietario === -1 ? "selected" : ""}>Propietario: resta</option></select>
     <label class="check"><input type="checkbox" data-c="admin" ${k.admin ? "checked" : ""}> Aplica administración</label>
     <button type="button" class="x" data-quitarconcepto aria-label="Quitar">×</button></div>`;
@@ -730,7 +734,7 @@ async function guardarNuevo(f, modo) {
   const p = { ...persona("inquilino"), ...persona("propietario"), carpeta: v.carpeta, direccion: v.direccion, inicio: v.inicio, fin: v.fin, monto_base: v.monto_base, deposito: v.deposito,
     indice: v.indice, ajuste_meses: v.ajuste_meses, forma_pago: v.forma_pago, comision: v.comision, dia_vto: v.dia_vto, notas: v.notas, renovacion_de: S.nc.renovacion_de || null,
     conceptos: [...f.querySelectorAll(".nc-concepto")].map((r) => ({ nombre: r.querySelector('[data-c="nombre"]').value, monto: r.querySelector('[data-c="monto"]').value,
-      propietario: r.querySelector('[data-c="propietario"]').value, admin: r.querySelector('[data-c="admin"]').checked })) };
+      propietario: r.querySelector('[data-c="propietario"]').value, inquilino: r.querySelector('[data-c="inquilino"]').value, admin: r.querySelector('[data-c="admin"]').checked })) };
   const id = await rpc("crear_contrato", { p }, S.nc.renovacion_de ? "Renovación guardada" : "Contrato guardado");
   if (!id) return;
   if (v.moneda === "USD") { const { error } = await sb.from("contratos").update({ moneda: "USD" }).eq("id", id); if (error) toast("No se pudo marcar el contrato en dólares: " + mensajeError(error), "bad"); }
@@ -767,7 +771,7 @@ async function aplicarWord(file) {
   const prev = d.direccion ? [...S.contratos.values()].filter((c) => claveDireccion(c.direccion) === claveDireccion(d.direccion)).sort((a, b) => b.inicio.localeCompare(a.inicio))[0] : null;
   if (prev) {
     Object.assign(n, { direccion: prev.direccion, carpeta: prev.carpeta || n.carpeta, forma_pago: prev.forma_pago, comision: prev.comision ?? "",
-      conceptos: n.conceptos.length ? n.conceptos : (S.cf.get(prev.id) || []).filter((k) => k.activo).map((k) => ({ nombre: k.nombre, monto: k.monto, porcentaje: k.porcentaje, admin: k.admin, propietario: k.propietario })) });
+      conceptos: n.conceptos.length ? n.conceptos : (S.cf.get(prev.id) || []).filter((k) => k.activo).map((k) => ({ nombre: k.nombre, monto: k.monto, porcentaje: k.porcentaje, admin: k.admin, propietario: k.propietario, inquilino: k.inquilino })) });
     if (d.renovacion || prev.inquilino_id === buscarPersona("inquilino", d.inquilino)?.id) n.renovacion_de = prev.id;
     items.push(["Propiedad", `${prev.direccion} (ya estaba en el sistema, carpeta ${prev.carpeta || "—"})`, true]);
   } else if (d.direccion) { n.direccion = d.direccion; items.push(["Propiedad", d.direccion + " (nueva)", true]); }
@@ -1099,7 +1103,7 @@ function filaConcepto() {
   return `<div class="concepto-fila">
     <input type="text" list="dl-conceptos" data-c="concepto" placeholder="Concepto (ej.: Expensas)" aria-label="Concepto" required>
     <input type="number" step="0.01" min="0.01" data-c="monto" placeholder="Importe" aria-label="Importe" required>
-    <select data-c="inquilino" aria-label="Efecto para el inquilino"><option value="1">Inquilino: suma</option><option value="-1">Inquilino: resta</option></select>
+    <select data-c="inquilino" aria-label="Efecto para el inquilino"><option value="1">Inquilino: suma</option><option value="-1">Inquilino: resta</option><option value="0">Inquilino: no afecta</option></select>
     <select data-c="propietario" aria-label="Efecto para el propietario"><option value="1">Propietario: suma</option><option value="-1">Propietario: resta</option><option value="0">Propietario: no afecta</option></select>
     <label class="check"><input type="checkbox" data-c="admin"> Aplica administración</label>
     <button type="button" class="x" data-quitarconcepto aria-label="Quitar concepto">×</button></div>`;
@@ -1166,10 +1170,10 @@ function modalRecibo(pid) {
 }
 function filasConceptos(p, c) {
   const det = Array.isArray(p.detalle) && p.detalle.length ? p.detalle : null;
-  if (det) return det.map((k) => `<tr><td>${esc(k.concepto)}${k.inquilino < 0 ? ' <span class="muted">(se descuenta)</span>' : ""}</td><td class="num">${k.inquilino < 0 ? "− " : ""}${money(k.monto, c)}</td></tr>${+k.punitorio ? `<tr><td class="muted">&nbsp;&nbsp;Punitorios</td><td class="num">${money(k.punitorio, c)}</td></tr>` : ""}`).join("");
+  if (det) return det.map((k) => `<tr><td>${esc(k.concepto)}${k.inquilino < 0 ? ' <span class="muted">(se descuenta)</span>' : k.inquilino === 0 ? ' <span class="muted">(informativo, no suma)</span>' : ""}</td><td class="num">${k.inquilino < 0 ? "− " : ""}${money(k.monto, c)}</td></tr>${+k.punitorio ? `<tr><td class="muted">&nbsp;&nbsp;Punitorios</td><td class="num">${money(k.punitorio, c)}</td></tr>` : ""}`).join("");
   const cs = Array.isArray(p.conceptos) ? p.conceptos : [];
   if (!cs.length) return +p.otros ? `<tr><td>${esc(p.otros_detalle || "Otros")}</td><td class="num">${money(p.otros, c)}</td></tr>` : "";
-  return cs.map((k) => `<tr><td>${esc(k.concepto)}${k.inquilino < 0 ? ' <span class="muted">(se descuenta)</span>' : ""}</td><td class="num">${k.inquilino < 0 ? "− " : ""}${money(k.monto, c)}</td></tr>`).join("");
+  return cs.map((k) => `<tr><td>${esc(k.concepto)}${k.inquilino < 0 ? ' <span class="muted">(se descuenta)</span>' : k.inquilino === 0 ? ' <span class="muted">(informativo, no suma)</span>' : ""}</td><td class="num">${k.inquilino < 0 ? "− " : ""}${money(k.monto, c)}</td></tr>`).join("");
 }
 function buscarPago(pid) { for (const [cid, l] of S.pg) { const f = l.find((x) => x.id === +pid); if (f) return { p: f, c: S.contratos.get(cid) }; } return {}; }
 
@@ -1410,7 +1414,7 @@ document.addEventListener("submit", async (ev) => {
     }
     if (f.id === "f-adelanto") { if (await rpc("registrar_adelanto", { p_propietario: +f.dataset.pid, p_monto: r2(v.monto), p_concepto: v.concepto, p_fecha: v.fecha, p_medio: v.medio }, "Adelanto registrado")) { cerrarModal(); await recargar(); } return; }
     if (f.id === "f-concepto") {
-      const data = { nombre: v.nombre.trim(), monto: r2(v.monto), porcentaje: +v.porcentaje || 0, admin: !!f.admin.checked, propietario: +v.propietario, desde: v.desde || null, hasta: v.hasta || null };
+      const data = { nombre: v.nombre.trim(), monto: r2(v.monto), porcentaje: +v.porcentaje || 0, admin: !!f.admin.checked, propietario: +v.propietario, inquilino: +v.inquilino, desde: v.desde || null, hasta: v.hasta || null };
       if (!(data.monto > 0) && !(data.porcentaje > 0)) { toast("Cargá un monto o un porcentaje", "bad"); return; }
       const q = f.dataset.kid ? sb.from("conceptos_fijos").update(data).eq("id", +f.dataset.kid) : sb.from("conceptos_fijos").insert({ ...data, contrato_id: +f.dataset.cid });
       const { error } = await q; if (error) throw error;
