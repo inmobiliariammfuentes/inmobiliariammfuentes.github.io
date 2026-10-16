@@ -1,5 +1,5 @@
 // Cobranza Fuentes · Página pública de un comprobante (se abre con el link que manda la inmobiliaria)
-import { sb, money, esc, fecha, periodo, pdfRecibo, pdfLiquidacion, LOGO_URL } from "./comun.js?v=202610161404";
+import { sb, money, esc, fecha, periodo, pdfRecibo, pdfLiquidacion, LOGO_URL } from "./comun.js?v=202610161458";
 
 const $ = (s) => document.querySelector(s);
 const token = new URLSearchParams(location.search).get("c") || "";
@@ -29,7 +29,7 @@ function vistaRecibo(d) {
       <div><dt>Forma de pago</dt><dd>${esc(p.medio || "")}</dd></div>
     </dl>
     <div class="tw"><table><thead><tr><th>Concepto</th><th class="num">Importe</th></tr></thead><tbody>
-      ${lineas.map((k) => fila(esc(k.concepto) + (k.inquilino < 0 ? ' <span class="muted">(descuento)</span>' : ""), (k.inquilino < 0 ? "- " : "") + money(k.monto, i.moneda))
+      ${lineas.map((k) => fila(esc(k.concepto) + (k.inquilino < 0 ? ' <span class="muted">(descuento)</span>' : k.inquilino === 0 ? ' <span class="muted">(informativo, no suma)</span>' : ""), (k.inquilino < 0 ? "- " : "") + money(k.monto, i.moneda))
         + (+k.punitorio ? fila('<span class="muted">Punitorios</span>', money(k.punitorio, i.moneda)) : "")).join("")}
       ${fila("<b>Total</b>", `<b>${money(p.total, i.moneda)}</b>`)}
     </tbody></table></div>

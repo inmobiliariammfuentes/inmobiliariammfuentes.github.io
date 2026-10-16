@@ -4,7 +4,7 @@ import {
   estadoContrato, contratoActivo, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, vtoDe,
   toast, abrirModal, cerrarModal, copiar, mensajeError, rutaArchivo, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, temaActual,
-} from "./comun.js?v=202610161404";
+} from "./comun.js?v=202610161458";
 
 const $ = (s) => document.querySelector(s);
 const S = { cfg: null, contratos: [], yo: [], aj: [], pg: [], ov: [], cargos: [], envios: [], archivos: [], liqs: [], avisos: [], rol: null, anteriores: false, esStaff: false };
@@ -53,7 +53,7 @@ const ajDe = (c) => S.aj.filter((a) => a.contrato_id === c.id);
 const pgDe = (c) => S.pg.filter((p) => p.contrato_id === c.id);
 const ovDe = (c) => Object.fromEntries(S.ov.filter((o) => o.contrato_id === c.id).map((o) => [o.periodo, +o.monto]));
 const deudaDe = (c) => deudaCargos(c, S.cargos.filter((g) => g.contrato_id === c.id), S.cfg, ovDe(c));
-const lineasDe = (x) => { let puesto = false; return x.cargos.map((g) => { const pu = !puesto && g.tipo === "alquiler" ? x.punitorio : 0; if (g.tipo === "alquiler") puesto = true; return { descripcion: g.descripcion, monto: +g.saldo, parcial: +g.saldo < +g.monto - 0.009, punitorio: pu, admin: g.admin, propietario: g.propietario }; }); };
+const lineasDe = (x) => { let puesto = false; return x.cargos.map((g) => { const pu = !puesto && g.tipo === "alquiler" ? x.punitorio : 0; if (g.tipo === "alquiler") puesto = true; return { descripcion: g.descripcion, monto: +g.saldo, parcial: +g.saldo < +g.monto - 0.009, punitorio: pu, admin: g.admin, propietario: g.propietario, inquilino: g.inquilino ?? 1 }; }).filter((l) => l.inquilino !== 0); };
 const contratoKey = (c) => ({ ...c, monto_base: +c.monto_base });
 
 /* ---------- render ---------- */
@@ -99,7 +99,7 @@ function tarjetaInquilino(c) {
     const lin = lineasDe(actual), div = divisionLineas(c, S.cfg, lin);
     const limiteSinPunitorio = fecha(ymSumar(actual.p, 0) + "-" + String(Math.min(28, (+c.dia_vto || +S.cfg.dia_vto) + (+S.cfg.dias_gracia || 0))).padStart(2, "0"));
     pagar = `<div class="apagar"><div class="ph"><div><span class="muted">A pagar</span><h3>${periodo(actual.p)}</h3></div>${ev ? `<span class="chip warn">Comprobante en revisión</span>` : actual.vencido && !actual.enTolerancia ? `<span class="chip bad">Vencido</span>` : `<span class="chip">Vence el ${fecha(actual.vto)}</span>`}</div>
-      <table><tbody>${lin.map((l) => `<tr><td>${l.parcial ? "Saldo s/ " : ""}${esc(l.descripcion)}</td><td class="num">${money(l.monto, c)}</td></tr>`).join("")}
+      <table><tbody>${lin.map((l) => `<tr><td>${l.parcial ? "Saldo s/ " : ""}${esc(l.descripcion)}${l.inquilino === -1 ? ' <span class="muted">(se descuenta)</span>' : ""}</td><td class="num">${l.inquilino === -1 ? "− " : ""}${money(l.monto, c)}</td></tr>`).join("")}
       ${actual.punitorio ? `<tr><td>Punitorio (${actual.dias} días × ${S.cfg.interes_diario}%)${actual.bonificado ? " · ajustado por la inmobiliaria" : ""}</td><td class="num">${money(actual.punitorio, c)}</td></tr>` : actual.bonificado ? `<tr><td>Punitorio bonificado</td><td class="num">${money(0, c)}</td></tr>` : ""}
       <tr class="tot"><td>Total</td><td class="num">${money(div.total, c)}</td></tr></tbody></table>
       ${!actual.vencido ? `<p class="muted nota">Se paga del 1 al ${c.dia_vto || S.cfg.dia_vto}. Hasta el ${limiteSinPunitorio} no se cobra punitorio.</p>` : actual.enTolerancia ? `<p class="muted nota">Estás dentro de la tolerancia: si pagás hasta el ${limiteSinPunitorio} no se cobra punitorio.</p>` : `<p class="muted nota">El punitorio es el ${S.cfg.interes_diario}% diario desde el día ${(+c.dia_vto || +S.cfg.dia_vto) + 1}. La inmobiliaria puede ajustarlo.</p>`}

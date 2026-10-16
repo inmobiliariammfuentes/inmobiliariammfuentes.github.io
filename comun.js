@@ -1,6 +1,6 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202610161404";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202610161458";
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: "cobranza-fuentes" },
@@ -90,12 +90,14 @@ export function deuda(c, aj, pg, cfg, ov, hoy = isoHoy()) {
 }
 
 // Deuda a partir de los renglones pendientes de la planilla (cargos)
+// efecto de un renglón para el inquilino: 1 suma, -1 resta, 0 no lo afecta
+export const signoInq = (x) => (x == null || x.inquilino == null ? 1 : +x.inquilino);
 export function deudaCargos(c, cargos, cfg, ov, hoy = isoHoy()) {
   const por = new Map();
   for (const g of cargos || []) { if (g.anulado || +g.saldo <= 0.005) continue; if (!por.has(g.periodo)) por.set(g.periodo, []); por.get(g.periodo).push(g); }
-  return [...por.keys()].sort().map((p) => {
+  return [...por.keys()].sort().filter((p) => por.get(p).some((g) => signoInq(g) !== 0)).map((p) => {
     const gs = por.get(p).slice().sort((a, b) => (a.tipo === "alquiler" ? 0 : 1) - (b.tipo === "alquiler" ? 0 : 1) || a.id - b.id);
-    const saldo = r2(gs.reduce((s, g) => s + +g.saldo, 0)), alqSaldo = r2(gs.filter((g) => g.tipo === "alquiler").reduce((s, g) => s + +g.saldo, 0));
+    const saldo = r2(gs.reduce((s, g) => s + signoInq(g) * +g.saldo, 0)), alqSaldo = r2(gs.filter((g) => g.tipo === "alquiler").reduce((s, g) => s + +g.saldo, 0));
     const vto = vtoDe(c, cfg, p), dias = Math.max(0, diasEntre(vto, hoy));
     const sugerido = punitorioSugerido(alqSaldo, dias, cfg);
     const bonif = !!ov && Object.prototype.hasOwnProperty.call(ov, p);
@@ -107,7 +109,7 @@ export function deudaCargos(c, cargos, cfg, ov, hoy = isoHoy()) {
 export function divisionLineas(c, cfg, lineas) {
   const pct = comisionDe(c, cfg); let total = 0, prop = 0, hon = 0;
   for (const l of lineas) { const m = +l.monto || 0, pu = +l.punitorio || 0, h = l.admin ? r2(m * pct / 100) : 0, sg = l.propietario == null ? 1 : +l.propietario;
-    total += m + pu; hon += h; prop += sg * (m + pu) - h; }
+    total += signoInq(l) * m + pu; hon += h; prop += sg * (m + pu) - h; }
   return { total: r2(total), propietario: r2(prop), inmobiliaria: r2(total - prop), honorarios: r2(hon), pct };
 }
 
@@ -272,7 +274,7 @@ export function pdfRecibo(cfg, info, p) {
     if (cs.length) lineas.push(...cs.map((k) => ({ ...k, punitorio: 0 })));
     else if (+p.otros) lineas.push({ concepto: p.otros_detalle || "Otros conceptos", monto: p.otros, punitorio: 0, inquilino: 1 });
   }
-  const aAbonar = lineas.reduce((s, k) => s + (k.inquilino < 0 ? -1 : 1) * ((k.saldo != null ? +k.saldo : +k.monto) + (+k.punitorio || 0)), 0);
+  const aAbonar = lineas.reduce((s, k) => s + signoInq(k) * (k.saldo != null ? +k.saldo : +k.monto) + (+k.punitorio || 0), 0);
   const saldoDeudor = Math.max(0, r2(aAbonar - p.total));
   const cols = [{ t: "Fecha", x: L + 2 }, { t: "Descripción", x: 40 }, { t: "Monto", x: 140, a: "right" }, { t: "Punit", x: 163, a: "right" }, { t: "Total", x: R - 2, a: "right" }];
   const datos = [["Fecha:", fecha(p.fecha), true], ["Recibo:", p.recibo_nro], ["Carpeta:", info.carpeta || "-"]];
@@ -290,13 +292,13 @@ export function pdfRecibo(cfg, info, p) {
     y += hp + 2; y = cabeceraTabla(doc, y, cols) + 1.5;
     doc.setFont("helvetica", "normal"); doc.setFontSize(8.5);
     for (const k of lineas) {
-      const resta = k.inquilino < 0, desc = doc.splitTextToSize((k.concepto || "") + (resta ? " (descuento)" : ""), 72);
+      const resta = signoInq(k) < 0, info = signoInq(k) === 0, desc = doc.splitTextToSize((k.concepto || "") + (resta ? " (descuento)" : info ? " (informativo, no suma)" : ""), 72);
       const alto = desc.length * 3.7 + 2.6;
       if (y + alto > 282) { doc.addPage(); y = cabeceraTabla(doc, 12, cols) + 1.5; doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); }
       doc.text(fecha(k.fecha || p.fecha), L + 1, y + 3); doc.text(desc, 40, y + 3);
       doc.text(resta ? neg(k.monto) : pm(k.monto), 140, y + 3, { align: "right" });
       doc.text(pm(k.punitorio || 0), 163, y + 3, { align: "right" });
-      const tot = (+k.monto || 0) + (+k.punitorio || 0); doc.text(resta ? neg(tot) : pm(tot), R - 2, y + 3, { align: "right" });
+      const tot = (info ? 0 : +k.monto || 0) + (+k.punitorio || 0); doc.text(resta ? neg(tot) : pm(tot), R - 2, y + 3, { align: "right" });
       y += alto;
     }
     y += 2; doc.line(L, y, R, y); y += 6;
