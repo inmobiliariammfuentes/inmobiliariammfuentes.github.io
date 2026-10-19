@@ -3,11 +3,11 @@ import {
   sb, money, r2, pad5, esc, isoHoy, ymHoy, ymDe, ymSumar, ymDif, periodo, fecha, diasEntre, MEDIOS,
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
-  pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD,
-} from "./comun.js?v=202610161502";
-import { iniciarChat } from "./chat.js?v=202610161502";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610161502";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610161502";
+  pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
+} from "./comun.js?v=202610191901";
+import { iniciarChat } from "./chat.js?v=202610191901";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610191901";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610191901";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -63,13 +63,15 @@ const agrupar = (filas, campo) => { const m = new Map(); for (const f of filas) 
 
 async function cargarTodo() {
   await sb.rpc("generar_cargos", { p_contrato: null }); // crea los renglones del mes (cuotas y conceptos fijos)
-  const [cfg, per, con, aj, ov, pg, liq, st, cg, cf, items, adel] = await Promise.all([
+  const [cfg, per, con, aj, ov, pg, liq, st, cg, cf, items, adel, csv, smk, bol] = await Promise.all([
     sb.from("config").select("*").eq("id", 1).single().then((r) => { if (r.error) throw r.error; return r.data; }),
     traerTodo("personas"), traerTodo("contratos"), traerTodo("ajustes"), traerTodo("punitorio_override"),
     traerTodo("pagos"), traerTodo("liquidaciones", (q) => q.order("nro", { ascending: false })), traerTodo("staff"),
     traerTodo("cargos", (q) => q.gt("saldo", 0).eq("anulado", false)), traerTodo("conceptos_fijos"),
     traerTodo("pago_items", (q) => q.is("liquidacion_id", null)), traerTodo("adelantos"),
+    traerTodo("contrato_servicios").catch(() => []), traerTodo("servicio_marcas").catch(() => []), traerTodo("archivos", (q) => q.eq("categoria", "boleta")).catch(() => []),
   ]);
+  S.cs = agrupar(csv, "contrato_id"); S.sm = smk; S.boletas = agrupar(bol, "contrato_id");
   S.cg = agrupar(cg, "contrato_id"); S.cf = agrupar(cf, "contrato_id"); S.items = items; S.adel = adel;
   S.pagosById = new Map(pg.map((x) => [x.id, x]));
   S.cfg = cfg; S.personas = new Map(per.map((p) => [p.id, p]));
@@ -123,12 +125,13 @@ async function rpc(fn, args, ok) {
 
 /* ================= navegación ================= */
 const VISTAS = [["contratos", "Contratos"], ["inicio", "Resumen del mes"], ["revisar", "Pagos a revisar"], ["cobrar", "Cobrar en oficina"], ["morosos", "Morosos"],
-  ["ajustes", "Ajustes de precio"], ["liquidaciones", "Liquidaciones"], ["caja", "Caja"], ["personas", "Inquilinos y propietarios"], ["config", "Configuración"]];
+  ["ajustes", "Ajustes de precio"], ["liquidaciones", "Liquidaciones"], ["servicios", "Boletas de servicios"], ["caja", "Caja"], ["personas", "Inquilinos y propietarios"], ["config", "Configuración"]];
 function renderNav() {
   const cs = [...S.contratos.values()];
   const n = { revisar: pendientesRevisar().length,
     morosos: S.cargado ? cs.filter((c) => deudaDe(c).some((d) => d.vencido && !d.enTolerancia)).length : 0,
-    ajustes: S.cargado ? cs.filter((c) => contratoActivo(c) && (proximoAjuste(c, ajDe(c), S.cfg) || "9") <= ymHoy()).length : 0 };
+    ajustes: S.cargado ? cs.filter((c) => contratoActivo(c) && (proximoAjuste(c, ajDe(c), S.cfg) || "9") <= ymHoy()).length : 0,
+    servicios: S.cargado && S.cs ? controlServicios().filter((x) => x.faltan.length).length : 0 };
   const actual = S.view === "planilla" ? "cobrar" : S.view === "liqprop" ? "liquidaciones" : S.view === "nuevo" || S.view === "contrato" ? "contratos" : S.view;
   $("#nav").innerHTML = VISTAS.map(([k, l]) => `<button data-vista="${k}" ${actual === k ? 'aria-current="page"' : ""}><span>${l}</span>${n[k] ? `<span class="n">${n[k]}</span>` : ""}</button>`).join("");
   $("#quien").textContent = S.yo ? S.yo.nombre : "";
@@ -138,7 +141,7 @@ function render() {
   renderNav();
   if (!S.cargado) { $("#main").innerHTML = `<div class="cargando">Cargando contratos…</div>`; return; }
   const v = { inicio: vInicio, revisar: vRevisar, contratos: vContratos, cobrar: vCobrar, morosos: vMorosos, ajustes: vAjustes,
-    liquidaciones: vLiquidaciones, caja: vCaja, personas: vPersonas, config: vConfig, planilla: vPlanilla, liqprop: vLiqProp, nuevo: vNuevo, contrato: vContrato }[S.view] || vInicio;
+    liquidaciones: vLiquidaciones, servicios: vServicios, caja: vCaja, personas: vPersonas, config: vConfig, planilla: vPlanilla, liqprop: vLiqProp, nuevo: vNuevo, contrato: vContrato }[S.view] || vInicio;
   $("#main").innerHTML = v();
   if (S.view === "planilla" && S.plTab === "planilla") planillaTotal();
   if (S.view === "planilla" && S.plTab === "envios") cargarDocsPlanilla();
@@ -401,6 +404,73 @@ function vCaja() {
   </section></div>`;
 }
 
+/* ================= control de boletas de servicios ================= */
+const servDe = (c) => serviciosControl(S.cs.get(c.id) || [], S.sm, S.boletas.get(c.id) || [], S.envios.filter((e) => e.contrato_id === c.id), S.cfg);
+const tieneServicios = (c) => (S.cs.get(c.id) || []).some((s) => s.activo);
+const conPortal = (c) => !!P(c.inquilino_id).user_id;
+function controlServicios() {
+  return [...S.contratos.values()].filter((c) => contratoActivo(c) && tieneServicios(c)).map((c) => {
+    const ctrl = servDe(c);
+    return { c, ctrl, faltan: ctrl.flatMap((x) => x.faltan.map((i) => ({ ...i, s: x.s }))), pend: ctrl.flatMap((x) => x.pendientes.map((i) => ({ ...i, s: x.s }))) };
+  });
+}
+const chipServ = (i) => `<span class="chip ${i.estado === "falta" ? "bad" : i.estado === "pendiente" ? "warn" : i.estado === "exento" ? "" : "ok"}" title="${esc(i.s.servicio)} · ${periodo(i.p)}">${esc(i.s.servicio)} · ${mesCorto(i.p)}</span>`;
+function vServicios() {
+  const todos = controlServicios(), f = S.servFiltro || "deben";
+  const lista = (f === "deben" ? todos.filter((x) => x.faltan.length) : todos).sort((a, b) => b.faltan.length - a.faltan.length || a.c.direccion.localeCompare(b.c.direccion, "es", { numeric: true }));
+  const q = S.q.trim(), vis = q ? lista.filter((x) => coincide(x.c, q)) : lista;
+  const sinConfig = [...S.contratos.values()].filter((c) => contratoActivo(c) && !tieneServicios(c)).length;
+  const b = (k, l) => `<button data-servfiltro="${k}" aria-pressed="${f === k}">${l}</button>`;
+  return `<div class="head"><div><h1>Boletas de servicios</h1><p>Los inquilinos suben al portal las boletas pagadas que les pedimos. Si un mes no la suben, a los ${S.cfg.servicios_plazo || 10} días del mes siguiente figura como adeudada y el portal se lo recuerda (una vez por semana).</p></div>
+    <button class="btn primary" data-a="serv-masivo">Pedir boletas a varios contratos</button></div>
+  <div class="kpis"><div class="kpi ${todos.some((x) => x.faltan.length) ? "alert" : ""}"><span class="l">Con boletas adeudadas</span><span class="v">${todos.filter((x) => x.faltan.length).length}</span><span class="s">${todos.reduce((s, x) => s + x.faltan.length, 0)} boletas</span></div>
+    <div class="kpi"><span class="l">Contratos con control</span><span class="v">${todos.length}</span><span class="s">${todos.filter((x) => conPortal(x.c)).length} con acceso al portal</span></div>
+    <div class="kpi"><span class="l">Sin servicios pedidos</span><span class="v">${sinConfig}</span><span class="s">contratos vigentes</span></div></div>
+  <div class="row"><input type="search" id="q" class="search" placeholder="Inquilino, dirección o carpeta" value="${esc(S.q)}" style="flex:1"><div class="seg">${b("deben", "Deben boletas")}${b("todos", "Todos")}</div></div>
+  <div class="tw"><table><thead><tr><th>Inquilino</th><th>Dirección</th><th>Adeudadas</th><th>A presentar este mes</th><th></th></tr></thead><tbody>
+  ${vis.map((x) => `<tr><td>${esc(inq(x.c))} ${conPortal(x.c) ? '<span class="chip ok">Portal</span>' : '<span class="chip" title="Sin acceso al portal: no le llegan los recordatorios">Sin portal</span>'}</td><td>${esc(x.c.direccion)}</td>
+    <td>${x.faltan.map(chipServ).join(" ") || '<span class="chip ok">Al día</span>'}</td><td>${x.pend.map(chipServ).join(" ") || "—"}</td>
+    <td class="num acciones">${x.faltan.length ? `<button class="btn small" data-servaviso="${x.c.id}">Copiar aviso</button> ` : ""}<button class="btn small primary" data-servver="${x.c.id}">Ver</button></td></tr>`).join("")
+    || `<tr><td colspan="5"><div class="empty">${f === "deben" ? "Nadie debe boletas de servicios." : "Todavía no se pidieron boletas a ningún contrato. Usá «Pedir boletas a varios contratos» o el botón Servicios en la página de cada contrato."}</div></td></tr>`}
+  </tbody></table></div>`;
+}
+function modalServicios(cid) {
+  const c = S.contratos.get(+cid), servs = (S.cs.get(c.id) || []).filter((s) => s.activo), ctrl = servDe(c);
+  const filaEstado = (s, i) => `<tr><td>${periodo(i.p)}</td><td>${chipServ({ ...i, s })}${i.marca?.nota ? `<div class="muted">${esc(i.marca.nota)}</div>` : ""}</td>
+    <td class="files">${i.arch.map((a) => `<button class="file" data-archivo="${esc(a.path)}">📄 ${esc(a.nombre)}</button>`).join("") || (i.estado === "pendiente" ? `<span class="muted">Hasta el ${fecha(i.limite)}</span>` : "")}</td>
+    <td class="num acciones">${i.marca ? `<button class="btn small" data-servdesmarca="${s.id}|${i.p}">Quitar marca</button>` : !i.arch.length ? `<button class="btn small" data-servmarca="${s.id}|${i.p}|presentado" title="La trajo a la oficina o la mandó por otro medio">Marcar presentada</button> <button class="btn small" data-servmarca="${s.id}|${i.p}|exento" title="Ese mes no corresponde">No corresponde</button>` : ""}</td></tr>`;
+  abrirModal(`<div class="mh"><div><h2>Boletas de servicios</h2><div class="muted">${esc(inq(c))} · ${esc(c.direccion)} ${conPortal(c) ? '<span class="chip ok">Portal</span>' : '<span class="chip">Sin portal</span>'}</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
+  <h2>Qué le pedimos</h2>
+  <div class="tw"><table><thead><tr><th>Servicio</th><th>Cada</th><th>Desde</th><th></th></tr></thead><tbody>
+  ${servs.map((s) => `<tr><td>${esc(s.servicio)}</td><td>${FRECUENCIAS[s.frecuencia] || s.frecuencia + " meses"}</td><td>${periodo(s.desde)}</td><td class="num"><button class="btn small danger" data-servquitar="${s.id}">Dejar de pedir</button></td></tr>`).join("") || `<tr><td colspan="4"><div class="empty">No se le pide ninguna boleta.</div></td></tr>`}
+  </tbody></table></div>
+  <form class="form tres" id="f-servagregar" data-cid="${c.id}">
+    <label>Servicio<input type="text" name="servicio" list="dl-servicios" required placeholder="Ej.: Luz"><datalist id="dl-servicios">${SERVICIOS_SUG.map((x) => `<option value="${esc(x)}"></option>`).join("")}</datalist></label>
+    <label>Cada<select name="frecuencia">${Object.entries(FRECUENCIAS).map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</select></label>
+    <label>Desde el período<input type="month" name="desde" value="${ymHoy()}" required></label>
+    <div class="full row"><button class="btn primary" type="submit">Agregar</button></div></form>
+  ${ctrl.map((x) => `<h2>${esc(x.s.servicio)}</h2><div class="tw"><table><tbody>${x.items.slice().reverse().slice(0, 12).map((i) => filaEstado(x.s, i)).join("") || `<tr><td><div class="empty">Todavía no hay períodos.</div></td></tr>`}</tbody></table></div>`).join("")}
+  <div class="row">${ctrl.some((x) => x.faltan.length) ? `<button class="btn" data-servaviso="${c.id}">Copiar aviso para el inquilino</button>` : ""}<button class="btn" data-cerrar>Cerrar</button></div>`, true);
+}
+function avisoServicios(c) {
+  const f = servDe(c).flatMap((x) => x.faltan.map((i) => `${x.s.servicio} (${periodo(i.p)})`));
+  return `Hola ${inq(c).split(",").pop().trim()}, te escribimos de ${S.cfg.nombre}. Nos falta la boleta pagada de: ${f.join(", ")} de ${c.direccion}. La podés subir desde el portal (${PORTAL_URL}) en «Enviar boletas de servicios». ¡Gracias!`;
+}
+function modalServMasivo() {
+  const vig = [...S.contratos.values()].filter(contratoActivo);
+  abrirModal(`<div class="mh"><h2>Pedir boletas a varios contratos</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
+  <form class="form" id="f-servmasivo">
+    <fieldset class="full"><legend>Servicios</legend><div class="row">${SERVICIOS_SUG.map((x) => `<label class="check"><input type="checkbox" name="sv" value="${esc(x)}"> ${esc(x)}</label>`).join("")}</div>
+      <label>Otro<input type="text" name="otro" placeholder="Ej.: Seguro"></label></fieldset>
+    <label>Cada<select name="frecuencia">${Object.entries(FRECUENCIAS).map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</select></label>
+    <label>Desde el período<input type="month" name="desde" value="${ymHoy()}" required></label>
+    <label class="full">A qué contratos<select name="alcance">
+      <option value="portal">Vigentes con inquilino con acceso al portal (${vig.filter(conPortal).length})</option>
+      <option value="todos">Todos los vigentes (${vig.length})</option></select></label>
+    <p class="full muted" style="margin:0">A los contratos que ya tienen pedido ese servicio no se les cambia nada. Después se puede ajustar cada uno desde «Ver».</p>
+    <div class="full row"><button class="btn primary" type="submit">Pedir</button><button class="btn" type="button" data-cerrar>Cancelar</button></div></form>`);
+}
+
 function vPersonas() {
   const q = S.q.trim().toLowerCase();
   const cuenta = new Map(); for (const c of S.contratos.values()) if (contratoActivo(c)) for (const id of [c.inquilino_id, c.propietario_id]) cuenta.set(id, (cuenta.get(id) || 0) + 1);
@@ -428,6 +498,7 @@ function vConfig() {
     ${campo("comision", "Honorarios de administración por defecto (%)", "number", 'step="0.01"')}${campo("dia_vto", "Se paga hasta el día", "number", 'min="1" max="28"')}
     ${campo("dias_gracia", "Días de tolerancia sin punitorio", "number", 'min="0" max="31"')}${campo("interes_diario", "Punitorio diario (%) desde el día siguiente al vencimiento", "number", 'step="0.01"')}
     <label class="full">Controlar cobros desde el período<input type="month" id="cfg-inicio" name="inicio_cobranza" value="${esc(c.inicio_cobranza)}" ${dis}><span class="muted">Los meses anteriores no se cuentan como deuda.</span></label>
+    ${campo("servicios_plazo", "Boletas de servicios: días del mes siguiente para presentarlas antes de figurar adeudadas", "number", 'min="1" max="28"')}
     ${puedeAdmin() ? `<div class="full row"><button class="btn primary" type="submit">Guardar configuración</button></div>` : ""}
   </form>
   <section class="panel"><div class="ph"><h2>Numeración</h2>${puedeAdmin() ? `<button class="btn small" data-a="numeracion">Cambiar</button>` : ""}</div><div id="numeracion" class="muted">${textoNumeracion(S.num)}</div></section>
@@ -1003,6 +1074,7 @@ function vContrato() {
     <button type="button" class="btn" data-vista="contratos">Volver</button>
     <button type="submit" class="btn primary">Guardar cambios</button>
     <button type="button" class="btn" data-planilla="${c.id}">Cobranza</button>
+    <button type="button" class="btn" data-servver="${c.id}">Boletas de servicios</button>
     <button type="button" class="btn" data-liqprop="${c.propietario_id}">Liquidación</button>
     <button type="button" class="btn" data-ficha="${c.id}">Estado de cuenta</button>
     <button type="button" class="btn" data-renovar="${c.id}">Renovación</button>
@@ -1332,6 +1404,18 @@ document.addEventListener("click", async (ev) => {
     if (d.liqanular) { if (!confirmar()) return; if (await rpc("anular_liquidacion", { p_liq: +d.liqanular }, "Liquidación anulada")) await recargar(); return; }
     if (d.dia) { S.cajaDia = d.dia; render(); return; }
     if (d.movanular) { if (!confirmar()) return; const { error } = await sb.from("caja_movimientos").update({ anulado: true }).eq("id", +d.movanular); if (error) throw error; await cargarCaja(); render(); return; }
+    if (d.servfiltro) { S.servFiltro = d.servfiltro; render(); return; }
+    if (d.servver) { modalServicios(d.servver); return; }
+    if (d.servaviso) { const c = S.contratos.get(+d.servaviso); const w = wa(P(c.inquilino_id).telefono); copiar(avisoServicios(c)); if (w) window.open(waMensaje(P(c.inquilino_id).telefono, avisoServicios(c)), "_blank", "noopener"); else toast("Aviso copiado: pegalo en WhatsApp"); return; }
+    if (d.a === "serv-masivo") { modalServMasivo(); return; }
+    if (d.servquitar) { if (!confirmar("¿Dejar de pedirle esta boleta? Lo ya presentado queda guardado.")) return; const s = [...S.cs.values()].flat().find((x) => x.id === +d.servquitar);
+      const { error } = await sb.from("contrato_servicios").update({ activo: false }).eq("id", s.id); if (error) throw error; await recargar("Listo"); modalServicios(s.contrato_id); return; }
+    if (d.servmarca) { const [sid, p, estado] = d.servmarca.split("|"); const s = [...S.cs.values()].flat().find((x) => x.id === +sid);
+      const nota = estado === "exento" ? (prompt("Motivo (opcional):", "") ?? "") : "Presentada en la oficina";
+      const { error } = await sb.from("servicio_marcas").upsert({ contrato_servicio_id: +sid, periodo: p, estado, nota: nota.trim() || null }, { onConflict: "contrato_servicio_id,periodo" }); if (error) throw error;
+      await recargar("Marcado"); modalServicios(s.contrato_id); return; }
+    if (d.servdesmarca) { const [sid, p] = d.servdesmarca.split("|"); const s = [...S.cs.values()].flat().find((x) => x.id === +sid);
+      const { error } = await sb.from("servicio_marcas").delete().eq("contrato_servicio_id", +sid).eq("periodo", p); if (error) throw error; await recargar("Marca quitada"); modalServicios(s.contrato_id); return; }
     if (d.recordar) { const c = S.contratos.get(+d.recordar); const dd = deudaDe(c).filter((x) => x.vencido); copiar(`Hola ${inq(c).split(",").pop().trim()}, te escribimos de ${S.cfg.nombre}. Figura pendiente el alquiler de ${c.direccion} de ${dd.map((x) => periodo(x.p)).join(", ")}, por ${money(dd.reduce((s, x) => s + x.saldo, 0), c)}. Podés ver el detalle y enviar el comprobante en ${PORTAL_URL}. ¡Gracias!`); return; }
     if (d.rescindir) { modalRescindir(d.rescindir); return; }
     if (d.reactivar) { if (!confirmar("¿Quitar la rescisión?")) return; if (await rpc("quitar_rescision", { p_contrato: +d.reactivar }, "Rescisión quitada")) { cerrarModal(); await recargar(); } return; }
@@ -1413,6 +1497,22 @@ document.addEventListener("submit", async (ev) => {
       return;
     }
     if (f.id === "f-adelanto") { if (await rpc("registrar_adelanto", { p_propietario: +f.dataset.pid, p_monto: r2(v.monto), p_concepto: v.concepto, p_fecha: v.fecha, p_medio: v.medio }, "Adelanto registrado")) { cerrarModal(); await recargar(); } return; }
+    if (f.id === "f-servagregar") {
+      const cid = +f.dataset.cid, serv = v.servicio.trim(); if (!serv) return;
+      const ya = (S.cs.get(cid) || []).find((s) => s.servicio.toLowerCase() === serv.toLowerCase());
+      const { error } = ya ? await sb.from("contrato_servicios").update({ activo: true, frecuencia: +v.frecuencia, desde: v.desde }).eq("id", ya.id)
+        : await sb.from("contrato_servicios").insert({ contrato_id: cid, servicio: serv, frecuencia: +v.frecuencia, desde: v.desde });
+      if (error) throw error; await recargar(`Se le pide ${serv}`); modalServicios(cid); return;
+    }
+    if (f.id === "f-servmasivo") {
+      const servs = [...f.querySelectorAll('[name="sv"]:checked')].map((x) => x.value).concat((v.otro || "").trim() ? [v.otro.trim()] : []);
+      if (!servs.length) { toast("Elegí al menos un servicio", "bad"); return; }
+      const cs = [...S.contratos.values()].filter((c) => contratoActivo(c) && (v.alcance === "todos" || conPortal(c)));
+      const filas = []; for (const c of cs) for (const serv of servs) if (!(S.cs.get(c.id) || []).some((s) => s.servicio.toLowerCase() === serv.toLowerCase()))
+        filas.push({ contrato_id: c.id, servicio: serv, frecuencia: +v.frecuencia, desde: v.desde });
+      for (let i = 0; i < filas.length; i += 500) { const { error } = await sb.from("contrato_servicios").upsert(filas.slice(i, i + 500), { onConflict: "contrato_id,servicio", ignoreDuplicates: true }); if (error) throw error; }
+      cerrarModal(); await recargar(`Listo: ${filas.length} pedidos nuevos en ${cs.length} contratos`); return;
+    }
     if (f.id === "f-concepto") {
       const data = { nombre: v.nombre.trim(), monto: r2(v.monto), porcentaje: +v.porcentaje || 0, admin: !!f.admin.checked, propietario: +v.propietario, inquilino: +v.inquilino, desde: v.desde || null, hasta: v.hasta || null };
       if (!(data.monto > 0) && !(data.porcentaje > 0)) { toast("Cargá un monto o un porcentaje", "bad"); return; }
@@ -1470,7 +1570,7 @@ document.addEventListener("submit", async (ev) => {
     }
     if (f.id === "f-mov") { const { error } = await sb.from("caja_movimientos").insert({ tipo: v.tipo, fecha: v.fecha, concepto: v.concepto.trim(), monto: r2(v.monto), medio: v.medio }); if (error) throw error; cerrarModal(); S.cajaDia = v.fecha; S.cajaMes = ymDe(v.fecha); await cargarCaja(); render(); toast("Movimiento guardado"); return; }
     if (f.id === "f-config") {
-      const num = ["comision", "dia_vto", "dias_gracia", "interes_diario"]; const data = {};
+      const num = ["comision", "dia_vto", "dias_gracia", "interes_diario", "servicios_plazo"]; const data = {};
       for (const [k, val] of Object.entries(v)) data[k] = num.includes(k) ? +val || 0 : String(val).trim();
       const { error } = await sb.from("config").update(data).eq("id", 1); if (error) throw error; await recargar("Configuración guardada"); return;
     }

@@ -325,3 +325,6 @@ td.acciones{white-space:nowrap}
 .aum-banner{display:flex;flex-direction:column;gap:2px}
 
 .aviso-version{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:60;display:flex;gap:12px;align-items:center;background:var(--fg);color:var(--bg);padding:10px 14px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.25);font-size:15px;max-width:calc(100% - 32px)}
+.servicios-pend{background:var(--warn-soft);color:var(--fg);border-radius:8px;padding:12px 14px;margin:8px 0;display:grid;gap:8px}
+.servicios-pend.bad{background:var(--bad-soft,var(--warn-soft))}
+.servicios-pend ul{margin:0;padding-left:18px;display:grid;gap:4px}
