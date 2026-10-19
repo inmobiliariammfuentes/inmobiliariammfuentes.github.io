@@ -1,6 +1,6 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202610161502";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202610191901";
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: "cobranza-fuentes" },
@@ -105,6 +105,27 @@ export function deudaCargos(c, cargos, cfg, ov, hoy = isoHoy()) {
              punitorio: bonif ? +ov[p] : sugerido, punitorioSugerido: sugerido, bonificado: bonif, cargos: gs };
   });
 }
+/* ---------- control de boletas de servicios ---------- */
+export const SERVICIOS_SUG = ["Luz", "Gas", "Agua (AySA)", "Municipal (ABL/TSG)", "Expensas", "ARBA", "Internet"];
+export const FRECUENCIAS = { 1: "Mensual", 2: "Bimestral", 3: "Trimestral", 6: "Semestral", 12: "Anual" };
+const normServ = (x) => String(x || "").trim().toLowerCase();
+// Estado de cada servicio pedido a un contrato: por período, presentado / exento / pendiente (todavía en plazo) / falta (vencido)
+// servs: contrato_servicios del contrato · marcas: servicio_marcas · archivos: boletas del contrato · envios: para descartar los rechazados
+export function serviciosControl(servs, marcas, archivos, envios, cfg, hoy = isoHoy()) {
+  const cur = ymDe(hoy), plazo = Math.min(28, +cfg.servicios_plazo || 10);
+  const rech = new Set((envios || []).filter((e) => e.estado === "rechazado").map((e) => e.id));
+  return (servs || []).filter((s) => s.activo).map((s) => {
+    const items = [];
+    for (let p = s.desde; p <= cur && (!s.hasta || p <= s.hasta); p = ymSumar(p, +s.frecuencia || 1)) {
+      const marca = (marcas || []).find((m) => m.contrato_servicio_id === s.id && m.periodo === p);
+      const arch = (archivos || []).filter((a) => a.contrato_id === s.contrato_id && a.categoria === "boleta" && a.periodo === p && normServ(a.servicio) === normServ(s.servicio) && !rech.has(a.envio_id));
+      const limite = ymSumar(p, 1) + "-" + pad(plazo);
+      items.push({ p, marca, arch, limite, estado: marca ? marca.estado : arch.length ? "presentado" : hoy > limite ? "falta" : "pendiente" });
+    }
+    return { s, items, faltan: items.filter((i) => i.estado === "falta"), pendientes: items.filter((i) => i.estado === "pendiente") };
+  });
+}
+
 // División de renglones: cuánto va al propietario y cuánto a la inmobiliaria. lineas: [{monto, punitorio, admin, propietario}]
 export function divisionLineas(c, cfg, lineas) {
   const pct = comisionDe(c, cfg); let total = 0, prop = 0, hon = 0;

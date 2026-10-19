@@ -3,8 +3,8 @@ import {
   sb, DOMINIO_USUARIOS, LOGO_URL, money, r2, pad5, esc, isoHoy, ymHoy, ymDe, ymSumar, periodo, fecha,
   estadoContrato, contratoActivo, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, vtoDe,
   toast, abrirModal, cerrarModal, copiar, mensajeError, rutaArchivo, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
-  pdfRecibo, pdfLiquidacion, alternarTema, temaActual,
-} from "./comun.js?v=202610161502";
+  pdfRecibo, pdfLiquidacion, alternarTema, temaActual, serviciosControl,
+} from "./comun.js?v=202610191901";
 
 const $ = (s) => document.querySelector(s);
 const S = { cfg: null, contratos: [], yo: [], aj: [], pg: [], ov: [], cargos: [], envios: [], archivos: [], liqs: [], avisos: [], rol: null, anteriores: false, esStaff: false };
@@ -46,8 +46,9 @@ async function cargar(uid) {
     q("liquidaciones", (x) => x.order("nro", { ascending: false })), q("notificaciones", (x) => x.order("created_at", { ascending: false }).limit(60)),
     sb.from("staff").select("user_id").eq("user_id", uid).maybeSingle().then((r) => r.data),
   ]);
-  const cargos = await q("cargos", (x) => x.eq("anulado", false).gt("saldo", 0));
-  Object.assign(S, { cfg, contratos, yo, aj, pg, ov, envios, archivos, liqs, avisos, cargos, esStaff: !!staff });
+  const [cargos, cs, sm] = await Promise.all([q("cargos", (x) => x.eq("anulado", false).gt("saldo", 0)),
+    q("contrato_servicios").catch(() => []), q("servicio_marcas").catch(() => [])]);
+  Object.assign(S, { cfg, contratos, yo, aj, pg, ov, envios, archivos, liqs, avisos, cargos, cs, sm, esStaff: !!staff });
 }
 const ajDe = (c) => S.aj.filter((a) => a.contrato_id === c.id);
 const pgDe = (c) => S.pg.filter((p) => p.contrato_id === c.id);
@@ -120,6 +121,7 @@ function tarjetaInquilino(c) {
   const misEnvios = envios.slice(0, 8);
   return `<section class="panel contrato"><div class="ph"><div><h2 class="dir">${esc(c.direccion)}</h2><div class="muted">Propietario: ${esc(c.propietario_nombre)} · Contrato hasta ${fecha(c.fin)}</div></div></div>
     ${pagar}
+    ${bloqueServicios(c)}
     <div class="row"><button class="btn" data-servicios="${c.id}">Enviar boletas de servicios pagados</button></div>
     <details><summary>Recibos (${pagos.length})</summary>${recibos.length ? `<div class="tw"><table><tbody>${recibos.map((p) => `<tr><td>${periodo(p.periodo)}<div class="muted">Recibo ${pad5(p.recibo_nro)} · ${fecha(p.fecha)}</div></td><td class="num">${money(p.total, c)}</td><td class="num"><button class="btn small" data-recibo="${p.id}">PDF</button></td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">Todavía no hay recibos.</p>`}</details>
     <details><summary>Mis envíos (${envios.length})</summary>${misEnvios.length ? `<div class="tw"><table><tbody>${misEnvios.map((e) => `<tr><td>${e.tipo === "pago" ? "Pago" : "Servicios"} · ${periodo(e.periodo)}<div class="muted">${fecha(e.created_at)}${e.motivo_rechazo ? " · " + esc(e.motivo_rechazo) : ""}</div></td><td>${e.estado === "pendiente" ? `<span class="chip warn">En revisión</span>` : e.estado === "aprobado" ? `<span class="chip ok">Confirmado</span>` : `<span class="chip bad">Rechazado</span>`}</td><td class="files">${S.archivos.filter((a) => a.envio_id === e.id).map((a) => `<button class="file" data-archivo="${esc(a.path)}">${esc(a.servicio || ETIQUETA_ARCHIVO[a.categoria])}</button>`).join("")}</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">No enviaste nada todavía.</p>`}</details>
@@ -173,14 +175,29 @@ function modalEnvioPago(cid) {
     <div class="full" id="ep-progreso" aria-live="polite"></div>
   </form>`);
 }
+// boletas que la inmobiliaria le pide a este contrato y todavía no subió
+const serviciosDe = (c) => serviciosControl(S.cs.filter((x) => x.contrato_id === c.id), S.sm, S.archivos, S.envios.filter((e) => e.contrato_id === c.id), S.cfg);
+function bloqueServicios(c) {
+  const ctrl = serviciosDe(c); if (!ctrl.length) return "";
+  const falta = ctrl.flatMap((x) => x.faltan.map((i) => ({ ...i, s: x.s }))), pend = ctrl.flatMap((x) => x.pendientes.map((i) => ({ ...i, s: x.s })));
+  if (!falta.length && !pend.length) return `<div class="estado ok"><b>Boletas de servicios al día.</b> <span class="muted">${ctrl.map((x) => esc(x.s.servicio)).join(" · ")}</span></div>`;
+  return `<div class="servicios-pend ${falta.length ? "bad" : ""}"><b>${falta.length ? "Tenés boletas de servicios sin presentar" : "Boletas de servicios a presentar"}</b>
+    <ul>${falta.map((i) => `<li><span class="chip bad">Adeudada</span> ${esc(i.s.servicio)} · ${periodo(i.p)}</li>`).join("")}${pend.map((i) => `<li><span class="chip">Hasta el ${fecha(i.limite)}</span> ${esc(i.s.servicio)} · ${periodo(i.p)}</li>`).join("")}</ul>
+    <button class="btn primary" data-servicios="${c.id}">Subir las boletas pagadas</button></div>`;
+}
 function modalEnvioServicios(cid) {
   const c = S.contratos.find((x) => x.id === +cid && x.rol === "inquilino"); const cur = ymHoy();
   const pers = [cur, ymSumar(cur, -1), ymSumar(cur, -2)];
+  const items = serviciosDe(c).flatMap((x) => [...x.faltan, ...x.pendientes].map((i) => ({ ...i, s: x.s }))).sort((a, b) => (a.p < b.p ? -1 : 1));
   abrirModal(`<div class="mh"><div><h2>Boletas de servicios</h2><div class="muted">${esc(c.direccion)}</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
   <form class="form" id="f-servicios" data-id="${c.id}">
+    ${items.length ? `<p class="full nota" style="margin:0">Subí la foto o el PDF de cada boleta pagada:</p>
+    ${items.map((i) => `<label class="full">${esc(i.s.servicio)} · ${periodo(i.p)} ${i.estado === "falta" ? '<span class="chip bad">Adeudada</span>' : ""}<input type="file" data-sv="1" data-p="${i.p}" data-serv="${esc(i.s.servicio)}" accept="${ARCHIVOS_OK}" multiple></label>`).join("")}
+    <details class="full"><summary>Subir otra boleta</summary><div class="form">` : ""}
     <label>Mes<select id="es-periodo" name="periodo">${pers.map((p) => `<option value="${p}">${periodo(p)}</option>`).join("")}</select></label>
-    <label>¿Qué servicios?<input type="text" id="es-serv" name="servicio" placeholder="Ej.: Luz, gas, ABL" required></label>
-    <label class="full">Boletas o comprobantes (podés elegir varios)<input type="file" id="es-bol" name="boletas" accept="${ARCHIVOS_OK}" multiple required></label>
+    <label>¿Qué servicio?<input type="text" id="es-serv" name="servicio" placeholder="Ej.: Luz, gas, ABL" ${items.length ? "" : "required"}></label>
+    <label class="full">Boletas o comprobantes (podés elegir varios)<input type="file" id="es-bol" name="boletas" accept="${ARCHIVOS_OK}" multiple ${items.length ? "" : "required"}></label>
+    ${items.length ? `</div></details>` : ""}
     <label class="full">Observaciones (opcional)<textarea id="es-obs" name="observaciones" rows="2"></textarea></label>
     <div class="full row"><button class="btn primary grande" type="submit">Enviar</button></div>
     <div class="full" id="es-progreso" aria-live="polite"></div>
@@ -196,20 +213,24 @@ async function subir(cid, per, envioId, categoria, file, servicio) {
 }
 async function enviar(f, tipo) {
   const cid = +f.dataset.id, v = Object.fromEntries(new FormData(f).entries());
-  const archivos = [];
-  if (tipo === "pago") { archivos.push(["comp_propietario", f.f1.files[0]]); if (f.f2) archivos.push(["comp_inmobiliaria", f.f2.files[0]]); }
-  for (const b of f.boletas.files) archivos.push(["boleta", b]);
+  const archivos = [];   // [categoría, archivo, período, servicio]
+  if (tipo === "pago") { archivos.push(["comp_propietario", f.f1.files[0], v.periodo]); if (f.f2) archivos.push(["comp_inmobiliaria", f.f2.files[0], v.periodo]); }
+  for (const inp of f.querySelectorAll("input[data-sv]")) for (const b of inp.files) archivos.push(["boleta", b, inp.dataset.p, inp.dataset.serv]);
+  for (const b of f.boletas.files) archivos.push(["boleta", b, v.periodo, (v.servicio || "").trim()]);
+  if (tipo === "servicios" && !archivos.length) { toast("Elegí al menos una boleta para subir", "bad"); return; }
+  if (tipo === "servicios" && f.boletas.files.length && !(v.servicio || "").trim()) { toast("Escribí de qué servicio es la otra boleta", "bad"); return; }
+  const perEnvio = tipo === "servicios" ? archivos.map((a) => a[2]).sort().pop() : v.periodo;
   for (const [, a] of archivos) if (a && a.size > MAX_MB * 1048576) { toast(`"${a.name}" pesa más de ${MAX_MB} MB. Achicá la foto o subí un PDF.`, "bad"); return; }
   const prog = f.querySelector("[aria-live]"); const boton = f.querySelector("[type=submit]"); boton.disabled = true;
   const uid = (await sb.auth.getUser()).data.user.id;
-  const { data: env, error } = await sb.from("envios").insert({ contrato_id: cid, periodo: v.periodo, tipo, creado_por: uid,
+  const { data: env, error } = await sb.from("envios").insert({ contrato_id: cid, periodo: perEnvio, tipo, creado_por: uid,
     monto_propietario: tipo === "pago" ? r2(v.monto_propietario) : null, monto_inmobiliaria: tipo === "pago" ? r2(v.monto_inmobiliaria) : null,
     observaciones: (v.observaciones || "").trim() || null }).select().single();
   if (error) { toast(mensajeError(error), "bad"); boton.disabled = false; return; }
   let fallas = 0;
   for (let i = 0; i < archivos.length; i++) {
-    const [cat, file] = archivos[i]; prog.textContent = `Subiendo archivo ${i + 1} de ${archivos.length}…`;
-    try { await subir(cid, v.periodo, env.id, cat, file, cat === "boleta" ? (v.servicio || "").trim() : null); } catch (e) { fallas++; console.error(e); }
+    const [cat, file, per, serv] = archivos[i]; prog.textContent = `Subiendo archivo ${i + 1} de ${archivos.length}…`;
+    try { await subir(cid, per, env.id, cat, file, cat === "boleta" ? serv || null : null); } catch (e) { fallas++; console.error(e); }
   }
   cerrarModal();
   toast(fallas ? `Se envió, pero ${fallas} archivo(s) no se pudieron subir. Avisale a la inmobiliaria.` : tipo === "pago" ? "Listo. Te avisamos cuando la inmobiliaria confirme el pago." : "Listo. Enviamos las boletas a la inmobiliaria.", fallas ? "bad" : "");
