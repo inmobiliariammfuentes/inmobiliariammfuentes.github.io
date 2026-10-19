@@ -35,7 +35,7 @@ const nombreMes = (iso) => MESES[+iso.slice(5, 7) - 1] + " " + iso.slice(0, 4);
 async function traer(url) {
   let err;
   for (let i = 1; i <= 2; i++) {
-    const ac = new AbortController(), t = setTimeout(() => ac.abort(), 25000);
+    const ac = new AbortController(), t = setTimeout(() => ac.abort(), 15000);
     try { const r = await fetch(url, { signal: ac.signal }); if (r.ok) return r; err = new Error(new URL(url).host + " respondió " + r.status); if (r.status < 500 && r.status !== 429) break; }
     catch (e) { err = e.name === "AbortError" ? new Error(new URL(url).host + " no respondió a tiempo") : e; }
     finally { clearTimeout(t); }
@@ -59,7 +59,7 @@ async function bajarBcra(id, desde) {
 // Además datos.gob.ar a veces responde la serie VACÍA para una dirección puntual: se prueban formas equivalentes de la consulta.
 async function bajarDatos(id) {
   const pedir = async (q) => (await (await traer(`${DATOS}?ids=${encodeURIComponent(id)}&${q}`)).json()).data || [];
-  const primera = async (qs) => { let err; for (const q of qs) { try { const d = await pedir(q); if (d.length) return d; } catch (e) { err = e; } } if (err) throw err; return []; };
+  const primera = async (qs) => { let err; for (const q of qs) { try { const d = await pedir(q); if (d.length) return d; } catch (e) { err = e; if (/a tiempo/.test(e.message)) break; } } if (err) throw err; return []; };
   const [todo, ult] = await Promise.all([
     primera(["limit=1000&format=json&start_date=2020-01-01", "limit=1000&format=json", "start_date=2020-01-01&limit=1000&format=json"]),
     primera(["last=24&format=json", "format=json&last=24"])]);
@@ -83,6 +83,27 @@ async function ipcProvisorio(puntos) {
   }
   return { puntos: out, provisorios };
 }
+// IPC: datos.gob.ar + mes provisorio del BCRA. Si datos.gob.ar no responde: lo último guardado en este navegador
+// y, si no hay nada guardado, la serie armada con la inflación mensual del BCRA (todo provisorio, nada se aplica solo).
+async function bajarIpc(id, viejo) {
+  let base = null, respaldo = false;
+  try { const p = await bajarDatos(id); if (p.length) base = p; } catch { /* sigue con el respaldo */ }
+  if (!base) {
+    respaldo = true;
+    let v1 = null; try { v1 = JSON.parse(localStorage.getItem("indices-v1") || "null")?.d; } catch {}
+    const prev = viejo?.ipc?.length ? viejo : v1?.ipc?.length ? v1 : null;
+    if (prev) { const pv = new Set(prev.ipc_prov || []); base = prev.ipc.filter((x) => !pv.has(String(x[0]).slice(0, 7))); }
+  }
+  if (!base) {                                                         // sin nada guardado: índice armado con la variación mensual
+    const filas = (await bajarBcra(BCRA_INFLACION_MENSUAL, "2016-12-01")).map(([f, v]) => [f.slice(0, 7), v]).sort((a, b) => (a[0] < b[0] ? -1 : 1));
+    if (!filas.length) throw new Error("no respondieron datos.gob.ar ni el BCRA");
+    let nivel = 100; const pts = [[mesISO(mesNum(filas[0][0] + "-01") - 1), nivel]];
+    for (const [ym, v] of filas) { nivel = Math.round(nivel * (1 + v / 100) * 10000) / 10000; pts.push([ym + "-01", nivel]); }
+    return { d: { ipc: pts, ipc_prov: filas.map((x) => x[0]) }, respaldo };
+  }
+  try { const x = await ipcProvisorio(base); return { d: { ipc: x.puntos, ipc_prov: x.provisorios }, respaldo }; }
+  catch { return { d: { ipc: base, ipc_prov: [] }, respaldo }; }
+}
 let cache = null, cargando = null;
 export async function cargarIndices(forzar = false) {
   if (cache && !forzar) return cache;
@@ -91,14 +112,15 @@ export async function cargarIndices(forzar = false) {
     let guardado = null;
     try { guardado = JSON.parse(localStorage.getItem("indices-v2") || "null"); } catch {}
     if (!forzar && guardado && Date.now() - guardado.t < 6 * 3600e3) return (cache = armar(guardado.d));
-    const d = { ...(guardado?.d || {}) }, errores = [];
+    const d = { ...(guardado?.d || {}) }, errores = []; let pronto = false;
     await Promise.all(Object.entries(FUENTES).map(async ([nombre, f]) => {
       try {
+        if (nombre === "IPC") { const r = await bajarIpc(f.datos, guardado?.d); Object.assign(d, r.d); pronto = r.respaldo; return; }
         d[f.k] = f.bcra ? await bajarBcra(f.bcra, "2022-06-01") : await bajarDatos(f.datos);
-        if (nombre === "IPC") { d.ipc_prov = []; try { const x = await ipcProvisorio(d.ipc); d.ipc = x.puntos; d.ipc_prov = x.provisorios; } catch { /* sin dato provisorio */ } }
       } catch (e) { errores.push(nombre + ": " + e.message); }
     }));
-    try { localStorage.setItem("indices-v2", JSON.stringify({ t: Date.now(), d })); } catch {}
+    // si el IPC salió del respaldo, se vuelve a intentar datos.gob.ar en media hora en lugar de 6 horas
+    try { localStorage.setItem("indices-v2", JSON.stringify({ t: Date.now() - (pronto ? 5.5 * 3600e3 : 0), d })); } catch {}
     cache = armar(d); cache.errores = errores; return cache;
   })().finally(() => { cargando = null; });
   return cargando;
