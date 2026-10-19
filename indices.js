@@ -31,11 +31,22 @@ const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "
 const nombreMes = (iso) => MESES[+iso.slice(5, 7) - 1] + " " + iso.slice(0, 4);
 
 /* ---------- descarga (con caché de 6 horas en este navegador) ---------- */
+// los servicios públicos a veces tardan o no responden: cada pedido tiene un tiempo máximo y hasta 3 intentos
+async function traer(url) {
+  let err;
+  for (let i = 1; i <= 2; i++) {
+    const ac = new AbortController(), t = setTimeout(() => ac.abort(), 25000);
+    try { const r = await fetch(url, { signal: ac.signal }); if (r.ok) return r; err = new Error(new URL(url).host + " respondió " + r.status); if (r.status < 500 && r.status !== 429) break; }
+    catch (e) { err = e.name === "AbortError" ? new Error(new URL(url).host + " no respondió a tiempo") : e; }
+    finally { clearTimeout(t); }
+    await new Promise((ok) => setTimeout(ok, 1500 * i));
+  }
+  throw err;
+}
 async function bajarBcra(id, desde) {
   const out = []; let offset = 0;
   for (let p = 0; p < 10; p++) {
-    const r = await fetch(`${BCRA}/${id}?desde=${desde}&limit=1000&offset=${offset}`);
-    if (!r.ok) throw new Error("BCRA respondió " + r.status);
+    const r = await traer(`${BCRA}/${id}?desde=${desde}&limit=1000&offset=${offset}`);
     const j = await r.json(), det = j?.results?.[0]?.detalle;
     if (!Array.isArray(det) || !det.length) break;
     for (const it of det) out.push([String(it.fecha).slice(0, 10), +it.valor]);
@@ -45,11 +56,32 @@ async function bajarBcra(id, desde) {
   return out;
 }
 // Se piden la serie completa y los últimos 24 meses por separado: la consulta larga a veces viene sin el último mes publicado.
+// Además datos.gob.ar a veces responde la serie VACÍA para una dirección puntual: se prueban formas equivalentes de la consulta.
 async function bajarDatos(id) {
-  const pedir = async (q) => { const r = await fetch(`${DATOS}?ids=${encodeURIComponent(id)}&${q}&format=json`); if (!r.ok) throw new Error("datos.gob.ar respondió " + r.status); return (await r.json()).data || []; };
-  const [todo, ult] = await Promise.all([pedir("start_date=2020-01-01&limit=1000"), pedir("last=24")]);
+  const pedir = async (q) => (await (await traer(`${DATOS}?ids=${encodeURIComponent(id)}&${q}`)).json()).data || [];
+  const primera = async (qs) => { let err; for (const q of qs) { try { const d = await pedir(q); if (d.length) return d; } catch (e) { err = e; } } if (err) throw err; return []; };
+  const [todo, ult] = await Promise.all([
+    primera(["limit=1000&format=json&start_date=2020-01-01", "limit=1000&format=json", "start_date=2020-01-01&limit=1000&format=json"]),
+    primera(["last=24&format=json", "format=json&last=24"])]);
   const m = new Map(); for (const x of [...todo, ...ult]) m.set(String(x[0]), +x[1]);
   return [...m.entries()];
+}
+// IPC provisorio: el BCRA publica la inflación mensual del INDEC (variable 27) el mismo día que el INDEC, y datos.gob.ar
+// suele tardar días en sumar el mes nuevo. Mientras tanto se reconstruye el índice con esa variación y queda "estimado";
+// en la próxima descarga, cuando datos.gob.ar ya tiene el mes, se usa el valor exacto. (Igual que la Calculadora.)
+const BCRA_INFLACION_MENSUAL = 27;
+async function ipcProvisorio(puntos) {
+  if (!puntos.length) return { puntos, provisorios: [] };
+  const ord = puntos.slice().sort((a, b) => (a[0] < b[0] ? -1 : 1)), ult = ord[ord.length - 1];
+  const tope = masDias(hoyISO(), -30), desde0 = masDias(ult[0].slice(0, 7) + "-01", -5), desde = desde0 > tope ? tope : desde0;
+  const pct = new Map((await bajarBcra(BCRA_INFLACION_MENSUAL, desde)).filter((x) => Number.isFinite(x[1])).map(([f, v]) => [f.slice(0, 7), v]));
+  const out = ord.slice(), provisorios = []; let mn = mesNum(ult[0]) + 1, nivel = ult[1];
+  const sana = (v) => v > -5 && v < 30;                             // una variación fuera de este rango es un dato roto
+  while (pct.has(mesISO(mn).slice(0, 7)) && sana(pct.get(mesISO(mn).slice(0, 7))) && mesISO(mn) <= hoyISO()) {
+    nivel = Math.round(nivel * (1 + pct.get(mesISO(mn).slice(0, 7)) / 100) * 10000) / 10000;
+    out.push([mesISO(mn), nivel]); provisorios.push(mesISO(mn).slice(0, 7)); mn++;
+  }
+  return { puntos: out, provisorios };
 }
 let cache = null, cargando = null;
 export async function cargarIndices(forzar = false) {
@@ -57,14 +89,16 @@ export async function cargarIndices(forzar = false) {
   if (cargando) return cargando;
   cargando = (async () => {
     let guardado = null;
-    try { guardado = JSON.parse(localStorage.getItem("indices-v1") || "null"); } catch {}
+    try { guardado = JSON.parse(localStorage.getItem("indices-v2") || "null"); } catch {}
     if (!forzar && guardado && Date.now() - guardado.t < 6 * 3600e3) return (cache = armar(guardado.d));
     const d = { ...(guardado?.d || {}) }, errores = [];
     await Promise.all(Object.entries(FUENTES).map(async ([nombre, f]) => {
-      try { d[f.k] = f.bcra ? await bajarBcra(f.bcra, "2022-06-01") : await bajarDatos(f.datos); }
-      catch (e) { errores.push(nombre + ": " + e.message); }
+      try {
+        d[f.k] = f.bcra ? await bajarBcra(f.bcra, "2022-06-01") : await bajarDatos(f.datos);
+        if (nombre === "IPC") { d.ipc_prov = []; try { const x = await ipcProvisorio(d.ipc); d.ipc = x.puntos; d.ipc_prov = x.provisorios; } catch { /* sin dato provisorio */ } }
+      } catch (e) { errores.push(nombre + ": " + e.message); }
     }));
-    try { localStorage.setItem("indices-v1", JSON.stringify({ t: Date.now(), d })); } catch {}
+    try { localStorage.setItem("indices-v2", JSON.stringify({ t: Date.now(), d })); } catch {}
     cache = armar(d); cache.errores = errores; return cache;
   })().finally(() => { cargando = null; });
   return cargando;
@@ -81,9 +115,10 @@ function armar(d) {
     } else {
       const mp = new Map(pts.map(([f2, v]) => [mesNum(f2), v])), meses = [...mp.keys()].sort((a, b) => a - b);
       const prim = meses[0], ult = meses[meses.length - 1], uv = mp.get(ult), prev = mp.get(ult - 1);
+      const prov = new Set((d[f.k + "_prov"] || []).map((x) => mesNum(x + "-01")));
       const ratio = 1 + (prev ? Math.round((uv / prev - 1) * 10000) / 100 : 0) / 100;
       S[nombre] = { tipo: "mensual", ultimoMes: mesISO(ult),
-        en(mn) { if (mn < prim) return null; if (mp.has(mn)) return { valor: mp.get(mn), estimado: false };
+        en(mn) { if (mn < prim) return null; if (mp.has(mn)) return { valor: mp.get(mn), estimado: prov.has(mn), provisorio: prov.has(mn) };
           if (mn > ult) return { valor: uv * Math.pow(ratio, mn - ult), estimado: true };
           let k = mn; while (k > prim && !mp.has(k)) k--; return { valor: mp.get(k), estimado: false }; } };
     }
@@ -113,8 +148,10 @@ export function calcularAumento(S, indice, monto, desde, hasta) {
     const m0 = mesNum(desde), m1 = mesNum(hasta) - 1, base = serie.en(m0 - 1), fin = serie.en(m1);
     if (!base) return { error: `El ${nombre} no tiene datos para ${nombreMes(mesISO(m0 - 1))}` };
     factor = fin.valor / base.valor; estimado = fin.estimado;
-    const faltan = []; for (let m = m0; m <= m1; m++) if (serie.en(m).estimado) faltan.push(nombreMes(mesISO(m)));
-    detalle = `${nombre} acumulado de ${nombreMes(mesISO(m0))} a ${nombreMes(mesISO(m1))}` + (faltan.length ? ` · estimado: falta publicar ${faltan.join(", ")}` : "");
+    const faltan = [], prov = []; for (let m = m0; m <= m1; m++) { const x = serie.en(m); if (x.provisorio) prov.push(nombreMes(mesISO(m))); else if (x.estimado) faltan.push(nombreMes(mesISO(m))); }
+    detalle = `${nombre} acumulado de ${nombreMes(mesISO(m0))} a ${nombreMes(mesISO(m1))}`
+      + (prov.length ? ` · ${prov.join(", ")} con la inflación publicada por el INDEC (vía BCRA), provisorio hasta que datos.gob.ar lo cargue` : "")
+      + (faltan.length ? ` · estimado: falta publicar ${faltan.join(", ")}` : "");
   }
   const nuevo = Math.round(monto * factor);
   return { nuevo, pct: Math.round((nuevo / monto - 1) * 10000) / 100, estimado, detalle };
