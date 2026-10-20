@@ -328,3 +328,11 @@ td.acciones{white-space:nowrap}
 .servicios-pend{background:var(--warn-soft);color:var(--fg);border-radius:8px;padding:12px 14px;margin:8px 0;display:grid;gap:8px}
 .servicios-pend.bad{background:var(--bad-soft,var(--warn-soft))}
 .servicios-pend ul{margin:0;padding-left:18px;display:grid;gap:4px}
+.dolar{display:grid;gap:4px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--fg);text-decoration:none;font-size:13px}
+.dolar:empty{display:none}
+.dolar .t{font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted,inherit)}
+.dolar .v{display:flex;justify-content:space-between;gap:10px;font-family:var(--mono,monospace);font-size:15px;font-weight:600}
+.dolar .v span{display:grid}
+.dolar .v small{font-family:inherit;font-weight:400;font-size:11px;opacity:.7}
+.dolar .muted{font-size:11px}
+@media (min-width: 900px){.side{overflow-y:auto}}

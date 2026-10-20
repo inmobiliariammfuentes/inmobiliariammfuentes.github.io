@@ -4,10 +4,10 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202610201337";
-import { iniciarChat } from "./chat.js?v=202610201337";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610201337";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610201337";
+} from "./comun.js?v=202610201345";
+import { iniciarChat } from "./chat.js?v=202610201345";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610201345";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610201345";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -1632,8 +1632,21 @@ function vigilarVersion() {
   };
   setInterval(revisar, 5 * 60e3); addEventListener("focus", revisar); setTimeout(revisar, 30e3);
 }
+// Dólar blue (mismo valor que dolarhoy.com, vía dolarapi.com): se actualiza cada 10 minutos
+function iniciarDolar() {
+  const box = document.getElementById("dolar"); if (!box) return;
+  const ars = (n) => "$ " + Math.round(n).toLocaleString("es-AR");
+  const cargar = async () => {
+    try {
+      const d = await fetch("https://dolarapi.com/v1/dolares/blue", { cache: "no-store" }).then((r) => { if (!r.ok) throw new Error(); return r.json(); });
+      const h = new Date(d.fechaActualizacion).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+      box.innerHTML = `<span class="t">Dólar blue</span><span class="v"><span><small>Compra</small>${ars(d.compra)}</span><span><small>Venta</small>${ars(d.venta)}</span></span><span class="muted">Actualizado ${h}</span>`;
+    } catch { if (!box.innerHTML) box.innerHTML = `<span class="t">Dólar blue</span><span class="muted">No disponible</span>`; }
+  };
+  cargar(); setInterval(cargar, 10 * 60e3);
+}
 async function iniciar() {
-  vigilarVersion();
+  vigilarVersion(); iniciarDolar();
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return pantallaLogin();
   const { data: yo } = await sb.from("staff").select("*").eq("user_id", session.user.id).maybeSingle();
