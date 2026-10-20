@@ -3,8 +3,8 @@ import {
   sb, DOMINIO_USUARIOS, LOGO_URL, money, r2, pad5, esc, isoHoy, ymHoy, ymDe, ymSumar, periodo, fecha,
   estadoContrato, contratoActivo, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, vtoDe,
   toast, abrirModal, cerrarModal, copiar, mensajeError, rutaArchivo, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
-  pdfRecibo, pdfLiquidacion, alternarTema, temaActual, serviciosControl,
-} from "./comun.js?v=202610201504";
+  pdfRecibo, pdfLiquidacion, alternarTema, temaActual, serviciosControl, achicarImagen,
+} from "./comun.js?v=202610201519";
 
 const $ = (s) => document.querySelector(s);
 const S = { cfg: null, contratos: [], yo: [], aj: [], pg: [], ov: [], cargos: [], envios: [], archivos: [], liqs: [], avisos: [], rol: null, anteriores: false, esStaff: false };
@@ -220,6 +220,8 @@ async function enviar(f, tipo) {
   if (tipo === "servicios" && !archivos.length) { toast("Elegí al menos una boleta para subir", "bad"); return; }
   if (tipo === "servicios" && f.boletas.files.length && !(v.servicio || "").trim()) { toast("Escribí de qué servicio es la otra boleta", "bad"); return; }
   const perEnvio = tipo === "servicios" ? archivos.map((a) => a[2]).sort().pop() : v.periodo;
+  const prog0 = f.querySelector("[aria-live]"); if (archivos.some((a) => a[1] && /^image\//.test(a[1].type))) prog0.textContent = "Preparando las fotos…";
+  for (const a of archivos) if (a[1]) a[1] = await achicarImagen(a[1]);
   for (const [, a] of archivos) if (a && a.size > MAX_MB * 1048576) { toast(`"${a.name}" pesa más de ${MAX_MB} MB. Achicá la foto o subí un PDF.`, "bad"); return; }
   const prog = f.querySelector("[aria-live]"); const boton = f.querySelector("[type=submit]"); boton.disabled = true;
   const uid = (await sb.auth.getUser()).data.user.id;

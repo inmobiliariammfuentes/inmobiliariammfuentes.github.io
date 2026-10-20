@@ -1,6 +1,6 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202610201504";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202610201519";
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: "cobranza-fuentes" },
@@ -451,4 +451,18 @@ export function pdfLiquidacion(cfg, l, prop) {
     if (l.anulada) { const n = doc.getNumberOfPages(); for (let i = 1; i <= n; i++) { doc.setPage(i); sello(doc, "ANULADA"); } }
   }
   return { doc, nombre: `Liquidacion ${pad8(l.nro)} - ${limpio(pr.nombre)}.pdf` };
+}
+
+// Fotos más livianas antes de subirlas: lado mayor 2000 px, JPEG. PDFs y archivos chicos quedan igual.
+export async function achicarImagen(file, max = 2000, calidad = 0.82) {
+  try {
+    if (!file || !/^image\/(jpeg|png|webp)$/i.test(file.type) || file.size < 450 * 1024 || typeof createImageBitmap !== "function") return file;
+    const img = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const k = Math.min(1, max / Math.max(img.width, img.height));
+    const cv = document.createElement("canvas"); cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+    const ctx = cv.getContext("2d"); ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height); ctx.drawImage(img, 0, 0, cv.width, cv.height); img.close?.();
+    const blob = await new Promise((r) => cv.toBlob(r, "image/jpeg", calidad));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".jpg", { type: "image/jpeg", lastModified: Date.now() });
+  } catch { return file; }
 }
