@@ -336,3 +336,20 @@ td.acciones{white-space:nowrap}
 .dolar .v small{font-family:inherit;font-weight:400;font-size:11px;opacity:.7}
 .dolar .muted{font-size:11px}
 @media (min-width: 900px){.side{overflow-y:auto}}
+.calc-abrir{all:unset;cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;border:1px solid var(--line);font-size:14px;color:var(--fg)}
+.calc-abrir:hover{background:var(--surface-2)}.calc-abrir svg{width:18px;height:18px}
+.calc-abrir:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px}
+body.calc-abierta .calc-abrir{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.calc{position:fixed;left:260px;bottom:20px;z-index:45;width:300px;max-width:calc(100% - 32px);background:var(--surface);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 32px rgba(0,0,0,.25);padding:12px;display:grid;grid-template-columns:minmax(0,1fr);gap:8px;box-sizing:border-box}
+.calc[hidden]{display:none}
+.calc-h{display:flex;justify-content:space-between;align-items:center}
+.calc-hist{font-family:var(--mono,monospace);font-size:12px;color:var(--muted);display:grid;gap:2px;text-align:right;min-height:0}
+.calc-pant{min-width:0;font-family:var(--mono,monospace);font-size:20px;text-align:right;padding:8px 10px;border-radius:8px;border:1px solid var(--input-line);background:var(--input);color:var(--fg);width:100%;box-sizing:border-box}
+.calc-res{font-family:var(--mono,monospace);font-size:15px;text-align:right;color:var(--muted);min-height:20px}.calc-res.err{color:var(--bad)}
+.calc-teclas{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.calc-teclas button{all:unset;cursor:pointer;text-align:center;padding:10px 0;border-radius:8px;background:var(--surface-2);color:var(--fg);font-size:17px;font-family:var(--mono,monospace)}
+.calc-teclas button:hover{filter:brightness(.95)}.calc-teclas button:focus-visible{outline:2px solid var(--accent-ink)}
+.calc-teclas .op{color:var(--accent-ink);font-weight:700}.calc-teclas .fn{color:var(--bad)}
+.calc-teclas .igual{grid-column:1/-1;background:var(--accent);color:var(--accent-fg);font-weight:700}
+.calc-acc{display:flex;gap:6px}.calc-acc .btn{flex:1;min-width:0;padding-left:6px;padding-right:6px}
+@media (max-width: 899px){.calc{left:16px;bottom:84px}}
