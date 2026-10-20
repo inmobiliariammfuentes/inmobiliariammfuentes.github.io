@@ -4,10 +4,10 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202610192040";
-import { iniciarChat } from "./chat.js?v=202610192040";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610192040";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610192040";
+} from "./comun.js?v=202610201337";
+import { iniciarChat } from "./chat.js?v=202610201337";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610201337";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610201337";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -587,7 +587,7 @@ function planillaTotal() {
   const x = leerPlanilla(); if (!x) return; const c = S.contratos.get(+x.f.dataset.cid);
   const base = divisionLineas(c, S.cfg, x.items);
   let total = base.total, prop = base.propietario, hon = base.honorarios;
-  for (const k of x.extras) { const h = k.admin ? r2(k.monto * base.pct / 100) : 0; total += k.inquilino * k.monto; prop += k.propietario * k.monto - h; hon += h; }
+  for (const k of x.extras) { const h = k.admin ? r2(k.monto * base.pct / 100) * (k.propietario === -1 ? -1 : 1) : 0; total += k.inquilino * k.monto; prop += k.propietario * k.monto - h; hon += h; }
   const pun = x.items.reduce((s, i) => s + i.punitorio, 0);
   const alProp = S.pl.eid ? c.forma_pago === "propietario" : $("#pl-modalidad")?.value === "propietario";
   if (alProp) { $("#pl-resumen").innerHTML = `<div class="total-line"><span>Total que el inquilino le pagó al propietario</span><span class="mono">${money(total, c)}</span></div>
@@ -657,7 +657,7 @@ function vLiqProp() {
     ${its.map((i) => { const c = S.contratos.get(i.contrato_id), p = S.pagosById.get(i.pago_id);
       return `<tr data-item="${i.id}" data-neto="${i.neto_propietario}" data-hon="${i.honorarios}"><td><input type="checkbox" class="lp-sel" checked aria-label="Liquidar este renglón"></td><td>Liquidación</td><td class="num">${fecha(p.fecha)}</td>
       <td><span class="acc-t">${esc(c.direccion)}</span>${p.modalidad === "propietario" ? ' <span class="chip warn">Lo cobró el propietario</span>' : ""}<div class="muted">Inquilino: ${esc(inq(c))} · Carpeta: ${c.carpeta || "—"} · Honorarios: ${+i.comision_pct ? +i.comision_pct + "%" : "0"} · Rec. ${pad5(p.recibo_nro)}</div>${esc(i.descripcion)}</td>
-      <td class="num">${money(i.propietario * i.monto, c)}</td><td class="num">${money(i.propietario * i.punitorio, c)}</td><td class="num">− ${money(i.honorarios, c)}</td><td class="num"><b>${money(i.neto_propietario, c)}</b></td></tr>`; }).join("")}
+      <td class="num">${money(i.propietario * i.monto, c)}</td><td class="num">${money(i.propietario * i.punitorio, c)}</td><td class="num">${+i.honorarios < 0 ? "+ " + money(-i.honorarios, c) : "− " + money(i.honorarios, c)}</td><td class="num"><b>${money(i.neto_propietario, c)}</b></td></tr>`; }).join("")}
     ${ads.map((a) => `<tr data-adel="${a.id}" data-neto="${-a.monto}" data-hon="0"><td><input type="checkbox" class="lp-sel" checked aria-label="Descontar este adelanto"></td><td>Liquidación</td><td class="num">${fecha(a.fecha)}</td><td>${esc(a.concepto)} <span class="chip">Adelanto</span></td><td></td><td></td><td></td><td class="num"><b>${money(-a.monto)}</b></td></tr>`).join("")}
     ${!its.length && !ads.length ? `<tr><td colspan="8"><div class="empty">No hay renglones pendientes de liquidar para este propietario.</div></td></tr>` : ""}
     </tbody></table></div>
@@ -1189,7 +1189,7 @@ function leerConceptos(f) {
 function calcularCobro(f, c) {
   const pct = comisionDe(c, S.cfg), alq = +f.alquiler.value || 0, pun = +f.punitorio.value || 0, admAlq = f.admin_alquiler ? f.admin_alquiler.checked : true;
   let total = alq + pun, neto = alq + pun, hon = admAlq ? r2(alq * pct / 100) : 0;
-  for (const k of leerConceptos(f)) { total += k.inquilino * k.monto; neto += k.propietario * k.monto; if (k.admin) hon += r2(k.monto * pct / 100); }
+  for (const k of leerConceptos(f)) { total += k.inquilino * k.monto; neto += k.propietario * k.monto; if (k.admin) hon += r2(k.monto * pct / 100) * (k.propietario === -1 ? -1 : 1); }
   return { total: r2(total), hon: r2(hon), neto: r2(neto - hon), pct };
 }
 function resumenCobro(f, c) {
