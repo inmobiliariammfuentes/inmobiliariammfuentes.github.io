@@ -44,7 +44,7 @@ export function iniciarCalculadora() {
   document.addEventListener("focusin", (e) => { if (e.target.matches?.('input[type="number"], input.ct-monto, input.pl-monto')) ultimoCampo = e.target; });
   const p = document.createElement("div"); p.className = "calc"; p.id = "calc"; p.hidden = true; p.setAttribute("role", "dialog"); p.setAttribute("aria-label", "Calculadora");
   const teclas = ["C", "(", ")", "⌫", "7", "8", "9", "÷", "4", "5", "6", "×", "1", "2", "3", "−", "0", ",", "%", "+"];
-  p.innerHTML = `<div class="calc-h"><b>Calculadora</b><button type="button" class="x" data-calc="cerrar" aria-label="Cerrar">×</button></div>
+  p.innerHTML = `<div class="calc-h" title="Arrastrá desde acá para moverla · doble clic la vuelve a su lugar"><b><span class="calc-grip" aria-hidden="true">⠿</span> Calculadora</b><button type="button" class="x" data-calc="cerrar" aria-label="Cerrar">×</button></div>
     <div class="calc-hist" aria-live="polite"></div>
     <input class="calc-pant" type="text" inputmode="decimal" aria-label="Cuenta" autocomplete="off">
     <div class="calc-res" aria-live="polite">0</div>
@@ -68,7 +68,28 @@ export function iniciarCalculadora() {
     if (k === "⌫") { pant.value = pant.value.slice(0, -1); return vivo(); }
     pant.value += k; vivo();
   };
-  const mostrar = (si) => { p.hidden = !si; document.body.classList.toggle("calc-abierta", si); if (si) setTimeout(() => pant.focus(), 0); };
+  // se arrastra desde la barra de arriba; la posición queda guardada en esta compu
+  const cab = p.querySelector(".calc-h"), CLAVE = "calc-pos";
+  const ubicar = (x, y) => {
+    const r = p.getBoundingClientRect();
+    x = Math.max(0, Math.min(x, innerWidth - r.width)); y = Math.max(0, Math.min(y, innerHeight - r.height));
+    Object.assign(p.style, { left: x + "px", top: y + "px", bottom: "auto", right: "auto" });
+    return { x, y };
+  };
+  let pos = null; try { pos = JSON.parse(localStorage.getItem(CLAVE)); } catch {}
+  cab.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || e.target.closest("button")) return;
+    e.preventDefault(); cab.setPointerCapture(e.pointerId); p.classList.add("moviendo");
+    const r = p.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+    const mover = (ev) => { pos = ubicar(ev.clientX - dx, ev.clientY - dy); };
+    const soltar = () => { cab.removeEventListener("pointermove", mover); cab.removeEventListener("pointerup", soltar); cab.removeEventListener("pointercancel", soltar);
+      p.classList.remove("moviendo"); try { if (pos) localStorage.setItem(CLAVE, JSON.stringify(pos)); } catch {} };
+    cab.addEventListener("pointermove", mover); cab.addEventListener("pointerup", soltar); cab.addEventListener("pointercancel", soltar);
+  });
+  // doble clic en la barra: vuelve a su lugar
+  cab.addEventListener("dblclick", (e) => { if (e.target.closest("button")) return; pos = null; p.style.cssText = ""; try { localStorage.removeItem(CLAVE); } catch {} });
+  addEventListener("resize", () => { if (pos && !p.hidden) pos = ubicar(pos.x, pos.y); });
+  const mostrar = (si) => { p.hidden = !si; document.body.classList.toggle("calc-abierta", si); if (si) { if (pos) pos = ubicar(pos.x, pos.y); setTimeout(() => pant.focus(), 0); } };
   abrir.addEventListener("click", () => mostrar(p.hidden));
   p.addEventListener("click", async (e) => {
     const b = e.target.closest("button"); if (!b) return;
