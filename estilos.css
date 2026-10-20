@@ -567,3 +567,13 @@ body{margin:0}
 .form label input,.form label select,.form label textarea,.login label input{font-size:15px;font-weight:500;color:var(--fg)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) nav button[aria-current="page"]{color:#5a1521}}
 :root[data-theme="dark"] nav button[aria-current="page"]{color:#5a1521}
+/* espacio usado (Configuración) */
+.uso-lista{display:grid;gap:14px}
+.uso{display:grid;gap:6px}
+.uso-t{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:14.5px}
+.uso-t span{color:var(--muted);font-variant-numeric:tabular-nums}
+.uso-barra{height:10px;border-radius:999px;background:var(--surface-2);overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.06)}
+.uso-barra span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--accent),color-mix(in srgb,var(--accent) 70%,#fff))}
+.uso.warn .uso-barra span{background:var(--warn)}
+.uso.bad .uso-barra span{background:var(--bad)}
+.uso-s{font-size:13px}

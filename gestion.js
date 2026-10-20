@@ -2,13 +2,13 @@
 import {
   sb, money, r2, pad5, esc, isoHoy, ymHoy, ymDe, ymSumar, ymDif, periodo, fecha, diasEntre, MEDIOS,
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
-  toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
+  toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202610201504";
-import { iniciarChat } from "./chat.js?v=202610201504";
-import { iniciarCalculadora } from "./calculadora.js?v=202610201504";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610201504";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610201504";
+} from "./comun.js?v=202610201519";
+import { iniciarChat } from "./chat.js?v=202610201519";
+import { iniciarCalculadora } from "./calculadora.js?v=202610201519";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610201519";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610201519";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -148,7 +148,7 @@ function render() {
   if (S.view === "planilla" && S.plTab === "envios") cargarDocsPlanilla();
   if (S.view === "liqprop") liqPropTotal();
   if (S.view === "nuevo") nuevoResumen();
-  if (S.view === "config") mostrarNumeracion();
+  if (S.view === "config") { mostrarNumeracion(); mostrarEspacio(); }
   if (S.view === "contratos" && (!document.activeElement || document.activeElement === document.body) && !$("#modal").innerHTML) $("#q")?.focus();
 }
 
@@ -502,11 +502,73 @@ function vConfig() {
     ${campo("servicios_plazo", "Boletas de servicios: días del mes siguiente para presentarlas antes de figurar adeudadas", "number", 'min="1" max="28"')}
     ${puedeAdmin() ? `<div class="full row"><button class="btn primary" type="submit">Guardar configuración</button></div>` : ""}
   </form>
+  <section class="panel" id="respaldo"><div class="ph"><h2>Copias de seguridad y espacio</h2><button class="btn small primary" data-a="descargar-copia">Descargar copia de seguridad (Excel)</button></div>
+    <p class="muted" style="margin:0">Todas las noches se guarda sola una copia completa en GitHub. Además conviene bajar esta copia en Excel una vez por semana y guardarla en la computadora. ${(() => { const u = ultimaCopia(); return u ? `Última copia bajada en esta computadora: <b>${fecha(u.slice(0, 10))}</b>.` : "Todavía no se bajó ninguna copia en esta computadora."; })()}</p>
+    <div id="espacio" class="uso-lista"><span class="muted">Calculando el espacio usado…</span></div></section>
   <section class="panel"><div class="ph"><h2>Numeración</h2>${puedeAdmin() ? `<button class="btn small" data-a="numeracion">Cambiar</button>` : ""}</div><div id="numeracion" class="muted">${textoNumeracion(S.num)}</div></section>
   <section class="panel"><div class="ph"><h2>Equipo</h2>${puedeAdmin() ? `<button class="btn small primary" data-a="nuevo-staff">Sumar persona</button>` : ""}</div>
   <div class="tw"><table><tbody>${S.staff.map((s) => `<tr><td>${esc(s.nombre)}<div class="muted">Usuario: ${esc(usuarioDe(s.email))}</div></td><td>${s.rol === "admin" ? "Administrador" : "Operador"}</td><td>${s.activo ? `<span class="chip ok">Activo</span>` : `<span class="chip">Inactivo</span>`}</td><td class="num">${puedeAdmin() && s.user_id !== S.yo.user_id ? `<button class="btn small" data-staffclave="${s.user_id}">Nueva clave</button> <button class="btn small" data-staffactivo="${s.user_id}">${s.activo ? "Desactivar" : "Activar"}</button>` : ""}</td></tr>`).join("")}</tbody></table></div></section>`;
 }
 
+
+/* ================= copias de seguridad y espacio ================= */
+const LIMITES = { base: 500 * 1048576, archivos: 1024 * 1048576 };   // plan gratis de Supabase
+const mb = (b) => (b / 1048576).toLocaleString("es-AR", { maximumFractionDigits: b < 10 * 1048576 ? 1 : 0 }) + " MB";
+const ultimaCopia = () => { try { return localStorage.getItem("ultima-copia") || ""; } catch { return ""; } };
+async function mostrarEspacio() {
+  const el = $("#espacio"); if (!el) return;
+  const { data: u, error } = await sb.rpc("uso_espacio");
+  if (error || !u) { el.innerHTML = `<span class="muted">No se pudo calcular el espacio usado.</span>`; return; }
+  const fila = (t, usado, lim, extra) => { const pct = Math.min(100, Math.round(usado / lim * 100));
+    return `<div class="uso ${pct >= 90 ? "bad" : pct >= 75 ? "warn" : ""}"><div class="uso-t"><b>${t}</b><span>${mb(usado)} de ${mb(lim)} · ${pct}%</span></div>
+      <div class="uso-barra" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" aria-label="${t}"><span style="width:${Math.max(pct, 1)}%"></span></div>${extra ? `<div class="muted uso-s">${extra}</div>` : ""}</div>`; };
+  const tipos = Object.entries(u.por_tipo || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${ETIQUETA_ARCHIVO[k] || k}: ${mb(v)}`).join(" · ");
+  const pa = u.archivos / LIMITES.archivos;
+  el.innerHTML = fila("Datos (contratos, pagos, recibos…)", u.base, LIMITES.base) + fila("Archivos (boletas, comprobantes, fotos)", u.archivos, LIMITES.archivos, `${(u.n_archivos || 0).toLocaleString("es-AR")} archivos${tipos ? " · " + esc(tipos) : ""}`)
+    + (pa >= 0.75 ? `<div class="banner">El espacio para archivos se está llenando. Hay que bajar a la computadora las boletas más viejas y borrarlas del sistema (pedíselo a Claude), o pasar a un plan pago de Supabase.</div>` : "");
+}
+async function descargarCopia(boton) {
+  const tablas = [["contratos", "Contratos"], ["personas", "Personas"], ["ajustes", "Ajustes"], ["cargos", "Cargos"], ["conceptos_fijos", "Conceptos fijos"],
+    ["pagos", "Recibos"], ["pago_items", "Recibos detalle"], ["liquidaciones", "Liquidaciones"], ["adelantos", "Adelantos"], ["caja_movimientos", "Caja"],
+    ["envios", "Envíos del portal"], ["archivos", "Archivos"], ["contrato_servicios", "Servicios pedidos"], ["servicio_marcas", "Servicios marcas"],
+    ["punitorio_override", "Punitorios a mano"], ["notificaciones", "Avisos"], ["chat_mensajes", "Chat"], ["staff", "Equipo"], ["config", "Configuración"]];
+  const txt = boton.textContent; boton.disabled = true;
+  try {
+    if (!window.XLSX) await new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"; sc.onload = ok; sc.onerror = () => mal(new Error("No se pudo cargar el generador de Excel. Revisá la conexión.")); document.head.appendChild(sc); });
+    const libro = XLSX.utils.book_new(), resumen = [["Tabla", "Filas"]], fallas = [];
+    for (let t = 0; t < tablas.length; t++) {
+      const [tabla, hoja] = tablas[t]; boton.textContent = `Bajando ${hoja.toLowerCase()} (${t + 1} de ${tablas.length})…`;
+      const filas = [];
+      for (let desde = 0; ; desde += 1000) {
+        let { data, error } = await sb.from(tabla).select("*").order("id", { ascending: true }).range(desde, desde + 999);
+        if (error && /id/.test(error.message || "")) ({ data, error } = await sb.from(tabla).select("*").range(desde, desde + 999));
+        if (error) { fallas.push(hoja); break; }
+        filas.push(...data); if (data.length < 1000) break;
+      }
+      const limpias = filas.map((f) => Object.fromEntries(Object.entries(f).map(([k, v]) => [k, v !== null && typeof v === "object" ? JSON.stringify(v).slice(0, 32000) : typeof v === "string" ? v.slice(0, 32000) : v])));
+      XLSX.utils.book_append_sheet(libro, limpias.length ? XLSX.utils.json_to_sheet(limpias) : XLSX.utils.aoa_to_sheet([["(sin datos)"]]), hoja.slice(0, 31));
+      resumen.push([hoja, filas.length]);
+    }
+    resumen.push([], ["Copia generada", new Date().toLocaleString("es-AR")]);
+    XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet(resumen), "Resumen");
+    libro.SheetNames.unshift(libro.SheetNames.pop());
+    XLSX.writeFile(libro, `Copia Cobranza Fuentes ${isoHoy()}.xlsx`, { compression: true });
+    try { localStorage.setItem("ultima-copia", new Date().toISOString()); } catch {}
+    toast(fallas.length ? `Copia descargada, salvo: ${fallas.join(", ")}` : "Copia de seguridad descargada", fallas.length ? "bad" : undefined);
+    if (S.view === "config") render();
+  } catch (e) { toast(mensajeError(e), "bad"); }
+  finally { boton.disabled = false; boton.textContent = txt; }
+}
+async function avisosRespaldo() {
+  if (!puedeAdmin()) return;
+  const { data: u } = await sb.rpc("uso_espacio"); if (!u) return;
+  const pct = Math.max(u.base / LIMITES.base, u.archivos / LIMITES.archivos);
+  const u0 = ultimaCopia(), dias = u0 ? Math.floor((Date.now() - new Date(u0)) / 864e5) : null;
+  setTimeout(() => {
+    if (pct >= 0.75) toast(`El espacio del sistema está al ${Math.round(pct * 100)}%. Mirá Configuración → Copias de seguridad.`, "bad");
+    else if (dias === null || dias >= 7) toast(dias === null ? "Recordá bajar una copia de seguridad en Configuración." : `Hace ${dias} días que no se baja una copia de seguridad (Configuración).`);
+  }, 9000);
+}
 
 /* ================= planilla de cobranza (como SPOT) ================= */
 const fechaPer = (p) => "01-" + p.slice(5, 7) + "-" + p.slice(0, 4);
@@ -1286,6 +1348,7 @@ function liqTotal() {
   $("#lq-total").textContent = money(n - (+f.ded.value || 0));
 }
 async function subirComprobanteLiquidacion(liq, file) {
+  file = await achicarImagen(file);
   const cid = (liq.items && liq.items[0] && liq.items[0].contrato_id); if (!cid) return;
   const path = rutaArchivo(cid, "liq-" + liq.id, file.name);
   const up = await sb.storage.from("documentos").upload(path, file, { contentType: file.type || undefined });
@@ -1339,6 +1402,7 @@ document.addEventListener("click", async (ev) => {
     if (d.depositoIgual !== undefined) { const f = $("#f-nuevo"); f.deposito.value = f.monto_base.value; nuevoResumen(); return; }
     if (d.a === "nueva-persona") { modalPersona(null); return; }
     if (d.a === "mov-nuevo") { abrirModal(`<div class="mh"><h2>Nuevo movimiento de caja</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div><form class="form" id="f-mov"><label>Tipo<select id="mv-tipo" name="tipo"><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select></label><label>Fecha<input type="date" id="mv-fecha" name="fecha" value="${S.cajaDia}" required></label><label class="full">Concepto<input type="text" id="mv-concepto" name="concepto" required autofocus></label><label>Monto<input type="number" step="0.01" id="mv-monto" name="monto" required></label><label>Medio<select id="mv-medio" name="medio">${MEDIOS.map((m) => `<option>${m}</option>`).join("")}</select></label><div class="full row"><button class="btn primary" type="submit">Guardar</button></div></form>`); return; }
+    if (d.a === "descargar-copia") { descargarCopia(el); return; }
     if (d.a === "numeracion") { const n = await rpc("ver_numeracion", {}); abrirModal(`<div class="mh"><h2>Numeración</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div><form class="form" id="f-num"><label>Próximo recibo<input type="number" min="1" id="nu-rec" name="rec" value="${n?.recibo || 1}"></label><label>Próxima liquidación<input type="number" min="1" id="nu-liq" name="liq" value="${n?.liquidacion || 1}"></label><p class="full muted" style="margin:0">Usalo para continuar la numeración que venían usando en SPOT. No pongas un número ya usado.</p><div class="full row"><button class="btn primary" type="submit">Guardar</button></div></form>`); return; }
     if (d.a === "nuevo-staff") { abrirModal(`<div class="mh"><h2>Sumar persona al equipo</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div><form class="form" id="f-staff"><label>Nombre<input type="text" id="st-nombre" name="nombre" required></label><label>Usuario<input type="text" id="st-email" name="email" required autocomplete="off" autocapitalize="none" placeholder="Ej.: lucia (sin espacios)"><span class="muted">No hace falta email. Si prefieren, pueden poner un email.</span></label><label>Rol<select id="st-rol" name="rol"><option value="operador">Operador (cobra, aprueba, liquida)</option><option value="admin">Administrador (además configura y gestiona el equipo)</option></select></label><div class="full row"><button class="btn primary" type="submit">Crear usuario</button></div><div class="full" id="st-res"></div></form>`); return; }
     if (d.contrato) { abrirContrato(d.contrato); return; }
@@ -1657,6 +1721,7 @@ async function iniciar() {
   render();
   iniciarChat(S.yo);
   iniciarIndices(false);
+  avisosRespaldo().catch(() => {});
   // Avisos en vivo de nuevos envíos del portal (y control cada 2 minutos por si se corta la conexión)
   sb.channel("envios").on("postgres_changes", { event: "INSERT", schema: "public", table: "envios" }, async () => { await cargarEnvios(); render(); toast("Llegó un nuevo envío del portal"); }).subscribe();
   setInterval(async () => { const antes = pendientesRevisar().length; await cargarEnvios().catch(() => {}); if (pendientesRevisar().length !== antes) render(); }, 120000);
