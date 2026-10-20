@@ -4,7 +4,7 @@ import {
   estadoContrato, contratoActivo, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, vtoDe,
   toast, abrirModal, cerrarModal, copiar, mensajeError, rutaArchivo, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, temaActual, serviciosControl,
-} from "./comun.js?v=202610201411";
+} from "./comun.js?v=202610201458";
 
 const $ = (s) => document.querySelector(s);
 const S = { cfg: null, contratos: [], yo: [], aj: [], pg: [], ov: [], cargos: [], envios: [], archivos: [], liqs: [], avisos: [], rol: null, anteriores: false, esStaff: false };
