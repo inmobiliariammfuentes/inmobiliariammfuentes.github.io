@@ -1,6 +1,6 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202610192040";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202610201337";
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: "cobranza-fuentes" },
@@ -129,7 +129,8 @@ export function serviciosControl(servs, marcas, archivos, envios, cfg, hoy = iso
 // División de renglones: cuánto va al propietario y cuánto a la inmobiliaria. lineas: [{monto, punitorio, admin, propietario}]
 export function divisionLineas(c, cfg, lineas) {
   const pct = comisionDe(c, cfg); let total = 0, prop = 0, hon = 0;
-  for (const l of lineas) { const m = +l.monto || 0, pu = +l.punitorio || 0, h = l.admin ? r2(m * pct / 100) : 0, sg = l.propietario == null ? 1 : +l.propietario;
+  // si el concepto resta al propietario, su administración también se descuenta (en negativo)
+  for (const l of lineas) { const sg = l.propietario == null ? 1 : +l.propietario, m = +l.monto || 0, pu = +l.punitorio || 0, h = l.admin ? r2(m * pct / 100) * (sg === -1 ? -1 : 1) : 0;
     total += signoInq(l) * m + pu; hon += h; prop += sg * (m + pu) - h; }
   return { total: r2(total), propietario: r2(prop), inmobiliaria: r2(total - prop), honorarios: r2(hon), pct };
 }
@@ -411,7 +412,7 @@ export function pdfLiquidacion(cfg, l, prop) {
         const legado = !i.descripcion, monto = legado ? +i.cobrado || 0 : +i.monto || 0, pun = legado ? 0 : +i.punitorio || 0;
         const adm = +i.comision || 0, total = i.neto != null ? +i.neto : monto + pun - adm;
         const ds = (legado ? "Alquiler " + periodo(i.periodo) : i.descripcion);
-        renglon(fecha(i.fecha || l.fecha), ds, monto < 0 ? neg(monto) : pm(monto), pm(pun), neg(adm), total < 0 ? neg(total) : pm(total));
+        renglon(fecha(i.fecha || l.fecha), ds, monto < 0 ? neg(monto) : pm(monto), pm(pun), adm < 0 ? pm(-adm) : neg(adm), total < 0 ? neg(total) : pm(total));
         T.monto += monto; T.pun += pun; T.adm += adm; st += total;
       }
       if (grupos.size > 1) { salto(4.5); sub("Subtotal: " + (st < 0 ? neg(st) : pm(st)), y + 3.2); y += 4.5; }

@@ -1,5 +1,5 @@
 // Cobranza Fuentes · Página pública de un comprobante (se abre con el link que manda la inmobiliaria)
-import { sb, money, esc, fecha, periodo, pdfRecibo, pdfLiquidacion, LOGO_URL } from "./comun.js?v=202610192040";
+import { sb, money, esc, fecha, periodo, pdfRecibo, pdfLiquidacion, LOGO_URL } from "./comun.js?v=202610201337";
 
 const $ = (s) => document.querySelector(s);
 const token = new URLSearchParams(location.search).get("c") || "";
@@ -51,7 +51,7 @@ function vistaLiq(d) {
     <div class="tw"><table><thead><tr><th>Detalle</th><th class="num">Importe</th></tr></thead><tbody>
       ${(l.items || []).map((i) => i.tipo === "adelanto" || i.tipo === "particular"
         ? fila(esc(i.descripcion || ""), money(i.neto, l.moneda))
-        : fila(`${esc(i.descripcion || "Alquiler " + periodo(i.periodo))}<div class="muted">${esc(i.direccion || "")}${i.inquilino ? " · " + esc(i.inquilino) : ""}${+i.comision ? " · Administración -" + money(i.comision, l.moneda) : ""}</div>`, money(i.neto ?? (i.cobrado - i.comision), l.moneda))).join("")}
+        : fila(`${esc(i.descripcion || "Alquiler " + periodo(i.periodo))}<div class="muted">${esc(i.direccion || "")}${i.inquilino ? " · " + esc(i.inquilino) : ""}${+i.comision ? (+i.comision < 0 ? " · Administración +" + money(-i.comision, l.moneda) : " · Administración -" + money(i.comision, l.moneda)) : ""}</div>`, money(i.neto ?? (i.cobrado - i.comision), l.moneda))).join("")}
       ${fila("<b>Total</b>", `<b>${money(l.neto, l.moneda)}</b>`)}
     </tbody></table></div>
     <div class="row cp-btns"><button class="btn primary" id="cp-pdf">Descargar PDF</button><button class="btn" id="cp-ver">Ver para imprimir</button></div>
