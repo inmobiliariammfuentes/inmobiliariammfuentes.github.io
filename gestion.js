@@ -4,11 +4,11 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202610201411";
-import { iniciarChat } from "./chat.js?v=202610201411";
-import { iniciarCalculadora } from "./calculadora.js?v=202610201411";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610201411";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610201411";
+} from "./comun.js?v=202610201458";
+import { iniciarChat } from "./chat.js?v=202610201458";
+import { iniciarCalculadora } from "./calculadora.js?v=202610201458";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610201458";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610201458";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
