@@ -1,6 +1,6 @@
 // Cobranza Fuentes · Página pública "Mis datos": el inquilino o propietario completa sus datos y crea su clave del portal.
 // Se abre con el link personal que manda la inmobiliaria (datos.html?t=...).
-import { sb, esc, LOGO_URL } from "./comun.js?v=202610212030";
+import { sb, esc, LOGO_URL } from "./comun.js?v=202610212045";
 
 const $ = (s) => document.querySelector(s);
 const token = (new URLSearchParams(location.search).get("t") || "").trim();
