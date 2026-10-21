@@ -1,5 +1,5 @@
 // Cobranza Fuentes · Chat interno del equipo (mensajes, imágenes, emojis y foto de perfil)
-import { sb, esc, toast, mensajeError } from "./comun.js?v=202610212003";
+import { sb, esc, toast, mensajeError } from "./comun.js?v=202610212030";
 
 const EMOJIS = ["😀", "😂", "😊", "😍", "😉", "😎", "🤔", "😅", "😢", "😡", "🙏", "👍", "👎", "👏", "🙌", "💪", "👌", "✌️", "🤝", "👋",
   "❤️", "🔥", "✅", "❌", "⚠️", "❗", "❓", "💰", "💵", "🏠", "🔑", "📄", "📎", "📅", "⏰", "📞", "📧", "🎉", "☕", "🚗"];

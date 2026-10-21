@@ -1,6 +1,6 @@
 // Cobranza Fuentes · Página pública "Mis datos": el inquilino o propietario completa sus datos y crea su clave del portal.
 // Se abre con el link personal que manda la inmobiliaria (datos.html?t=...).
-import { sb, esc, LOGO_URL } from "./comun.js?v=202610212003";
+import { sb, esc, LOGO_URL } from "./comun.js?v=202610212030";
 
 const $ = (s) => document.querySelector(s);
 const token = (new URLSearchParams(location.search).get("t") || "").trim();
@@ -15,7 +15,8 @@ const cabecera = (cfg = {}) => `<header class="cp-h"><div class="brand brand-fil
 const error = (m) => { $("#app").innerHTML = cabecera() + `<section class="panel"><h1>No pudimos abrir el link</h1><p>${esc(m)}</p></section>`; };
 
 function pantalla(d) {
-  const nombre = (d.nombre.split(",")[1] || d.nombre).trim().split(" ")[0];
+  const n0 = (d.nombre.split(",")[1] || d.nombre).trim().split(" ")[0] || "";
+  const nombre = n0.charAt(0).toUpperCase() + n0.slice(1).toLowerCase();
   const prop = d.tipo === "propietario";
   const campo = (k, l, v, tipo = "text", extra = "") => `<label>${l}<input type="${tipo}" name="${k}" value="${esc(v || "")}" ${extra}></label>`;
   const falta = [!d.dni && "DNI", !d.telefono && "celular", !d.email && "email", prop && !d.cbu && !d.alias && "CBU o alias", !d.tiene_acceso && "tu clave del portal"].filter(Boolean);
