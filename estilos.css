@@ -597,3 +597,5 @@ table.lc select{min-width:200px;padding:7px 9px;font-size:14px}
 .lc-nota{font-size:12.5px;margin-top:4px}
 @media (max-width:720px){.lc-datos{grid-template-columns:minmax(0,1fr);min-width:200px}.lc-img{width:80px}}
 a.btn{text-decoration:none;display:inline-flex;align-items:center;justify-content:center;color:inherit}a.btn.primary{color:var(--accent-fg)}
+.ocr-otras{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13.5px;margin-top:6px}
+.lc-otra{grid-column:1/-1;justify-self:start;white-space:normal;text-align:left}

@@ -39,39 +39,80 @@ function cargarTesseract() {
   return cargando;
 }
 
-// Saca los datos del texto reconocido. Si hay dos cuentas (origen y destino), se queda con la de destino.
-export function datosDeTexto(texto) {
-  const T = texto.replace(/[|]/g, " ").replace(/[ \t]+/g, " ");
-  const U = T.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
-  const iDest = (() => { const m = U.search(/\b(PARA|DESTINO|DESTINATARIO|BENEFICIARIO|CUENTA DESTINO|A NOMBRE DE|ENVIASTE A|TRANSFERISTE A)\b/); return m < 0 ? 0 : m; })();
-  const iOrig = U.search(/\b(DE|DESDE|ORIGEN|CUENTA ORIGEN|ORDENANTE)\b\s*[:\n]/);
-  // CBU / CVU: 22 dígitos (a veces separados por espacios o guiones)
-  const cbus = [...T.matchAll(/(?:\d[\s-]?){21}\d/g)].map((m) => ({ v: m[0].replace(/\D/g, ""), i: m.index })).filter((x) => x.v.length === 22);
-  const cbu = (cbus.find((x) => x.i >= iDest && !(iOrig >= 0 && x.i > iOrig && iOrig > iDest)) || cbus[cbus.length - 1] || {}).v || "";
-  // alias: palabras separadas por puntos (ej.: casa.perro.sol), mejor si está al lado de la palabra "alias"
+// ---------- Separar el comprobante en "quién manda" (origen) y "quién recibe" (destino) ----------
+const sinT = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+// etiquetas que abren el bloque de quien ENVÍA (el inquilino) y de quien RECIBE (el propietario)
+const ORIGEN = /^(?:DE|DESDE)\s*:?\s*$|^(?:DE|DESDE)\s*:|^(?:CUENTA\s+(?:DE\s+)?ORIGEN|DATOS\s+(?:DE\s+)?(?:LA\s+CUENTA\s+)?ORIGEN|ORIGEN|DEBITADO\s+DE|DEBITO\s+DE|DEBITADA|CUENTA\s+DEBITADA|ORDENANTE|REMITENTE|PAGADOR|ENVIADO\s+POR|ENVIA|QUIEN\s+ENVIA|TITULAR\s+(?:DE\s+)?(?:LA\s+CUENTA\s+)?ORIGEN|(?:CBU|CVU|ALIAS)\s+(?:DE\s+)?ORIGEN|TU\s+CUENTA|DESDE\s+TU\s+CUENTA|CUENTA\s+A\s+DEBITAR)\b/;
+const DESTINO = /^(?:PARA|A)\s*:?\s*$|^(?:PARA|A)\s*:|^PARA\s+\S|^(?:CUENTA\s+(?:DE\s+)?DESTINO|DATOS\s+(?:DEL?\s+)?(?:LA\s+CUENTA\s+)?DESTINO|DESTINO|DESTINATARIO|BENEFICIARIO|ACREDITADO\s+(?:EN|A)|CUENTA\s+ACREDITADA|CUENTA\s+A\s+ACREDITAR|A\s+LA\s+CUENTA|LE\s+(?:ENVIASTE|TRANSFERISTE|PAGASTE)\s+A|(?:ENVIASTE|TRANSFERISTE|PAGASTE)\s+A|RECEPTOR|RECIBE|QUIEN\s+RECIBE|TITULAR\s+(?:DE\s+)?(?:LA\s+CUENTA\s+)?DESTINO|(?:CBU|CVU|ALIAS)\s+(?:DE\s+)?DESTINO|TRANSFERENCIA\s+A)\b/;
+const NO_NOMBRE = /\b(CUENTA|BANCO|CBU|CVU|ALIAS|CUIT|CUIL|CAJA|AHORRO|CORRIENTE|PESOS|DOLARES|TRANSFERENCIA|COMPROBANTE|OPERACION|FECHA|HORA|MONTO|IMPORTE|CONCEPTO|REFERENCIA|MOTIVO|VARIOS|ALQUILER|ESTADO|EXITOSA|APROBADA|COMPARTIR|DESCARGAR|DESTINO|ORIGEN|PARA|DESDE|TITULAR|DOCUMENTO|DNI|NUMERO|CODIGO|MERCADO|PAGO|UALA|BRUBANK|NARANJA|PERSONAL|BILLETERA|ID|ENVIASTE|TRANSFERISTE|PAGASTE|ENVIO|ENVIADO|RECIBISTE)\b/;
+
+function cuentaDe(lineas, primera) {
+  const T = lineas.join("\n");
+  const c = [...T.matchAll(/(?:\d[\s.-]?){21}\d/g)].map((m) => m[0].replace(/\D/g, "")).find((x) => x.length === 22) || "";
   const malos = /(www|http|\.com|\.ar|@|\d{6,})/i;
-  const conEtiqueta = [...T.matchAll(/alias\s*(?:cbu|cvu)?\s*[:\-]?\s*\n?\s*([A-Za-z0-9-]{1,20}(?:\.[A-Za-z0-9-]{1,20}){1,3})/gi)].map((m) => ({ v: m[1], i: m.index }));
-  const sueltos = [...T.matchAll(/\b([A-Za-z][A-Za-z0-9-]{1,19}\.[A-Za-z0-9-]{2,20}(?:\.[A-Za-z0-9-]{2,20})?)\b/g)].map((m) => ({ v: m[1], i: m.index }));
-  const aliasOk = (a) => a.v.length >= 6 && a.v.length <= 20 && !malos.test(a.v);
-  const alias = ((conEtiqueta.filter(aliasOk).find((a) => a.i >= iDest) || conEtiqueta.filter(aliasOk)[0]) || sueltos.filter(aliasOk).find((a) => a.i >= iDest) || {}).v || "";
-  // titular: la línea que sigue a "Para" / "Destinatario" / "Titular" / "Nombre"
-  const lineas = T.split(/\n+/).map((l) => l.trim()).filter(Boolean);
-  let titular = "";
-  for (let k = 0; k < lineas.length && !titular; k++) {
-    const L = lineas[k].normalize("NFD").replace(/[̀-ͯ]/g, "");
-    const m = L.match(/^(?:para|destinatario|beneficiario|titular(?: de la cuenta)?|nombre|a nombre de|le transferiste a|enviaste a)\s*:?\s*(.*)$/i);
-    if (m) { const cand = (m[1] || lineas[k + 1] || "").trim(); if (/^[A-Za-zÁÉÍÓÚÑáéíóúñ ,.'-]{5,60}$/.test(cand) && !/cuenta|banco|cbu|cvu|alias|\d/i.test(cand)) titular = cand; }
-  }
-  const cuit = ((T.slice(iDest).match(/\b(\d{2})[\s-]?(\d{8})[\s-]?(\d)\b/) || [])).slice(1).join("-");
-  let banco = bancoDeCbu(cbu);
-  if (!banco) { const zona = T.slice(iDest, iDest + 600); banco = NOMBRES_BANCO.find((b) => new RegExp("\\b" + b + "\\b", "i").test(zona)) || ""; }
+  const conEtiqueta = (T.match(/alias\s*(?:cbu|cvu)?\s*(?:de\s+)?(?:destino|origen)?\s*[:\-]?\s*\n?\s*([A-Za-z0-9-]{1,20}(?:\.[A-Za-z0-9-]{1,20}){1,3})/i) || [])[1];
+  const suelto = [...T.matchAll(/\b([A-Za-z][A-Za-z0-9-]{1,19}\.[A-Za-z0-9-]{2,20}(?:\.[A-Za-z0-9-]{2,20})?)\b/g)].map((m) => m[1]);
+  const okA = (a) => a && a.length >= 6 && a.length <= 20 && !malos.test(a);
+  const alias = (okA(conEtiqueta) ? conEtiqueta : suelto.find(okA) || "").toLowerCase();
+  // titular: el resto de la línea de la etiqueta ("Para: Juan Perez") o la primera línea que parezca un nombre
+  const cands = [...[].concat(primera), ...lineas.filter((l) => !ORIGEN.test(sinT(l)) && !DESTINO.test(sinT(l)))].map((l) => String(l || "").replace(/^(?:titular|nombre|a nombre de|destinatario|beneficiario)\s*:?\s*/i, "").trim());
+  const titular = cands.find((l) => /^[A-Za-zÁÉÍÓÚÑÜáéíóúñü][A-Za-zÁÉÍÓÚÑÜáéíóúñü ,.'-]{4,60}$/.test(l) && l.split(/\s+/).length >= 2 && !NO_NOMBRE.test(sinT(l))) || "";
+  const cuit = ((T.match(/\b(\d{2})[\s-]?(\d{8})[\s-]?(\d)\b/) || []).slice(1)).join("-");
+  let banco = bancoDeCbu(c);
+  if (!banco) banco = NOMBRES_BANCO.find((b) => new RegExp("\\b" + b + "\\b", "i").test(T)) || "";
   if (/^(Uala|Nacion|Itau)$/.test(banco)) banco = { Uala: "Ualá", Nacion: "Banco Nación", Itau: "Banco Itaú" }[banco];
-  return { cbu, cbuOk: cbu ? cbuValido(cbu) : false, alias: alias.toLowerCase(), titular: titular.replace(/\s{2,}/g, " "), banco, cuit: /^\d{2}-\d{8}-\d$/.test(cuit) ? cuit : "" };
+  return { cbu: c, alias, titular: titular.replace(/\s{2,}/g, " "), banco, cuit: /^\d{2}-\d{8}-\d$/.test(cuit) ? cuit : "" };
 }
 
-export async function leerComprobante(file, progreso) {
+// Saca los datos del texto reconocido. Devuelve la cuenta de DESTINO (la del propietario) y, si hay dudas, las opciones.
+// "nombres": nombres de propietarios posibles, para decidir cuando el comprobante no dice cuál es cuál.
+export function datosDeTexto(texto, nombres = []) {
+  const lineas = String(texto || "").replace(/[|]/g, " ").split(/\n+/).map((l) => l.replace(/[ \t]+/g, " ").trim()).filter(Boolean);
+  const bloques = []; let actual = { rol: "?", lineas: [], primera: "" };
+  for (const l of lineas) {
+    const U = sinT(l);
+    const rol = DESTINO.test(U) ? "destino" : ORIGEN.test(U) ? "origen" : null;
+    if (rol) {
+      bloques.push(actual);
+      // lo que sigue a la etiqueta en la misma línea ("Para: Juan Perez", "CBU destino: 0720…")
+      const resto = l.replace(/^[^:]*:\s*/, (m) => m).replace(/^(?:para|a|de|desde)\s*:?\s*/i, "").replace(/^(?:cuenta|datos|titular|cbu|cvu|alias)?\s*(?:de\s+|del\s+)?(?:la\s+cuenta\s+)?(?:origen|destino)\s*:?\s*/i, "")
+        .replace(/^(?:destinatario|beneficiario|ordenante|remitente|le\s+)?(?:enviaste|transferiste|pagaste)?\s*(?:a)?\s*:?\s*/i, "");
+      actual = { rol, lineas: [l], primera: resto };
+    } else actual.lineas.push(l);
+  }
+  bloques.push(actual);
+  // un bloque sin etiqueta con varias cuentas: se corta en cada CBU (nombre + CBU, nombre + CBU…)
+  const esCbu = (l) => /(?:\d[\s.-]?){21}\d/.test(l);
+  for (let k = bloques.length - 1; k >= 0; k--) {
+    const b = bloques[k]; if (b.rol !== "?" || b.lineas.filter(esCbu).length < 2) continue;
+    const partes = []; let cur = [];
+    for (const l of b.lineas) { cur.push(l); if (esCbu(l)) { partes.push(cur); cur = []; } }
+    if (cur.length && partes.length) partes[partes.length - 1].push(...cur);
+    bloques.splice(k, 1, ...partes.map((ls) => ({ rol: "?", lineas: ls, primera: "" })));
+  }
+  const cuentas = bloques.map((b) => ({ rol: b.rol, ...cuentaDe(b.lineas, b.primera) })).filter((c) => c.cbu || c.alias);
+  // juntar bloques del mismo rol (a veces el CBU aparece unas líneas después del nombre)
+  const unir = (rol) => { const cs = bloques.filter((b) => b.rol === rol); if (!cs.length) return null; const r = cuentaDe(cs.flatMap((b) => b.lineas), cs.map((b) => b.primera).filter(Boolean)); return r.cbu || r.alias ? { rol, ...r } : null; };
+  const dest = unir("destino"), orig = unir("origen");
+  const sinRol = cuentas.filter((c) => c.rol === "?");
+  const nombreCoincide = (c) => { const t = new Set(sinT(c.titular).split(/[^A-Z]+/).filter((w) => w.length > 2)); return nombres.some((n) => sinT(n).split(/[^A-Z]+/).filter((w) => w.length > 2 && t.has(w)).length >= 2); };
+  let elegida, seguro;
+  if (dest) { elegida = dest; seguro = true; }
+  else if (orig && sinRol.length) { elegida = sinRol.find((c) => c.cbu !== orig.cbu) || sinRol[0]; seguro = sinRol.length === 1; }
+  else if (cuentas.length === 1 && !orig) { elegida = cuentas[0]; seguro = true; }
+  else { elegida = cuentas.find(nombreCoincide) || cuentas[cuentas.length - 1] || {}; seguro = !!cuentas.find(nombreCoincide); }
+  // si el nombre del propietario aparece en otra cuenta, gana esa
+  if (nombres.length && elegida && !nombreCoincide(elegida)) { const otra = cuentas.find(nombreCoincide); if (otra) { elegida = otra; seguro = true; } }
+  const opciones = [];
+  for (const c of [dest, orig, ...cuentas]) if (c && !opciones.some((o) => (o.cbu || o.alias) === (c.cbu || c.alias))) opciones.push(c);
+  const e = elegida || {};
+  return { cbu: e.cbu || "", cbuOk: e.cbu ? cbuValido(e.cbu) : false, alias: e.alias || "", titular: e.titular || "", banco: e.banco || "", cuit: e.cuit || "",
+    seguro: !!seguro && opciones.length > 0, opciones: opciones.map((o) => ({ ...o, cbuOk: o.cbu ? cbuValido(o.cbu) : false })) };
+}
+
+export async function leerComprobante(file, progreso, nombres = []) {
   if (!file || !/^image\//.test(file.type)) throw new Error("Elegí una imagen (captura o foto del comprobante). Los PDF no se pueden leer acá.");
   const T = await cargarTesseract();
   const r = await T.recognize(file, "spa", { logger: (m) => { if (progreso && m.status === "recognizing text") progreso(Math.round(m.progress * 100)); } });
-  return { ...datosDeTexto(r.data.text || ""), texto: r.data.text || "" };
+  return { ...datosDeTexto(r.data.text || "", nombres), texto: r.data.text || "" };
 }
