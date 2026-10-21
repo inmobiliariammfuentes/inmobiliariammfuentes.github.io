@@ -4,11 +4,11 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202610201519";
-import { iniciarChat } from "./chat.js?v=202610201519";
-import { iniciarCalculadora } from "./calculadora.js?v=202610201519";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610201519";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610201519";
+} from "./comun.js?v=202610211939";
+import { iniciarChat } from "./chat.js?v=202610211939";
+import { iniciarCalculadora } from "./calculadora.js?v=202610211939";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610211939";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610211939";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -475,14 +475,17 @@ function modalServMasivo() {
 function vPersonas() {
   const q = S.q.trim().toLowerCase();
   const cuenta = new Map(); for (const c of S.contratos.values()) if (contratoActivo(c)) for (const id of [c.inquilino_id, c.propietario_id]) cuenta.set(id, (cuenta.get(id) || 0) + 1);
-  const list = [...S.personas.values()].filter((p) => p.tipo === S.tipoPersona && (!q || [p.nombre, p.dni, p.telefono, p.email].join(" ").toLowerCase().includes(q)))
+  const falta = (p) => [!(p.dni || "").trim() && "DNI", !(p.telefono || "").trim() && "celular", !(p.email || "").trim() && "email", p.tipo === "propietario" && !(p.cbu || "").trim() && !(p.alias || "").trim() && "CBU/alias"].filter(Boolean);
+  const list = [...S.personas.values()].filter((p) => p.tipo === S.tipoPersona && (!q || [p.nombre, p.dni, p.telefono, p.email].join(" ").toLowerCase().includes(q))
+      && (!S.soloFaltan || (cuenta.get(p.id) && falta(p).length)))
     .sort((a, b) => (cuenta.get(b.id) || 0) - (cuenta.get(a.id) || 0) || a.nombre.localeCompare(b.nombre, "es"));
   const t = (k, l) => `<button data-tipo="${k}" aria-pressed="${S.tipoPersona === k}">${l}</button>`;
   const conAcceso = list.filter((p) => p.user_id).length;
   return `<div class="head"><div><h1>Inquilinos y propietarios</h1><p>Cargá DNI, email y datos bancarios, y creá el acceso al portal. ${conAcceso} de ${list.length} con acceso.</p></div><button class="btn primary" data-a="nueva-persona">Nueva persona</button></div>
-  <div class="row"><input type="search" id="q" class="search" placeholder="Nombre, DNI, celular o email" value="${esc(S.q)}"><div class="seg">${t("inquilino", "Inquilinos")}${t("propietario", "Propietarios")}</div></div>
-  <div class="tw"><table><thead><tr><th>Nombre</th><th>DNI</th><th>Celular</th><th>Email</th>${S.tipoPersona === "propietario" ? "<th>CBU / alias</th>" : ""}<th class="num">Contratos vigentes</th><th>Portal</th></tr></thead><tbody>
-  ${list.slice(0, S.limite).map((p) => `<tr class="click" data-persona="${p.id}"><td>${esc(p.nombre)}</td><td class="mono">${esc(p.dni || "—")}</td><td class="mono">${esc(p.telefono || "—")}</td><td>${esc(p.email || "—")}</td>${S.tipoPersona === "propietario" ? `<td class="mono">${esc(p.alias || p.cbu || "—")}</td>` : ""}<td class="num">${cuenta.get(p.id) || 0}</td><td>${p.user_id ? `<span class="chip ok">Con acceso</span>` : p.dni ? `<span class="chip">Sin acceso</span>` : `<span class="chip warn">Falta DNI</span>`}</td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">Sin resultados.</div></td></tr>`}
+  <div class="row"><input type="search" id="q" class="search" placeholder="Nombre, DNI, celular o email" value="${esc(S.q)}"><div class="seg">${t("inquilino", "Inquilinos")}${t("propietario", "Propietarios")}</div><div class="seg"><button data-a="solo-faltan" aria-pressed="${!!S.soloFaltan}">Vigentes con datos faltantes</button></div></div>
+  ${S.soloFaltan ? `<p class="muted" style="margin:0">${list.length} ${S.tipoPersona === "propietario" ? "propietarios" : "inquilinos"} con contrato vigente a los que les falta algún dato. Abrí cada uno y completalo${S.tipoPersona === "propietario" ? "; el CBU y el alias se pueden leer pegando la captura de una transferencia" : ""}.</p>` : ""}
+  <div class="tw"><table><thead><tr><th>Nombre</th><th>DNI</th><th>Celular</th><th>Email</th>${S.tipoPersona === "propietario" ? "<th>CBU / alias</th>" : ""}<th class="num">Contratos vigentes</th><th>${S.soloFaltan ? "Falta" : "Portal"}</th></tr></thead><tbody>
+  ${list.slice(0, S.limite).map((p) => `<tr class="click" data-persona="${p.id}"><td>${esc(p.nombre)}</td><td class="mono">${esc(p.dni || "—")}</td><td class="mono">${esc(p.telefono || "—")}</td><td>${esc(p.email || "—")}</td>${S.tipoPersona === "propietario" ? `<td class="mono">${esc(p.alias || p.cbu || "—")}</td>` : ""}<td class="num">${cuenta.get(p.id) || 0}</td><td>${S.soloFaltan ? falta(p).map((x) => `<span class="chip warn">Falta ${x}</span>`).join(" ") : p.user_id ? `<span class="chip ok">Con acceso</span>` : p.dni ? `<span class="chip">Sin acceso</span>` : `<span class="chip warn">Falta DNI</span>`}</td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">Sin resultados.</div></td></tr>`}
   </tbody></table></div>${list.length > S.limite ? `<div class="row"><button class="btn" data-a="mas">Mostrar más</button></div>` : ""}`;
 }
 
@@ -1367,7 +1370,9 @@ function modalPersona(id) {
     <label>DNI (es el usuario del portal)<input type="text" inputmode="numeric" id="pe-dni" name="dni" value="${esc(p.dni || "")}"></label>
     <label>Celular<input type="tel" id="pe-tel" name="telefono" value="${esc(p.telefono || "")}"></label>
     <label class="full">Email (para recibos y avisos)<input type="email" id="pe-email" name="email" value="${esc(p.email || "")}"></label>
-    ${p.tipo === "propietario" ? `<label>Banco<input type="text" id="pe-banco" name="banco" value="${esc(p.banco || "")}"></label><label>Titular de la cuenta<input type="text" id="pe-titular" name="titular" value="${esc(p.titular || "")}"></label>
+    ${p.tipo === "propietario" ? `<div class="full ocr-zona" id="pe-ocr-zona"><div><b>Completar con un comprobante</b><div class="muted">Pegá acá (Ctrl+V), arrastrá o elegí la captura de una transferencia hecha a este propietario (por ejemplo, la que manda el inquilino por WhatsApp). Se completan CBU, alias, titular y banco. La imagen no se guarda.</div></div>
+      <label class="btn small">Elegir imagen<input type="file" id="pe-ocr" accept="image/*" hidden></label><div class="full" id="pe-ocr-res" aria-live="polite"></div></div>
+    <label>Banco<input type="text" id="pe-banco" name="banco" value="${esc(p.banco || "")}"></label><label>Titular de la cuenta<input type="text" id="pe-titular" name="titular" value="${esc(p.titular || "")}"></label>
     <label>CBU / CVU<input type="text" id="pe-cbu" name="cbu" value="${esc(p.cbu || "")}"></label><label>Alias<input type="text" id="pe-alias" name="alias" value="${esc(p.alias || "")}"></label>` : ""}
     <label class="full">Notas<textarea id="pe-notas" name="notas" rows="2">${esc(p.notas || "")}</textarea></label>
     <div class="full row"><button class="btn primary" type="submit">Guardar</button></div>
@@ -1379,6 +1384,41 @@ function modalPersona(id) {
   <h2>Contratos</h2><div class="tw"><table><tbody>${contratos.map((c) => `<tr class="click" data-ficha="${c.id}"><td>${esc(c.direccion)}</td><td class="num">${fecha(c.inicio)} – ${fecha(c.fin)}</td><td>${chipEstado(c)}</td></tr>`).join("")}</tbody></table></div>` : ""}`, true);
 }
 
+/* ================= leer datos bancarios de un comprobante ================= */
+async function ocrPersona(file) {
+  const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
+  res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
+  try {
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202610211939");
+    const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; });
+    const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
+    const hechos = [], distintos = [];
+    for (const [k, l, v] of campos) {
+      if (!v) continue; const inp = f.elements[k]; if (!inp) continue;
+      const actual = inp.value.trim();
+      if (!actual) { inp.value = v; inp.classList.add("ocr-nuevo"); hechos.push(`${l}: <b>${esc(v)}</b>`); }
+      else if (actual.replace(/\s/g, "").toLowerCase() !== v.replace(/\s/g, "").toLowerCase()) distintos.push(`${l}: el comprobante dice <b>${esc(v)}</b> <button type="button" class="link" data-ocrusar="${k}" data-v="${esc(v)}">Usar este</button>`);
+    }
+    const aviso = r.cbu && !r.cbuOk ? `<div class="error">Ojo: el CBU leído no da bien los dígitos de control; revisalo contra la imagen.</div>` : "";
+    const nombre = r.titular && f.elements.nombre && !similares(r.titular, f.elements.nombre.value) ? `<div class="muted">El titular del comprobante (${esc(r.titular)}) no coincide con el nombre del propietario: confirmá que sea su cuenta.</div>` : "";
+    res.innerHTML = (hechos.length ? `<div class="banner ok-b">Completé ${hechos.join(" · ")}. Revisalo y tocá <b>Guardar</b>.</div>` : distintos.length ? "" : `<div class="banner">No encontré CBU ni alias en la imagen. Probá con una captura más nítida.</div>`)
+      + (distintos.length ? `<div class="muted">${distintos.join("<br>")}</div>` : "") + aviso + nombre;
+  } catch (e) { res.innerHTML = `<div class="error">${esc(mensajeError(e))}</div>`; }
+}
+function similares(a, b) {
+  const t = (s) => new Set(String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2));
+  const A = t(a), B = t(b); let n = 0; for (const w of A) if (B.has(w)) n++; return n >= 1;
+}
+document.addEventListener("change", (e) => { if (e.target.id === "pe-ocr" && e.target.files[0]) { ocrPersona(e.target.files[0]); e.target.value = ""; } });
+document.addEventListener("paste", (e) => {
+  if (!$("#pe-ocr-zona")) return;
+  const it = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/"));
+  if (it) { e.preventDefault(); ocrPersona(it.getAsFile()); }
+});
+document.addEventListener("dragover", (e) => { const z = e.target.closest?.("#pe-ocr-zona"); if (z) { e.preventDefault(); z.classList.add("sobre"); } });
+document.addEventListener("dragleave", (e) => { e.target.closest?.("#pe-ocr-zona")?.classList.remove("sobre"); });
+document.addEventListener("drop", (e) => { const z = e.target.closest?.("#pe-ocr-zona"); if (!z) return; e.preventDefault(); z.classList.remove("sobre"); const fl = [...e.dataTransfer.files].find((x) => x.type.startsWith("image/")); if (fl) ocrPersona(fl); });
+
 /* ================= eventos ================= */
 document.addEventListener("click", async (ev) => {
   const el = ev.target.closest("button,[data-vista],[data-ficha],[data-dia],[data-persona],a"); if (!el) return;
@@ -1388,6 +1428,7 @@ document.addEventListener("click", async (ev) => {
     if (d.vista) { S.view = d.vista; if (d.filtro) S.filtro = d.filtro; S.q = ""; S.limite = 150; cerrarModal(); render(); scrollTo(0, 0); if (S.view === "config") mostrarNumeracion(); return; }
     if (d.filtro) { S.filtro = d.filtro; S.limite = 150; render(); return; }
     if (d.orden) { S.orden = d.orden; try { localStorage.setItem("orden", d.orden); } catch {} render(); return; }
+    if (d.a === "solo-faltan") { S.soloFaltan = !S.soloFaltan; S.limite = 150; render(); return; }
     if (d.tipo) { S.tipoPersona = d.tipo; S.limite = 150; render(); return; }
     if (d.a === "mas") { S.limite += 150; render(); return; }
     if (d.a === "refrescar") { await cargarEnvios(); render(); toast("Actualizado"); return; }
@@ -1402,6 +1443,7 @@ document.addEventListener("click", async (ev) => {
     if (d.depositoIgual !== undefined) { const f = $("#f-nuevo"); f.deposito.value = f.monto_base.value; nuevoResumen(); return; }
     if (d.a === "nueva-persona") { modalPersona(null); return; }
     if (d.a === "mov-nuevo") { abrirModal(`<div class="mh"><h2>Nuevo movimiento de caja</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div><form class="form" id="f-mov"><label>Tipo<select id="mv-tipo" name="tipo"><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select></label><label>Fecha<input type="date" id="mv-fecha" name="fecha" value="${S.cajaDia}" required></label><label class="full">Concepto<input type="text" id="mv-concepto" name="concepto" required autofocus></label><label>Monto<input type="number" step="0.01" id="mv-monto" name="monto" required></label><label>Medio<select id="mv-medio" name="medio">${MEDIOS.map((m) => `<option>${m}</option>`).join("")}</select></label><div class="full row"><button class="btn primary" type="submit">Guardar</button></div></form>`); return; }
+    if (d.ocrusar) { const inp = $("#f-persona")?.elements[d.ocrusar]; if (inp) { inp.value = d.v; inp.classList.add("ocr-nuevo"); el.replaceWith(document.createTextNode("✓")); } return; }
     if (d.a === "descargar-copia") { descargarCopia(el); return; }
     if (d.a === "numeracion") { const n = await rpc("ver_numeracion", {}); abrirModal(`<div class="mh"><h2>Numeración</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div><form class="form" id="f-num"><label>Próximo recibo<input type="number" min="1" id="nu-rec" name="rec" value="${n?.recibo || 1}"></label><label>Próxima liquidación<input type="number" min="1" id="nu-liq" name="liq" value="${n?.liquidacion || 1}"></label><p class="full muted" style="margin:0">Usalo para continuar la numeración que venían usando en SPOT. No pongas un número ya usado.</p><div class="full row"><button class="btn primary" type="submit">Guardar</button></div></form>`); return; }
     if (d.a === "nuevo-staff") { abrirModal(`<div class="mh"><h2>Sumar persona al equipo</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div><form class="form" id="f-staff"><label>Nombre<input type="text" id="st-nombre" name="nombre" required></label><label>Usuario<input type="text" id="st-email" name="email" required autocomplete="off" autocapitalize="none" placeholder="Ej.: lucia (sin espacios)"><span class="muted">No hace falta email. Si prefieren, pueden poner un email.</span></label><label>Rol<select id="st-rol" name="rol"><option value="operador">Operador (cobra, aprueba, liquida)</option><option value="admin">Administrador (además configura y gestiona el equipo)</option></select></label><div class="full row"><button class="btn primary" type="submit">Crear usuario</button></div><div class="full" id="st-res"></div></form>`); return; }

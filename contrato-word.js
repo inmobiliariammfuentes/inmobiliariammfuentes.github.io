@@ -82,25 +82,33 @@ function apellidoNombre(n) {
 const soloDigitos = (s) => String(s || "").replace(/\D/g, "");
 
 function personas(txt) {
-  const re = /(?:el|la|los|las)\s+(?:Sr(?:a|es|as)?\.?|Señor(?:a)?|Sres\.?)\s+([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ .'-]{3,80}?)\s*,?\s*(?:titular\s+del\s+)?D\.?\s*N\.?\s*I\.?\s*(?:N\s*[º°o]?\.?|Nro\.?|número)?\s*:?\s*([\d.\s]{7,12})/g;
-  const out = []; let m;
-  while ((m = re.exec(txt))) {
-    const resto = txt.slice(m.index, m.index + 700);
-    const cuit = (resto.match(/CUI[TL](?:\/CUI[TL])?\s*(?:N\s*[º°o]?)?\s*:?\s*(\d{2}-?\d{7,8}-?\d)/i) || [])[1] || "";
+  const re = /(?:(?:[Ee]l|[Ll]a|[Ll]os|[Ll]as)\s+(?:(?:Sr(?:ta|a|es|as)?\.?:?|Señor(?:it)?(?:a)?|Sres\.?:?)\s+){1,2}|entre:\s*|LOCATARI[A-Za-z/]*["”]?\s*:\s*|por la otra,?\s+)([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ .'-]{3,80}?)(?:\s*,?\s*(?:argentin[oa]|de nacionalidad\s+\w+|mayor de edad|solter[oa]|casad[oa]|viud[oa]|divorciad[oa]|con|titular\s+del))*\s*,?\s*(?:D\.?\s*N\.?\s*I\.?|Documento\s+Nacional\s+de\s+Identidad)\s*(?:N\s*[º°o]?\.?|Nro\.?|número)?\s*:?\s*([\d.\s]{7,12})/g;
+  const ms = []; let m;
+  while ((m = re.exec(txt))) ms.push(m);
+  return ms.map((m, i) => {
+    // los datos de cada persona llegan hasta donde empieza la siguiente (así no se mezclan CUIT ni mails)
+    const resto = txt.slice(m.index, Math.min(m.index + 700, ms[i + 1] ? ms[i + 1].index : Infinity));
+    const cuit = (resto.match(/CUI[TL](?:\/(?:CUI)?[TL])?\s*(?:N\s*[º°o]?)?\s*:?\s*(\d{2}-?\d{7,8}-?\d)/i) || [])[1] || "";
     const email = (resto.match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/) || [])[0] || "";
     const tel = (resto.match(/(?:tel[ée]fono|celular|cel\.?|whatsapp)\s*(?:N\s*[º°o]?)?\s*:?\s*([\d\s()-]{8,16})/i) || [])[1] || "";
-    out.push({ pos: m.index, nombre: apellidoNombre(m[1]), dni: soloDigitos(m[2]), cuit, email, telefono: soloDigitos(tel) });
-  }
-  return out;
+    // qué parte es: por lo que dice alrededor ("en adelante LOCADOR", "por la otra… LOCATARIO", "GARANTE")
+    const antes = sinTildes(txt.slice(Math.max(0, m.index - 160), m.index + 30)).toUpperCase(), despues = sinTildes(resto.slice(0, 600)).toUpperCase();
+    const rol = /GARANT|FIADOR|CODEUDOR|AVALISTA|FIANZA/.test(antes.slice(-120) + despues.slice(0, 250)) ? "garante"
+      : /LOCATARI|POR LA OTRA/.test(antes) || /DENOMINAD[AO]S?\s*(?:EN ADELANTE\s*)?["“]?\s*(?:LA\s+|EL\s+)?(?:PARTE\s+)?LOCATARI/.test(despues) ? "locatario"
+      : /LOCADOR/.test(despues) ? "locador" : "";
+    return { pos: m.index, nombre: apellidoNombre(m[1]), dni: soloDigitos(m[2]), cuit, email, telefono: soloDigitos(tel), rol };
+  });
 }
 
 export function detectarDatos(txt) {
   const T = txt, U = sinTildes(txt).toUpperCase(), d = { notas: [] };
   // partes: el locador aparece primero; el locatario después de la palabra LOCATARI…
-  const ps = personas(T);
+  // las partes se presentan al principio (antes de la cláusula PRIMERA); más adelante solo aparecen garantes o se las vuelve a nombrar
+  const iPrimera = U.search(/\bPRIMERA\s*[:.-]/);
+  const ps = personas(T).filter((p) => p.rol === "garante" || iPrimera < 0 || p.pos < iPrimera);
   const iLoc = U.search(/LOCATARI/);
-  const locador = ps.find((p) => p.pos < iLoc) || ps[0];
-  const locatario = ps.find((p) => p.pos > iLoc && p !== locador) || ps.find((p) => p !== locador);
+  const locador = ps.find((p) => p.rol === "locador") || ps.find((p) => !p.rol && p.pos < iLoc) || ps.find((p) => p.rol !== "garante" && p.rol !== "locatario");
+  const locatario = ps.find((p) => p.rol === "locatario" && p !== locador) || ps.find((p) => !p.rol && p.pos > iLoc && p !== locador);
   if (locador) d.propietario = locador;
   if (locatario) d.inquilino = locatario;
 

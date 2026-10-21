@@ -577,3 +577,12 @@ body{margin:0}
 .uso.warn .uso-barra span{background:var(--warn)}
 .uso.bad .uso-barra span{background:var(--bad)}
 .uso-s{font-size:13px}
+/* completar datos bancarios con un comprobante */
+.ocr-zona{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 14px;align-items:center;border:2px dashed color-mix(in srgb,var(--accent-ink) 35%,var(--line));border-radius:14px;padding:14px 16px;background:var(--accent-soft);transition:background .15s,border-color .15s}
+.ocr-zona.sobre{border-color:var(--accent-ink);background:color-mix(in srgb,var(--accent-soft) 60%,var(--surface))}
+.ocr-zona .muted{font-size:13.5px;margin-top:2px}
+.ocr-zona label.btn{display:inline-flex;align-items:center;cursor:pointer;color:var(--fg)}
+.ocr-zona #pe-ocr-res:empty{display:none}
+.banner.ok-b{background:var(--ok-soft);color:var(--ok);border-color:color-mix(in srgb,var(--ok) 25%,transparent)}
+input.ocr-nuevo{border-color:var(--ok)!important;box-shadow:0 0 0 3px var(--ok-soft)!important}
+@media (max-width:720px){.ocr-zona{grid-template-columns:minmax(0,1fr)}}
