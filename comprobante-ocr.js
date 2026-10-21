@@ -55,7 +55,8 @@ function cuentaDe(lineas, primera) {
   const okA = (a) => a && a.length >= 6 && a.length <= 20 && !malos.test(a);
   const alias = (okA(conEtiqueta) ? conEtiqueta : suelto.find(okA) || "").toLowerCase();
   // titular: el resto de la línea de la etiqueta ("Para: Juan Perez") o la primera línea que parezca un nombre
-  const cands = [...[].concat(primera), ...lineas.filter((l) => !ORIGEN.test(sinT(l)) && !DESTINO.test(sinT(l)))].map((l) => String(l || "").replace(/^(?:titular|nombre|a nombre de|destinatario|beneficiario)\s*:?\s*/i, "").trim());
+  const cands = [...[].concat(primera), ...lineas.filter((l) => !ORIGEN.test(sinT(l)) && !DESTINO.test(sinT(l)))].map((l) => String(l || "")
+    .replace(/^[^A-Za-zÁÉÍÓÚÑÜáéíóúñü]+/, "").replace(/^[A-Za-z©®@]\s+(?=[A-ZÁÉÍÓÚÑ])/, "").replace(/^(?:titular|nombre|a nombre de|destinatario|beneficiario)\s*:?\s*/i, "").trim());
   const titular = cands.find((l) => /^[A-Za-zÁÉÍÓÚÑÜáéíóúñü][A-Za-zÁÉÍÓÚÑÜáéíóúñü ,.'-]{4,60}$/.test(l) && l.split(/\s+/).length >= 2 && !NO_NOMBRE.test(sinT(l))) || "";
   const cuit = ((T.match(/\b(\d{2})[\s-]?(\d{8})[\s-]?(\d)\b/) || []).slice(1)).join("-");
   let banco = bancoDeCbu(c);
@@ -71,7 +72,8 @@ export function datosDeTexto(texto, nombres = []) {
   const bloques = []; let actual = { rol: "?", lineas: [], primera: "" };
   for (const l of lineas) {
     const U = sinT(l);
-    const rol = DESTINO.test(U) ? "destino" : ORIGEN.test(U) ? "origen" : null;
+    // "Origen y destino" (Mercado Pago): las dos cuentas vienen seguidas, primero la de quien envía
+    const rol = /^ORIGEN\s*(?:Y|\/|-|E)\s*DESTINO/.test(U) ? "seq" : DESTINO.test(U) ? "destino" : ORIGEN.test(U) ? "origen" : null;
     if (rol) {
       bloques.push(actual);
       // lo que sigue a la etiqueta en la misma línea ("Para: Juan Perez", "CBU destino: 0720…")
@@ -84,11 +86,15 @@ export function datosDeTexto(texto, nombres = []) {
   // un bloque sin etiqueta con varias cuentas: se corta en cada CBU (nombre + CBU, nombre + CBU…)
   const esCbu = (l) => /(?:\d[\s.-]?){21}\d/.test(l);
   for (let k = bloques.length - 1; k >= 0; k--) {
-    const b = bloques[k]; if (b.rol !== "?" || b.lineas.filter(esCbu).length < 2) continue;
+    const b = bloques[k];
+    if (b.lineas.filter(esCbu).length < 2) { if (b.rol === "seq") b.rol = "?"; continue; }
     const partes = []; let cur = [];
     for (const l of b.lineas) { cur.push(l); if (esCbu(l)) { partes.push(cur); cur = []; } }
     if (cur.length && partes.length) partes[partes.length - 1].push(...cur);
-    bloques.splice(k, 1, ...partes.map((ls) => ({ rol: "?", lineas: ls, primera: "" })));
+    const ult = partes.length - 1;
+    const rolDe = (n) => b.rol === "seq" ? (n === 0 ? "origen" : n === ult ? "destino" : "?")
+      : b.rol === "origen" ? (n === 0 ? "origen" : "?") : b.rol === "destino" ? (n === 0 ? "destino" : "?") : "?";
+    bloques.splice(k, 1, ...partes.map((ls, n) => ({ rol: rolDe(n), lineas: ls, primera: n === 0 && b.rol !== "seq" ? b.primera : "" })));
   }
   const cuentas = bloques.map((b) => ({ rol: b.rol, ...cuentaDe(b.lineas, b.primera) })).filter((c) => c.cbu || c.alias);
   // juntar bloques del mismo rol (a veces el CBU aparece unas líneas después del nombre)
