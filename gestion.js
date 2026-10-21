@@ -4,11 +4,11 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202610212003";
-import { iniciarChat } from "./chat.js?v=202610212003";
-import { iniciarCalculadora } from "./calculadora.js?v=202610212003";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610212003";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610212003";
+} from "./comun.js?v=202610212030";
+import { iniciarChat } from "./chat.js?v=202610212030";
+import { iniciarCalculadora } from "./calculadora.js?v=202610212030";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610212030";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610212030";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -1400,7 +1400,8 @@ async function pedirDatos(pid) {
   const p = S.personas.get(+pid); if (!p) return;
   const token = await rpc("crear_pedido_datos", { p_persona: p.id }); if (!token || token === true) return;
   const link = new URL("datos.html?t=" + token, PORTAL_URL).href;
-  const nombre = (p.nombre.split(",")[1] || p.nombre).trim().split(" ")[0];
+  const n0 = (p.nombre.split(",")[1] || p.nombre).trim().split(" ")[0] || "";
+  const nombre = n0.charAt(0).toUpperCase() + n0.slice(1).toLowerCase();
   const msg = `¡Hola ${nombre}! Te escribimos de ${S.cfg.nombre || "la inmobiliaria"}. Para tener tus datos al día${p.tipo === "propietario" ? " (incluida la cuenta donde te transferimos los alquileres)" : ""} y crear tu clave del portal de clientes, completá este formulario: ${link}\nEs personal, no lo compartas. ¡Gracias!`;
   copiar(msg);
   if (wa(p.telefono)) { window.open(waMensaje(p.telefono, msg), "_blank", "noopener"); toast("Se abrió WhatsApp con el mensaje (también quedó copiado)"); }
@@ -1450,7 +1451,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202610212003");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202610212030");
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
     x.estado = "leyendo"; pintar();
@@ -1495,7 +1496,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202610212003");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202610212030");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; });
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
     const hechos = [], distintos = [];
