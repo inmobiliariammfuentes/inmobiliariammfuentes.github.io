@@ -4,11 +4,11 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202610211939";
-import { iniciarChat } from "./chat.js?v=202610211939";
-import { iniciarCalculadora } from "./calculadora.js?v=202610211939";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610211939";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610211939";
+} from "./comun.js?v=202610212003";
+import { iniciarChat } from "./chat.js?v=202610212003";
+import { iniciarCalculadora } from "./calculadora.js?v=202610212003";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610212003";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610212003";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -481,11 +481,11 @@ function vPersonas() {
     .sort((a, b) => (cuenta.get(b.id) || 0) - (cuenta.get(a.id) || 0) || a.nombre.localeCompare(b.nombre, "es"));
   const t = (k, l) => `<button data-tipo="${k}" aria-pressed="${S.tipoPersona === k}">${l}</button>`;
   const conAcceso = list.filter((p) => p.user_id).length;
-  return `<div class="head"><div><h1>Inquilinos y propietarios</h1><p>Cargá DNI, email y datos bancarios, y creá el acceso al portal. ${conAcceso} de ${list.length} con acceso.</p></div><button class="btn primary" data-a="nueva-persona">Nueva persona</button></div>
+  return `<div class="head"><div><h1>Inquilinos y propietarios</h1><p>Cargá DNI, email y datos bancarios, y creá el acceso al portal. ${conAcceso} de ${list.length} con acceso.</p></div><div class="row"><button class="btn" data-a="leer-comprobantes" title="Elegí varias capturas de transferencias y se completan CBU y alias de los propietarios">Leer comprobantes</button><button class="btn primary" data-a="nueva-persona">Nueva persona</button></div></div>
   <div class="row"><input type="search" id="q" class="search" placeholder="Nombre, DNI, celular o email" value="${esc(S.q)}"><div class="seg">${t("inquilino", "Inquilinos")}${t("propietario", "Propietarios")}</div><div class="seg"><button data-a="solo-faltan" aria-pressed="${!!S.soloFaltan}">Vigentes con datos faltantes</button></div></div>
   ${S.soloFaltan ? `<p class="muted" style="margin:0">${list.length} ${S.tipoPersona === "propietario" ? "propietarios" : "inquilinos"} con contrato vigente a los que les falta algún dato. Abrí cada uno y completalo${S.tipoPersona === "propietario" ? "; el CBU y el alias se pueden leer pegando la captura de una transferencia" : ""}.</p>` : ""}
   <div class="tw"><table><thead><tr><th>Nombre</th><th>DNI</th><th>Celular</th><th>Email</th>${S.tipoPersona === "propietario" ? "<th>CBU / alias</th>" : ""}<th class="num">Contratos vigentes</th><th>${S.soloFaltan ? "Falta" : "Portal"}</th></tr></thead><tbody>
-  ${list.slice(0, S.limite).map((p) => `<tr class="click" data-persona="${p.id}"><td>${esc(p.nombre)}</td><td class="mono">${esc(p.dni || "—")}</td><td class="mono">${esc(p.telefono || "—")}</td><td>${esc(p.email || "—")}</td>${S.tipoPersona === "propietario" ? `<td class="mono">${esc(p.alias || p.cbu || "—")}</td>` : ""}<td class="num">${cuenta.get(p.id) || 0}</td><td>${S.soloFaltan ? falta(p).map((x) => `<span class="chip warn">Falta ${x}</span>`).join(" ") : p.user_id ? `<span class="chip ok">Con acceso</span>` : p.dni ? `<span class="chip">Sin acceso</span>` : `<span class="chip warn">Falta DNI</span>`}</td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">Sin resultados.</div></td></tr>`}
+  ${list.slice(0, S.limite).map((p) => `<tr class="click" data-persona="${p.id}"><td>${esc(p.nombre)}</td><td class="mono">${esc(p.dni || "—")}</td><td class="mono">${esc(p.telefono || "—")}</td><td>${esc(p.email || "—")}</td>${S.tipoPersona === "propietario" ? `<td class="mono">${esc(p.alias || p.cbu || "—")}</td>` : ""}<td class="num">${cuenta.get(p.id) || 0}</td><td>${S.soloFaltan ? falta(p).map((x) => `<span class="chip warn">Falta ${x}</span>`).join(" ") + ` <button class="btn small" data-pedirdatos="${p.id}" title="Mandarle el link para que complete sus datos">Pedir por WhatsApp</button>` : p.user_id ? `<span class="chip ok">Con acceso</span>` : p.dni ? `<span class="chip">Sin acceso</span>` : `<span class="chip warn">Falta DNI</span>`}</td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">Sin resultados.</div></td></tr>`}
   </tbody></table></div>${list.length > S.limite ? `<div class="row"><button class="btn" data-a="mas">Mostrar más</button></div>` : ""}`;
 }
 
@@ -1377,19 +1377,125 @@ function modalPersona(id) {
     <label class="full">Notas<textarea id="pe-notas" name="notas" rows="2">${esc(p.notas || "")}</textarea></label>
     <div class="full row"><button class="btn primary" type="submit">Guardar</button></div>
   </form>
-  ${id ? `<section class="panel"><div class="ph"><h2>Acceso al portal</h2>${p.user_id ? `<span class="chip ok">Con acceso</span>` : `<span class="chip">Sin acceso</span>`}</div>
+  ${id ? `<section class="panel"><div class="ph"><h2>Que complete sus datos</h2><button class="btn small primary" data-pedirdatos="${p.id}">Mandar link por WhatsApp</button></div>
+    <p class="muted" style="margin:0">Le llega un link personal para cargar DNI, celular, email${p.tipo === "propietario" ? ", CBU y alias" : ""} y crear su clave del portal. Vence a los 60 días.</p>
+    <div id="pedido-estado" class="muted"></div></section>
+  <section class="panel"><div class="ph"><h2>Acceso al portal</h2>${p.user_id ? `<span class="chip ok">Con acceso</span>` : `<span class="chip">Sin acceso</span>`}</div>
     <p class="muted" style="margin:0">Usuario: DNI. La clave se genera acá y se la pasás por WhatsApp. Después puede cambiarla desde el portal.</p>
     <div class="row"><button class="btn primary" data-acceso="${p.id}" ${p.dni ? "" : "disabled"}>${p.user_id ? "Generar nueva clave" : "Crear acceso"}</button>${p.user_id ? `<button class="btn danger" data-quitaracceso="${p.id}">Quitar acceso</button>` : ""}${p.dni ? "" : `<span class="muted">Cargá el DNI y guardá para poder crear el acceso.</span>`}</div>
     <div id="acceso-resultado"></div></section>
   <h2>Contratos</h2><div class="tw"><table><tbody>${contratos.map((c) => `<tr class="click" data-ficha="${c.id}"><td>${esc(c.direccion)}</td><td class="num">${fecha(c.inicio)} – ${fecha(c.fin)}</td><td>${chipEstado(c)}</td></tr>`).join("")}</tbody></table></div>` : ""}`, true);
+  if (id) estadoPedido(p.id);
 }
+
+/* ================= link para que la persona complete sus datos ================= */
+async function estadoPedido(pid) {
+  const el = $("#pedido-estado"); if (!el) return;
+  const { data } = await sb.from("pedidos_datos").select("created_at, completado_en, vence").eq("persona_id", pid).order("created_at", { ascending: false }).limit(1);
+  const x = data && data[0]; if (!el.isConnected) return;
+  el.innerHTML = !x ? "Todavía no se le mandó el link." : x.completado_en ? `<span class="chip ok">Completó sus datos el ${fecha(x.completado_en.slice(0, 10))}</span>`
+    : `Link generado el ${fecha(x.created_at.slice(0, 10))} · todavía no lo completó${new Date(x.vence) < new Date() ? " (venció)" : ""}.`;
+}
+async function pedirDatos(pid) {
+  const p = S.personas.get(+pid); if (!p) return;
+  const token = await rpc("crear_pedido_datos", { p_persona: p.id }); if (!token || token === true) return;
+  const link = new URL("datos.html?t=" + token, PORTAL_URL).href;
+  const nombre = (p.nombre.split(",")[1] || p.nombre).trim().split(" ")[0];
+  const msg = `¡Hola ${nombre}! Te escribimos de ${S.cfg.nombre || "la inmobiliaria"}. Para tener tus datos al día${p.tipo === "propietario" ? " (incluida la cuenta donde te transferimos los alquileres)" : ""} y crear tu clave del portal de clientes, completá este formulario: ${link}\nEs personal, no lo compartas. ¡Gracias!`;
+  copiar(msg);
+  if (wa(p.telefono)) { window.open(waMensaje(p.telefono, msg), "_blank", "noopener"); toast("Se abrió WhatsApp con el mensaje (también quedó copiado)"); }
+  else toast("No tiene celular cargado: el mensaje quedó copiado para pegarlo donde quieras");
+  estadoPedido(p.id);
+}
+
+/* ================= leer muchos comprobantes de una vez ================= */
+const tokensNombre = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 2 && !["del", "los", "las"].includes(w));
+function propietarioDe(r) {
+  const props = [...S.personas.values()].filter((p) => p.tipo === "propietario");
+  const cbu = (r.cbu || "").replace(/\D/g, ""), alias = (r.alias || "").toLowerCase();
+  const ya = props.find((p) => (cbu && (p.cbu || "").replace(/\D/g, "") === cbu) || (alias && (p.alias || "").toLowerCase() === alias));
+  if (ya) return { p: ya, ya: true };
+  const t = new Set(tokensNombre(r.titular)); if (!t.size) return {};
+  const cands = props.map((p) => { const pt = tokensNombre(p.nombre), ap = tokensNombre(p.nombre.split(",")[0]); const n = pt.filter((w) => t.has(w)).length; return { p, n, ap: ap.some((w) => t.has(w)) }; })
+    .filter((x) => x.n >= 2 || (x.n === 1 && x.ap)).sort((a, b) => b.n - a.n);
+  if (!cands.length || (cands[1] && cands[1].n === cands[0].n)) return {};
+  return { p: cands[0].p, seguro: cands[0].n >= 2 };
+}
+function modalLeerComprobantes() {
+  abrirModal(`<div class="mh"><div><h2>Leer comprobantes</h2><div class="muted">Elegí varias capturas de transferencias hechas a propietarios (por ejemplo, las que mandan los inquilinos por WhatsApp). Se leen en esta computadora, se busca a qué propietario corresponde cada una por el titular y se completan los CBU y alias que falten.</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
+    <div class="ocr-zona" id="lc-zona"><div><b>Elegí o arrastrá las imágenes</b><div class="muted">Podés elegir muchas a la vez. Los PDF no se pueden leer.</div></div><label class="btn small primary">Elegir imágenes<input type="file" id="lc-archivos" accept="image/*" multiple hidden></label></div>
+    <div id="lc-res"></div>`, true);
+}
+async function leerComprobantes(files) {
+  const res = $("#lc-res"); if (!res) return;
+  const imgs = [...files].filter((f) => f.type.startsWith("image/")); if (!imgs.length) { toast("Elegí imágenes (capturas o fotos)", "bad"); return; }
+  const props = [...S.personas.values()].filter((p) => p.tipo === "propietario").sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  S.lc = imgs.map((f, i) => ({ i, f, url: URL.createObjectURL(f), estado: "espera" }));
+  const fila = (x) => {
+    if (x.estado !== "listo") return `<tr><td><img class="lc-img" src="${x.url}" alt=""></td><td colspan="4" class="muted">${x.estado === "leyendo" ? "Leyendo…" : x.estado === "error" ? esc(x.error) : "En espera"}</td></tr>`;
+    const r = x.r, sel = x.prop?.p?.id;
+    const falta = x.prop?.p && !(x.prop.p.cbu || "").trim() && !(x.prop.p.alias || "").trim();
+    return `<tr data-lc="${x.i}"><td><a href="${x.url}" target="_blank" rel="noopener"><img class="lc-img" src="${x.url}" alt="Comprobante ${x.i + 1}"></a></td>
+      <td class="lc-datos"><label>Titular<input type="text" data-k="titular" value="${esc(r.titular)}"></label><label>CBU / CVU<input type="text" data-k="cbu" value="${esc(r.cbu)}"></label><label>Alias<input type="text" data-k="alias" value="${esc(r.alias)}"></label><label>Banco<input type="text" data-k="banco" value="${esc(r.banco)}"></label>
+        ${r.cbu && !r.cbuOk ? `<div class="error">Revisá el CBU contra la imagen.</div>` : ""}${!r.cbu && !r.alias ? `<div class="error">No se encontró CBU ni alias.</div>` : ""}</td>
+      <td><select data-k="prop"><option value="">— Elegí el propietario —</option>${props.map((p) => `<option value="${p.id}" ${p.id === sel ? "selected" : ""}>${esc(p.nombre)}${p.cbu || p.alias ? " ✓" : ""}</option>`).join("")}</select>
+        <div class="muted lc-nota">${x.prop?.ya ? "Ya tiene esta cuenta cargada." : x.prop?.seguro ? "Coincide con el titular." : x.prop?.p ? "Coincide solo el apellido: revisalo." : "No encontré a quién corresponde."}</div></td>
+      <td><label class="check"><input type="checkbox" data-k="ok" ${falta && x.prop?.seguro && (r.cbu || r.alias) ? "checked" : ""}> Guardar</label></td></tr>`;
+  };
+  const pintar = () => {
+    if (!$("#lc-res")) return;
+    const hechos = S.lc.filter((x) => x.estado === "listo" || x.estado === "error").length;
+    $("#lc-res").innerHTML = `<p class="muted">${hechos < S.lc.length ? `Leyendo ${hechos + 1} de ${S.lc.length}…` : `Listo: ${S.lc.length} comprobantes. Revisá cada fila, corregí lo que haga falta y tocá Guardar.`}</p>
+      <div class="tw"><table class="lc"><thead><tr><th>Imagen</th><th>Datos leídos</th><th>Propietario</th><th></th></tr></thead><tbody>${S.lc.map(fila).join("")}</tbody></table></div>
+      ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
+  };
+  pintar();
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202610212003");
+  for (const x of S.lc) {
+    if (!$("#lc-res")) return;
+    x.estado = "leyendo"; pintar();
+    try { x.r = await leerComprobante(x.f); x.prop = propietarioDe(x.r); x.estado = "listo"; }
+    catch (e) { x.estado = "error"; x.error = mensajeError(e); }
+    // conservar lo que ya se editó en filas anteriores
+    pintarConEdiciones(pintar);
+  }
+}
+function pintarConEdiciones(pintar) {
+  const ed = [...document.querySelectorAll("#lc-res tr[data-lc]")].map((tr) => [tr.dataset.lc, Object.fromEntries([...tr.querySelectorAll("[data-k]")].map((e) => [e.dataset.k, e.type === "checkbox" ? e.checked : e.value]))]);
+  pintar();
+  for (const [i, v] of ed) { const tr = document.querySelector(`#lc-res tr[data-lc="${i}"]`); if (!tr) continue; for (const e of tr.querySelectorAll("[data-k]")) if (e.dataset.k in v) { if (e.type === "checkbox") e.checked = v[e.dataset.k]; else e.value = v[e.dataset.k]; } }
+}
+async function guardarComprobantesLeidos() {
+  let n = 0, saltados = 0;
+  for (const tr of document.querySelectorAll("#lc-res tr[data-lc]")) {
+    const v = Object.fromEntries([...tr.querySelectorAll("[data-k]")].map((e) => [e.dataset.k, e.type === "checkbox" ? e.checked : e.value.trim()]));
+    if (!v.ok) continue;
+    const p = S.personas.get(+v.prop); if (!p) { saltados++; continue; }
+    const cambios = {};
+    const cbu = v.cbu.replace(/\D/g, "");
+    if (cbu.length === 22 && !(p.cbu || "").trim()) cambios.cbu = cbu;
+    if (v.alias && !(p.alias || "").trim()) cambios.alias = v.alias.toLowerCase();
+    if (v.banco && !(p.banco || "").trim()) cambios.banco = v.banco;
+    if (v.titular && !(p.titular || "").trim()) cambios.titular = v.titular;
+    if (!Object.keys(cambios).length) { saltados++; continue; }
+    const { error } = await sb.from("personas").update(cambios).eq("id", p.id);
+    if (error) { toast(mensajeError(error), "bad"); return; }
+    Object.assign(p, cambios); n++;
+  }
+  for (const x of S.lc || []) URL.revokeObjectURL(x.url);
+  S.lc = null; cerrarModal(); render();
+  toast(`Se completaron los datos de ${n} propietario${n === 1 ? "" : "s"}${saltados ? ` (${saltados} sin cambios: ya tenían esos datos o faltaba elegir el propietario)` : ""}`);
+}
+document.addEventListener("change", (e) => { if (e.target.id === "lc-archivos" && e.target.files.length) { leerComprobantes(e.target.files); } });
+document.addEventListener("dragover", (e) => { const z = e.target.closest?.("#lc-zona"); if (z) { e.preventDefault(); z.classList.add("sobre"); } });
+document.addEventListener("drop", (e) => { const z = e.target.closest?.("#lc-zona"); if (!z) return; e.preventDefault(); z.classList.remove("sobre"); leerComprobantes(e.dataTransfer.files); });
 
 /* ================= leer datos bancarios de un comprobante ================= */
 async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202610211939");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202610212003");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; });
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
     const hechos = [], distintos = [];
@@ -1428,6 +1534,9 @@ document.addEventListener("click", async (ev) => {
     if (d.vista) { S.view = d.vista; if (d.filtro) S.filtro = d.filtro; S.q = ""; S.limite = 150; cerrarModal(); render(); scrollTo(0, 0); if (S.view === "config") mostrarNumeracion(); return; }
     if (d.filtro) { S.filtro = d.filtro; S.limite = 150; render(); return; }
     if (d.orden) { S.orden = d.orden; try { localStorage.setItem("orden", d.orden); } catch {} render(); return; }
+    if (d.a === "leer-comprobantes") { modalLeerComprobantes(); return; }
+    if (d.a === "lc-guardar") { el.disabled = true; await guardarComprobantesLeidos(); return; }
+    if (d.pedirdatos) { await pedirDatos(d.pedirdatos); return; }
     if (d.a === "solo-faltan") { S.soloFaltan = !S.soloFaltan; S.limite = 150; render(); return; }
     if (d.tipo) { S.tipoPersona = d.tipo; S.limite = 150; render(); return; }
     if (d.a === "mas") { S.limite += 150; render(); return; }

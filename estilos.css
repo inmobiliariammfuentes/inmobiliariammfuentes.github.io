@@ -586,3 +586,14 @@ body{margin:0}
 .banner.ok-b{background:var(--ok-soft);color:var(--ok);border-color:color-mix(in srgb,var(--ok) 25%,transparent)}
 input.ocr-nuevo{border-color:var(--ok)!important;box-shadow:0 0 0 3px var(--ok-soft)!important}
 @media (max-width:720px){.ocr-zona{grid-template-columns:minmax(0,1fr)}}
+/* leer varios comprobantes */
+table.lc td{vertical-align:top}
+.lc-img{width:120px;max-height:200px;object-fit:contain;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);display:block}
+.lc-datos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px;min-width:320px}
+.lc-datos label{display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--muted);font-weight:600}
+.lc-datos input{padding:7px 9px;font-size:14px}
+.lc-datos .error{grid-column:1/-1;font-size:13px}
+table.lc select{min-width:200px;padding:7px 9px;font-size:14px}
+.lc-nota{font-size:12.5px;margin-top:4px}
+@media (max-width:720px){.lc-datos{grid-template-columns:minmax(0,1fr);min-width:200px}.lc-img{width:80px}}
+a.btn{text-decoration:none;display:inline-flex;align-items:center;justify-content:center;color:inherit}a.btn.primary{color:var(--accent-fg)}
