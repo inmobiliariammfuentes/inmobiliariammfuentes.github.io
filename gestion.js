@@ -4,11 +4,11 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202610232003";
-import { iniciarChat } from "./chat.js?v=202610232003";
-import { iniciarCalculadora } from "./calculadora.js?v=202610232003";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610232003";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610232003";
+} from "./comun.js?v=202610232010";
+import { iniciarChat } from "./chat.js?v=202610232010";
+import { iniciarCalculadora } from "./calculadora.js?v=202610232010";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610232010";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610232010";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -535,34 +535,65 @@ function cargarXLSX() {
   if (window.XLSX) return Promise.resolve();
   return new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"; sc.onload = ok; sc.onerror = () => mal(new Error("No se pudo cargar el generador de Excel. Revisá la conexión.")); document.head.appendChild(sc); });
 }
-// Excel con los aumentos del mes próximo: una columna vacía para anotar el valor final acordado
+// Excel con los aumentos del mes próximo, listo para imprimir en A4 vertical.
+// Una columna vacía para anotar el valor final acordado.
+function cargarExcelJS() {
+  if (window.ExcelJS) return Promise.resolve();
+  return new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"; sc.onload = ok; sc.onerror = () => mal(new Error("No se pudo cargar el generador de Excel. Revisá la conexión.")); document.head.appendChild(sc); });
+}
 async function exportarAumentos(boton) {
   const txt = boton.textContent; boton.disabled = true; boton.textContent = "Armando el Excel…";
   try {
-    await cargarXLSX();
+    await cargarExcelJS();
     if (!S.indices) { boton.textContent = "Bajando índices…"; await iniciarIndices(false); }
     const prox = ymSumar(ymHoy(), 1);
     const filas = [...S.contratos.values()].filter(contratoActivo).map((c) => ({ c, a: aumentoDe(c) })).filter((x) => x.a && x.a.p === prox)
       .sort((x, y) => x.c.direccion.localeCompare(y.c.direccion, "es", { numeric: true }));
-    const cab = ["Carpeta", "Dirección", "Inquilino", "Propietario", "Índice", "Ajusta cada (meses)", "Aumenta desde", "Moneda", "Valor que venía pagando", "Valor con el aumento", "Aumento %", "Cálculo", "Valor final"];
-    const aoa = [[`Aumentos de ${periodo(prox)} · ${S.cfg.nombre || ""}`], [`Generado el ${fecha(isoHoy())}. La columna «Valor final» queda en blanco para anotar el precio que se cierre.`], [], cab];
-    for (const { c, a } of filas) {
-      const ok = a.calc && !a.calc.error;
-      aoa.push([c.carpeta || "", c.direccion, inq(c), prop(c), c.indice || "", +c.ajuste_meses || "", periodo(a.p), esUSD(c) ? "USD" : "ARS", r2(a.base),
-        ok ? r2(a.calc.nuevo) : "", ok ? a.calc.pct / 100 : "", ok ? (a.calc.estimado ? "Estimado (falta publicar el índice)" : "Con índice publicado") : (a.calc?.error || "Sin calcular"), ""]);
-    }
-    const hoja = XLSX.utils.aoa_to_sheet(aoa);
-    const fmtMon = '"$" #,##0.00', fila0 = 4;
-    for (let r = fila0; r < aoa.length; r++) {
-      for (const col of [8, 9, 12]) { const ref = XLSX.utils.encode_cell({ r, c: col }); if (!hoja[ref]) hoja[ref] = { t: "s", v: "" }; if (hoja[ref].t === "n") hoja[ref].z = aoa[r][7] === "USD" ? '"U$S" #,##0.00' : fmtMon; }
-      const p = hoja[XLSX.utils.encode_cell({ r, c: 10 })]; if (p && p.t === "n") p.z = "0.00%";
-    }
-    hoja["!cols"] = [8, 34, 28, 28, 8, 10, 16, 8, 18, 18, 10, 32, 18].map((w) => ({ wch: w }));
-    hoja["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 12 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } }];
-    hoja["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 3, c: 0 }, e: { r: Math.max(3, aoa.length - 1), c: 12 } }) };
-    const libro = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(libro, hoja, "Aumentos");
-    XLSX.writeFile(libro, `Aumentos ${periodo(prox)}.xlsx`);
-    toast(`Excel con ${filas.length} aumentos descargado`);
+    const wb = new ExcelJS.Workbook(); wb.creator = S.cfg.nombre || "Cobranza";
+    const ws = wb.addWorksheet("Aumentos", {
+      pageSetup: { paperSize: 9, orientation: "portrait", fitToPage: true, fitToWidth: 1, fitToHeight: 0, horizontalCentered: true,
+        margins: { left: 0.4, right: 0.4, top: 0.55, bottom: 0.55, header: 0.25, footer: 0.25 } },
+      headerFooter: { oddFooter: `&L&8${(S.cfg.nombre || "").replace(/&/g, "&&")}&C&8Página &P de &N&R&8Impreso el &D` },
+      views: [{ state: "frozen", ySplit: 4 }],
+    });
+    ws.columns = [{ width: 6 }, { width: 29 }, { width: 23 }, { width: 10 }, { width: 14 }, { width: 14 }, { width: 8 }, { width: 15 }];
+    const bordo = "FF7A1F2E", gris = "FF6C5E61", linea = { style: "thin", color: { argb: "FFD9CBCD" } };
+    ws.mergeCells("A1:H1"); ws.getCell("A1").value = `Aumentos de ${periodo(prox)}`;
+    ws.getCell("A1").font = { bold: true, size: 15, color: { argb: bordo } };
+    ws.mergeCells("A2:H2"); ws.getCell("A2").value = `${S.cfg.nombre || ""} · generado el ${fecha(isoHoy())} · ${filas.length} contratos. Anotá en «Valor final» el precio que se cierre.`;
+    ws.getCell("A2").font = { size: 9, color: { argb: gris } };
+    ws.getRow(1).height = 22;
+    const cab = ws.getRow(4);
+    cab.values = ["Carp.", "Dirección", "Inquilino", "Índice", "Venía pagando", "Con aumento", "Aum. %", "Valor final"];
+    cab.height = 30;
+    cab.eachCell((cell) => { cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 }; cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bordo } };
+      cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true }; cell.border = { top: linea, left: linea, bottom: linea, right: linea }; });
+    let hayEst = false, hayManual = false;
+    filas.forEach(({ c, a }, k) => {
+      const ok = a.calc && !a.calc.error, est = ok && a.calc.estimado; if (est) hayEst = true; if (!ok) hayManual = true;
+      const usd = esUSD(c), fmt = usd ? '"U$S" #,##0' : '"$" #,##0';
+      const r = ws.addRow([c.carpeta || "", c.direccion, inq(c), `${c.indice || ""} ${c.ajuste_meses ? c.ajuste_meses + "m" : ""}`.trim(), r2(a.base),
+        ok ? Math.round(a.calc.nuevo) : "A mano", ok ? a.calc.pct / 100 : "", ""]);
+      r.height = 30;
+      r.eachCell({ includeEmpty: true }, (cell, n) => {
+        cell.border = { top: linea, left: linea, bottom: linea, right: linea };
+        cell.alignment = { vertical: "middle", wrapText: n === 2 || n === 3 || n === 4, horizontal: n === 1 || n === 4 || n === 7 ? "center" : n >= 5 ? "right" : "left" };
+        cell.font = { size: 10, ...(est && (n === 6 || n === 7) ? { italic: true, color: { argb: gris } } : {}), ...(n === 6 && ok && !est ? { bold: true } : {}) };
+        if (k % 2) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8F2F3" } };
+      });
+      r.getCell(5).numFmt = fmt; if (ok) r.getCell(6).numFmt = fmt; r.getCell(7).numFmt = "0.0%";
+      r.getCell(8).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFFFFF" } };
+      r.getCell(8).border = { top: linea, left: { style: "thin", color: { argb: bordo } }, bottom: linea, right: { style: "thin", color: { argb: bordo } } };
+    });
+    const notas = [hayEst && "En gris e itálica: aumento estimado (el índice de algún mes todavía no se publicó).", hayManual && "«A mano»: índice que no se calcula solo, contrato en dólares o sin alquiler actual cargado."].filter(Boolean);
+    if (notas.length) { ws.addRow([]); for (const t of notas) { const r = ws.addRow([t]); ws.mergeCells(r.number, 1, r.number, 8); r.getCell(1).font = { size: 8.5, italic: true, color: { argb: gris } }; } }
+    ws.pageSetup.printArea = `A1:H${ws.rowCount}`;
+    ws.pageSetup.printTitlesRow = "4:4";
+    const buf = await wb.xlsx.writeBuffer();
+    const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const lnk = document.createElement("a"); lnk.href = url; lnk.download = `Aumentos ${periodo(prox)}.xlsx`; document.body.appendChild(lnk); lnk.click(); lnk.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast(`Excel con ${filas.length} aumentos descargado (listo para imprimir en A4)`);
   } catch (e) { toast(mensajeError(e), "bad"); }
   finally { boton.disabled = false; boton.textContent = txt; }
 }
@@ -1489,7 +1520,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202610232003");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202610232010");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1541,7 +1572,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202610232003");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202610232010");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
