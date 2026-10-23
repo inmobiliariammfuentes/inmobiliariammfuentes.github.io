@@ -4,11 +4,11 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202610231952";
-import { iniciarChat } from "./chat.js?v=202610231952";
-import { iniciarCalculadora } from "./calculadora.js?v=202610231952";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610231952";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610231952";
+} from "./comun.js?v=202610232003";
+import { iniciarChat } from "./chat.js?v=202610232003";
+import { iniciarCalculadora } from "./calculadora.js?v=202610232003";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610232003";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610232003";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -131,7 +131,7 @@ function renderNav() {
   const cs = [...S.contratos.values()];
   const n = { revisar: pendientesRevisar().length,
     morosos: S.cargado ? cs.filter((c) => deudaDe(c).some((d) => d.vencido && !d.enTolerancia)).length : 0,
-    ajustes: S.cargado ? cs.filter((c) => contratoActivo(c) && (proximoAjuste(c, ajDe(c), S.cfg) || "9") <= ymHoy()).length : 0,
+    ajustes: S.cargado ? cs.filter((c) => contratoActivo(c) && proximoAjuste(c, ajDe(c), S.cfg) === ymSumar(ymHoy(), 1)).length : 0,
     servicios: S.cargado && S.cs ? controlServicios().filter((x) => x.faltan.length).length : 0 };
   const actual = S.view === "planilla" ? "cobrar" : S.view === "liqprop" ? "liquidaciones" : S.view === "nuevo" || S.view === "contrato" ? "contratos" : S.view;
   $("#nav").innerHTML = VISTAS.map(([k, l]) => `<button data-vista="${k}" ${actual === k ? 'aria-current="page"' : ""}><span>${l}</span>${n[k] ? `<span class="n">${n[k]}</span>` : ""}</button>`).join("");
@@ -288,7 +288,8 @@ function vAjustes() {
   const cur = ymHoy();
   const act = [...S.contratos.values()].filter(contratoActivo).map((c) => ({ c, a: aumentoDe(c) })).filter((x) => x.a).sort((x, y) => (x.a.p < y.a.p ? -1 : x.a.p > y.a.p ? 1 : 0));
   const revisar = [...S.contratos.values()].filter((c) => contratoActivo(c) && c.ajuste_revisar).length;
-  const listos = act.filter((x) => !x.c.ajuste_revisar && x.a.p <= ymSumar(cur, 1) && x.a.calc && !x.a.calc.error && !x.a.calc.estimado);
+  const prox = ymSumar(cur, 1), delMes = act.filter((x) => x.a.p === prox);
+  const listos = delMes.filter((x) => !x.c.ajuste_revisar && x.a.calc && !x.a.calc.error && !x.a.calc.estimado);
   const autos = [...S.aj.values()].flat().filter((a) => a.automatico && !a.anulado && a.desde >= ymSumar(cur, -1)).sort((a, b) => (a.desde < b.desde ? 1 : -1));
   const tabla = (arr) => `<div class="tw"><table><thead><tr><th>Dirección</th><th>Inquilino</th><th>Índice</th><th>Aumenta en</th><th class="num">Alquiler actual</th><th>Calculado</th><th></th></tr></thead><tbody>
   ${arr.map(({ c, a }) => `<tr><td><button class="carpeta" data-contrato="${c.id}">${c.carpeta || "—"}</button> ${esc(c.direccion)}</td><td>${esc(inq(c))}</td><td class="mono">${esc(c.indice)} · ${c.ajuste_meses}m ${c.ajuste_revisar ? `<span class="chip warn" title="La periodicidad vino de SPOT sin confirmar">Revisar</span>` : ""}</td>
@@ -296,11 +297,10 @@ function vAjustes() {
     <td class="num acciones">${c.ajuste_revisar ? `<button class="btn small" data-contrato="${c.id}" title="Revisá cada cuántos meses ajusta y el primer ajuste">Confirmar periodicidad</button>` : `${a.calc && !a.calc.error ? `<button class="btn small primary" data-aplicaraumento="${c.id}">Aplicar</button> ` : ""}<button class="btn small" data-ajustar="${c.id}">${a.calc && !a.calc.error ? "Modificar" : "Cargar"}</button>`}</td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">No hay aumentos en este período.</div></td></tr>`}</tbody></table></div>`;
   const ultimo = S.indices ? Object.entries(FUENTES).map(([k]) => S.indices[k] ? `${k}: ${S.indices[k].tipo === "diario" ? fecha(S.indices[k].ultima) : periodo(S.indices[k].ultimoMes.slice(0, 7))}` : "").filter(Boolean).join(" · ") : "bajando…";
   return `<div class="head"><div><h1>Ajustes de precio</h1><p>El sistema calcula cada aumento con los índices oficiales (BCRA e INDEC), con las mismas reglas que la Calculadora de Alquileres. Cuando el índice ya está publicado, el aumento se carga solo el mes que corresponde; siempre se puede modificar.</p></div>
-    <div class="row"><button class="btn" data-a="indices">Actualizar índices</button>${listos.length ? `<button class="btn primary" data-a="aplicar-listos">Aplicar los ${listos.length} calculados</button>` : ""}</div></div>
+    <div class="row"><button class="btn" data-a="indices">Actualizar índices</button>${delMes.length ? `<button class="btn" data-a="exportar-aumentos">Exportar a Excel</button>` : ""}${listos.length ? `<button class="btn primary" data-a="aplicar-listos">Aplicar los ${listos.length} calculados</button>` : ""}</div></div>
   <p class="muted" style="margin:0">Último dato publicado · ${esc(ultimo)}. "Estimado" = el índice de algún mes todavía no salió: se repite la última variación hasta que se publique.</p>
   ${revisar ? `<div class="banner">${revisar} contratos vigentes vinieron de SPOT con la periodicidad sin confirmar: a esos no se les carga el aumento solo. Confirmala en la carpeta del contrato.</div>` : ""}
-  <h2>Este mes y el próximo</h2>${tabla(act.filter((x) => x.a.p <= ymSumar(cur, 1)))}
-  <h2>Próximos 3 meses</h2>${tabla(act.filter((x) => x.a.p > ymSumar(cur, 1) && x.a.p <= ymSumar(cur, 4)))}
+  <h2>Aumentan en ${periodo(prox)} (${delMes.length})</h2>${tabla(delMes)}
   ${autos.length ? `<h2>Cargados automáticamente</h2><div class="tw"><table><thead><tr><th>Dirección</th><th>Desde</th><th class="num">Anterior</th><th class="num">Nuevo</th><th>Detalle</th><th></th></tr></thead><tbody>
     ${autos.map((a) => { const c = S.contratos.get(a.contrato_id); return c ? `<tr><td>${esc(c.direccion)}</td><td>${periodo(a.desde)}</td><td class="num">${money(a.monto_anterior, c)}</td><td class="num"><b>${money(a.monto, c)}</b> <span class="chip ok">+${String(a.pct ?? "").replace(".", ",")}%</span></td><td class="muted">${esc(a.detalle || "")}</td><td class="num"><button class="btn small" data-contrato="${c.id}">Ver / modificar</button></td></tr>` : ""; }).join("")}</tbody></table></div>` : ""}`;
 }
@@ -531,6 +531,41 @@ async function mostrarEspacio() {
   el.innerHTML = fila("Datos (contratos, pagos, recibos…)", u.base, LIMITES.base) + fila("Archivos (boletas, comprobantes, fotos)", u.archivos, LIMITES.archivos, `${(u.n_archivos || 0).toLocaleString("es-AR")} archivos${tipos ? " · " + esc(tipos) : ""}`)
     + (pa >= 0.75 ? `<div class="banner">El espacio para archivos se está llenando. Hay que bajar a la computadora las boletas más viejas y borrarlas del sistema (pedíselo a Claude), o pasar a un plan pago de Supabase.</div>` : "");
 }
+function cargarXLSX() {
+  if (window.XLSX) return Promise.resolve();
+  return new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"; sc.onload = ok; sc.onerror = () => mal(new Error("No se pudo cargar el generador de Excel. Revisá la conexión.")); document.head.appendChild(sc); });
+}
+// Excel con los aumentos del mes próximo: una columna vacía para anotar el valor final acordado
+async function exportarAumentos(boton) {
+  const txt = boton.textContent; boton.disabled = true; boton.textContent = "Armando el Excel…";
+  try {
+    await cargarXLSX();
+    if (!S.indices) { boton.textContent = "Bajando índices…"; await iniciarIndices(false); }
+    const prox = ymSumar(ymHoy(), 1);
+    const filas = [...S.contratos.values()].filter(contratoActivo).map((c) => ({ c, a: aumentoDe(c) })).filter((x) => x.a && x.a.p === prox)
+      .sort((x, y) => x.c.direccion.localeCompare(y.c.direccion, "es", { numeric: true }));
+    const cab = ["Carpeta", "Dirección", "Inquilino", "Propietario", "Índice", "Ajusta cada (meses)", "Aumenta desde", "Moneda", "Valor que venía pagando", "Valor con el aumento", "Aumento %", "Cálculo", "Valor final"];
+    const aoa = [[`Aumentos de ${periodo(prox)} · ${S.cfg.nombre || ""}`], [`Generado el ${fecha(isoHoy())}. La columna «Valor final» queda en blanco para anotar el precio que se cierre.`], [], cab];
+    for (const { c, a } of filas) {
+      const ok = a.calc && !a.calc.error;
+      aoa.push([c.carpeta || "", c.direccion, inq(c), prop(c), c.indice || "", +c.ajuste_meses || "", periodo(a.p), esUSD(c) ? "USD" : "ARS", r2(a.base),
+        ok ? r2(a.calc.nuevo) : "", ok ? a.calc.pct / 100 : "", ok ? (a.calc.estimado ? "Estimado (falta publicar el índice)" : "Con índice publicado") : (a.calc?.error || "Sin calcular"), ""]);
+    }
+    const hoja = XLSX.utils.aoa_to_sheet(aoa);
+    const fmtMon = '"$" #,##0.00', fila0 = 4;
+    for (let r = fila0; r < aoa.length; r++) {
+      for (const col of [8, 9, 12]) { const ref = XLSX.utils.encode_cell({ r, c: col }); if (!hoja[ref]) hoja[ref] = { t: "s", v: "" }; if (hoja[ref].t === "n") hoja[ref].z = aoa[r][7] === "USD" ? '"U$S" #,##0.00' : fmtMon; }
+      const p = hoja[XLSX.utils.encode_cell({ r, c: 10 })]; if (p && p.t === "n") p.z = "0.00%";
+    }
+    hoja["!cols"] = [8, 34, 28, 28, 8, 10, 16, 8, 18, 18, 10, 32, 18].map((w) => ({ wch: w }));
+    hoja["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 12 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 12 } }];
+    hoja["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 3, c: 0 }, e: { r: Math.max(3, aoa.length - 1), c: 12 } }) };
+    const libro = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(libro, hoja, "Aumentos");
+    XLSX.writeFile(libro, `Aumentos ${periodo(prox)}.xlsx`);
+    toast(`Excel con ${filas.length} aumentos descargado`);
+  } catch (e) { toast(mensajeError(e), "bad"); }
+  finally { boton.disabled = false; boton.textContent = txt; }
+}
 async function descargarCopia(boton) {
   const tablas = [["contratos", "Contratos"], ["personas", "Personas"], ["ajustes", "Ajustes"], ["cargos", "Cargos"], ["conceptos_fijos", "Conceptos fijos"],
     ["pagos", "Recibos"], ["pago_items", "Recibos detalle"], ["liquidaciones", "Liquidaciones"], ["adelantos", "Adelantos"], ["caja_movimientos", "Caja"],
@@ -538,7 +573,7 @@ async function descargarCopia(boton) {
     ["punitorio_override", "Punitorios a mano"], ["notificaciones", "Avisos"], ["chat_mensajes", "Chat"], ["staff", "Equipo"], ["config", "Configuración"]];
   const txt = boton.textContent; boton.disabled = true;
   try {
-    if (!window.XLSX) await new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"; sc.onload = ok; sc.onerror = () => mal(new Error("No se pudo cargar el generador de Excel. Revisá la conexión.")); document.head.appendChild(sc); });
+    await cargarXLSX();
     const libro = XLSX.utils.book_new(), resumen = [["Tabla", "Filas"]], fallas = [];
     for (let t = 0; t < tablas.length; t++) {
       const [tabla, hoja] = tablas[t]; boton.textContent = `Bajando ${hoja.toLowerCase()} (${t + 1} de ${tablas.length})…`;
@@ -1454,7 +1489,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202610231952");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202610232003");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1506,7 +1541,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202610231952");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202610232003");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1635,9 +1670,10 @@ document.addEventListener("click", async (ev) => {
       await guardarAumento(c, a, a.calc.nuevo, false); if (c.ajuste_revisar) await sb.from("contratos").update({ ajuste_revisar: false }).eq("id", c.id);
       await recargar(`Aumento aplicado: ${money(a.calc.nuevo, c)} desde ${periodo(a.p)}`); return; }
     if (d.a === "indices") { toast("Actualizando índices…"); await iniciarIndices(true); toast("Índices actualizados"); return; }
+    if (d.a === "exportar-aumentos") { exportarAumentos(el); return; }
     if (d.a === "aplicar-listos") { const cur = ymHoy(); let n = 0;
       for (const c of S.contratos.values()) { if (!contratoActivo(c) || c.ajuste_revisar) continue; const a = aumentoDe(c);
-        if (a && a.p <= ymSumar(cur, 1) && a.calc && !a.calc.error && !a.calc.estimado && await guardarAumento(c, a, a.calc.nuevo, false)) n++; }
+        if (a && a.p === ymSumar(cur, 1) && a.calc && !a.calc.error && !a.calc.estimado && await guardarAumento(c, a, a.calc.nuevo, false)) n++; }
       await recargar(`Se aplicaron ${n} aumentos`); return; }
     if (d.anularajuste) { if (!confirmar()) return; const { error } = await sb.from("ajustes").update({ anulado: true }).eq("id", +d.anularajuste); if (error) throw error; toast("Ajuste anulado"); cerrarModal(); await recargar(); return; }
     if (d.bonificar || d.desbonificar) {
