@@ -606,3 +606,8 @@ a.btn{text-decoration:none;display:inline-flex;align-items:center;justify-conten
 .side{background:var(--side-flujo);background-size:100% 320%;animation:side-flujo 22s ease-in-out infinite alternate}
 @keyframes side-flujo{0%{background-position:50% 0%}50%{background-position:50% 100%}100%{background-position:50% 40%}}
 @media (prefers-reduced-motion:reduce){.side{animation:none;background-size:100% 100%}}
+/* nombres, direcciones e importes en las tablas: letra negra (el bordó queda para botones y marcas) */
+td .link,.tw .link,table .link{color:var(--fg);text-decoration-color:color-mix(in srgb,var(--fg) 25%,transparent);font-weight:500}
+td .link:hover,.tw .link:hover{color:var(--accent-ink);text-decoration-color:currentColor}
+td.num,.tw td{color:var(--fg)}
+td.saldo-venc{color:var(--fg);font-weight:800}

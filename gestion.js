@@ -4,11 +4,11 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202610232010";
-import { iniciarChat } from "./chat.js?v=202610232010";
-import { iniciarCalculadora } from "./calculadora.js?v=202610232010";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610232010";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610232010";
+} from "./comun.js?v=202610232049";
+import { iniciarChat } from "./chat.js?v=202610232049";
+import { iniciarCalculadora } from "./calculadora.js?v=202610232049";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610232049";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610232049";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -258,7 +258,7 @@ function vContratos() {
   ${shown.map((c) => { const dd = deudaDe(c), sal = dd.reduce((s, x) => s + x.saldo, 0), venc = dd.some((x) => x.vencido && !x.enTolerancia);
     return `<tr><td class="mono"><button class="carpeta" data-contrato="${c.id}" title="Ver y editar el contrato">${c.carpeta || "—"}</button></td><td class="num">${fecha(c.fin)}</td><td>${esc(c.direccion)}${chipUSD(c)}${c.forma_pago === "dividida" ? ' <span class="chip acc">Dividida</span>' : c.forma_pago === "propietario" ? ' <span class="chip acc">Al propietario</span>' : ""}</td>
     <td><button class="link" data-planilla="${c.id}">${esc(inq(c))}</button></td><td><button class="link" data-liqprop="${c.propietario_id}">${esc(prop(c))}</button></td>
-    <td class="num" ${venc ? 'style="color:var(--bad)"' : ""}>${sal ? money(sal, c) : "—"}</td><td>${chipEstado(c)}</td><td class="num"><button class="btn small" data-contrato="${c.id}">Contrato</button></td></tr>`; }).join("") || `<tr><td colspan="8"><div class="empty">No hay contratos con ese filtro.</div></td></tr>`}
+    <td class="num ${venc ? "saldo-venc" : ""}" ${venc ? 'title="Tiene períodos vencidos"' : ""}>${sal ? money(sal, c) : "—"}</td><td>${chipEstado(c)}</td><td class="num"><button class="btn small" data-contrato="${c.id}">Contrato</button></td></tr>`; }).join("") || `<tr><td colspan="8"><div class="empty">No hay contratos con ese filtro.</div></td></tr>`}
   </tbody></table></div>${list.length > shown.length ? `<div class="row"><button class="btn" data-a="mas">Mostrar más</button></div>` : ""}`;
 }
 
@@ -1163,7 +1163,7 @@ function vContrato() {
   const sal = deudaDe(c).reduce((s, x) => s + x.saldo, 0);
   return `<form id="f-ct" data-id="${c.id}" class="ct">
   <div class="head"><div><h1>${c.carpeta ? `<span class="muted">Carpeta ${c.carpeta} ·</span> ` : ""}${esc(c.direccion)}${chipUSD(c)}</h1>
-    <p>${chipEstado(c)} ${c.renovacion_de ? '<span class="chip">Renovación</span>' : ""} Alquiler actual <b class="mono">${money(montoHoy(c), c)}</b> · Saldo pendiente <b class="mono" ${sal ? 'style="color:var(--bad)"' : ""}>${money(sal, c)}</b></p></div>
+    <p>${chipEstado(c)} ${c.renovacion_de ? '<span class="chip">Renovación</span>' : ""} Alquiler actual <b class="mono">${money(montoHoy(c), c)}</b> · Saldo pendiente <b class="mono">${money(sal, c)}</b></p></div>
     <div class="muted">Fecha de alta ${fecha(String(c.created_at || "").slice(0, 10))}</div></div>
 
   <section class="panel"><div class="form">
@@ -1520,7 +1520,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202610232010");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202610232049");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1572,7 +1572,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202610232010");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202610232049");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
