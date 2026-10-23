@@ -599,3 +599,10 @@ table.lc select{min-width:200px;padding:7px 9px;font-size:14px}
 a.btn{text-decoration:none;display:inline-flex;align-items:center;justify-content:center;color:inherit}a.btn.primary{color:var(--accent-fg)}
 .ocr-otras{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13.5px;margin-top:6px}
 .lc-otra{grid-column:1/-1;justify-self:start;white-space:normal;text-align:left}
+/* barra lateral bordó con degradé en movimiento */
+:root{--side-flujo:linear-gradient(165deg,#8e2638 0%,#6a1a28 22%,#4a111c 45%,#7a1f2e 68%,#9a2d42 84%,#5e1623 100%)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--side-flujo:linear-gradient(165deg,#7a1f2e 0%,#561421 22%,#370b14 45%,#651a28 68%,#82283a 84%,#4a111c 100%)}}
+:root[data-theme="dark"]{--side-flujo:linear-gradient(165deg,#7a1f2e 0%,#561421 22%,#370b14 45%,#651a28 68%,#82283a 84%,#4a111c 100%)}
+.side{background:var(--side-flujo);background-size:100% 320%;animation:side-flujo 22s ease-in-out infinite alternate}
+@keyframes side-flujo{0%{background-position:50% 0%}50%{background-position:50% 100%}100%{background-position:50% 40%}}
+@media (prefers-reduced-motion:reduce){.side{animation:none;background-size:100% 100%}}
