@@ -611,3 +611,7 @@ td .link,.tw .link,table .link{color:var(--fg);text-decoration-color:color-mix(i
 td .link:hover,.tw .link:hover{color:var(--accent-ink);text-decoration-color:currentColor}
 td.num,.tw td{color:var(--fg)}
 td.saldo-venc{color:var(--fg);font-weight:800}
+
+/* administración diferida en pagos parciales */
+.difer .lp-hon{text-decoration:line-through;opacity:.55}
+.lp-dif-l{display:flex;justify-content:flex-end;gap:6px;font-size:.82em;margin-top:4px;white-space:nowrap}
