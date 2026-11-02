@@ -4,11 +4,11 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202610232049";
-import { iniciarChat } from "./chat.js?v=202610232049";
-import { iniciarCalculadora } from "./calculadora.js?v=202610232049";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202610232049";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202610232049";
+} from "./comun.js?v=202611021555";
+import { iniciarChat } from "./chat.js?v=202611021555";
+import { iniciarCalculadora } from "./calculadora.js?v=202611021555";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611021555";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611021555";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -64,14 +64,16 @@ const agrupar = (filas, campo) => { const m = new Map(); for (const f of filas) 
 
 async function cargarTodo() {
   await sb.rpc("generar_cargos", { p_contrato: null }); // crea los renglones del mes (cuotas y conceptos fijos)
-  const [cfg, per, con, aj, ov, pg, liq, st, cg, cf, items, adel, csv, smk, bol] = await Promise.all([
+  const [cfg, per, con, aj, ov, pg, liq, st, cg, cf, items, adel, csv, smk, bol, ped] = await Promise.all([
     sb.from("config").select("*").eq("id", 1).single().then((r) => { if (r.error) throw r.error; return r.data; }),
     traerTodo("personas"), traerTodo("contratos"), traerTodo("ajustes"), traerTodo("punitorio_override"),
     traerTodo("pagos"), traerTodo("liquidaciones", (q) => q.order("nro", { ascending: false })), traerTodo("staff"),
     traerTodo("cargos", (q) => q.gt("saldo", 0).eq("anulado", false)), traerTodo("conceptos_fijos"),
     traerTodo("pago_items", (q) => q.is("liquidacion_id", null)), traerTodo("adelantos"),
     traerTodo("contrato_servicios").catch(() => []), traerTodo("servicio_marcas").catch(() => []), traerTodo("archivos", (q) => q.eq("categoria", "boleta")).catch(() => []),
+    traerTodo("pedidos_datos").catch(() => []),
   ]);
+  S.pedidos = new Map(); for (const x of ped) { const y = S.pedidos.get(x.persona_id); if (!y || x.created_at > y.created_at) S.pedidos.set(x.persona_id, x); }
   S.cs = agrupar(csv, "contrato_id"); S.sm = smk; S.boletas = agrupar(bol, "contrato_id");
   S.cg = agrupar(cg, "contrato_id"); S.cf = agrupar(cf, "contrato_id"); S.items = items; S.adel = adel;
   S.pagosById = new Map(pg.map((x) => [x.id, x]));
@@ -146,6 +148,7 @@ function render() {
   $("#main").innerHTML = v();
   if (S.view === "planilla" && S.plTab === "planilla") planillaTotal();
   if (S.view === "planilla" && S.plTab === "envios") cargarDocsPlanilla();
+  if (S.view === "planilla" && S.plTab === "spot") cargarHistorialSpot();
   if (S.view === "liqprop") liqPropTotal();
   if (S.view === "nuevo") nuevoResumen();
   if (S.view === "config") { mostrarNumeracion(); mostrarEspacio(); }
@@ -486,7 +489,7 @@ function vPersonas() {
   <div class="row"><input type="search" id="q" class="search" placeholder="Nombre, DNI, celular o email" value="${esc(S.q)}"><div class="seg">${t("inquilino", "Inquilinos")}${t("propietario", "Propietarios")}</div><div class="seg"><button data-a="solo-faltan" aria-pressed="${!!S.soloFaltan}">Vigentes con datos faltantes</button></div></div>
   ${S.soloFaltan ? `<p class="muted" style="margin:0">${list.length} ${S.tipoPersona === "propietario" ? "propietarios" : "inquilinos"} con contrato vigente a los que les falta algún dato o hay que revisar la cuenta. Abrí cada uno y completalo${S.tipoPersona === "propietario" ? "; el CBU y el alias se pueden leer pegando la captura de una transferencia" : ""}.</p>` : ""}
   <div class="tw"><table><thead><tr><th>Nombre</th><th>DNI</th><th>Celular</th><th>Email</th>${S.tipoPersona === "propietario" ? "<th>CBU / alias</th>" : ""}<th class="num">Contratos vigentes</th><th>${S.soloFaltan ? "Falta" : "Portal"}</th></tr></thead><tbody>
-  ${list.slice(0, S.limite).map((p) => `<tr class="click" data-persona="${p.id}"><td>${esc(p.nombre)}</td><td class="mono">${esc(p.dni || "—")}</td><td class="mono">${esc(p.telefono || "—")}</td><td>${esc(p.email || "—")}</td>${S.tipoPersona === "propietario" ? `<td class="mono">${esc(p.alias || p.cbu || "—")}</td>` : ""}<td class="num">${cuenta.get(p.id) || 0}</td><td>${S.soloFaltan ? falta(p).map((x) => x === "revisar cuenta" ? `<span class="chip bad" title="El titular de la cuenta (${esc(p.titular)}) no se parece al nombre del propietario: puede ser la cuenta del inquilino">Revisar cuenta</span>` : `<span class="chip warn">Falta ${x}</span>`).join(" ") + ` <button class="btn small" data-pedirdatos="${p.id}" title="Mandarle el link para que complete sus datos">Pedir por WhatsApp</button>` : p.user_id ? `<span class="chip ok">Con acceso</span>` : p.dni ? `<span class="chip">Sin acceso</span>` : `<span class="chip warn">Falta DNI</span>`}</td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">Sin resultados.</div></td></tr>`}
+  ${list.slice(0, S.limite).map((p) => `<tr class="click" data-persona="${p.id}"><td>${esc(p.nombre)}</td><td class="mono">${esc(p.dni || "—")}</td><td class="mono">${esc(p.telefono || "—")}</td><td>${esc(p.email || "—")}</td>${S.tipoPersona === "propietario" ? `<td class="mono">${esc(p.alias || p.cbu || "—")}</td>` : ""}<td class="num">${cuenta.get(p.id) || 0}</td><td>${S.soloFaltan ? falta(p).map((x) => x === "revisar cuenta" ? `<span class="chip bad" title="El titular de la cuenta (${esc(p.titular)}) no se parece al nombre del propietario: puede ser la cuenta del inquilino">Revisar cuenta</span>` : `<span class="chip warn">Falta ${x}</span>`).join(" ") + ` ${(() => { const x = S.pedidos?.get(p.id); return !x ? "" : x.completado_en ? `<span class="chip ok" title="Completó el formulario">Completó ${fecha(String(x.completado_en).slice(0, 10))}</span>` : `<span class="chip" title="Ya se le generó el link">Link pedido ${fecha(String(x.created_at).slice(0, 10))}</span>`; })()} <button class="btn small" data-pedirdatos="${p.id}" title="Mandarle el link para que complete sus datos">${S.pedidos?.get(p.id) ? "Volver a pedir" : "Pedir por WhatsApp"}</button>` : p.user_id ? `<span class="chip ok">Con acceso</span>` : p.dni ? `<span class="chip">Sin acceso</span>` : `<span class="chip warn">Falta DNI</span>`}</td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">Sin resultados.</div></td></tr>`}
   </tbody></table></div>${list.length > S.limite ? `<div class="row"><button class="btn" data-a="mas">Mostrar más</button></div>` : ""}`;
 }
 
@@ -598,7 +601,7 @@ async function exportarAumentos(boton) {
   finally { boton.disabled = false; boton.textContent = txt; }
 }
 async function descargarCopia(boton) {
-  const tablas = [["contratos", "Contratos"], ["personas", "Personas"], ["ajustes", "Ajustes"], ["cargos", "Cargos"], ["conceptos_fijos", "Conceptos fijos"],
+  const tablas = [["contratos", "Contratos"], ["personas", "Personas"], ["ajustes", "Ajustes"], ["cargos", "Cargos"], ["conceptos_fijos", "Conceptos fijos"], ["historial_spot", "Historial SPOT"],
     ["pagos", "Recibos"], ["pago_items", "Recibos detalle"], ["liquidaciones", "Liquidaciones"], ["adelantos", "Adelantos"], ["caja_movimientos", "Caja"],
     ["envios", "Envíos del portal"], ["archivos", "Archivos"], ["contrato_servicios", "Servicios pedidos"], ["servicio_marcas", "Servicios marcas"],
     ["punitorio_override", "Punitorios a mano"], ["notificaciones", "Avisos"], ["chat_mensajes", "Chat"], ["staff", "Equipo"], ["config", "Configuración"]];
@@ -664,7 +667,8 @@ function vPlanilla() {
     ${(() => { const a = aumentoDe(c); if (!a || a.p > ymHoy()) return "";
       return `<div class="banner aum-banner"><b>Corresponde aumento desde ${periodo(a.p)}</b> (${esc(c.indice)} cada ${c.ajuste_meses} meses) y todavía no está cargado. ${a.calc && !a.calc.error ? `Calculado: <b>${money(a.calc.nuevo, c)}</b> (+${String(a.calc.pct).replace(".", ",")}%${a.calc.estimado ? ", estimado" : ""}).` : ""}
         <span class="row" style="margin-top:6px">${a.calc && !a.calc.error ? `<button class="btn small primary" data-aplicaraumento="${c.id}">Aplicar aumento</button>` : ""}<button class="btn small" data-ajustar="${c.id}">Modificar</button></span></div>`; })()}
-    <div class="tabs" role="tablist">${t("planilla", "Planilla de cobro")}${t("conceptos", "Conceptos fijos")}${t("envios", "Comprobantes del portal")}</div>`;
+    <div class="tabs" role="tablist">${t("planilla", "Planilla de cobro")}${t("conceptos", "Conceptos fijos")}${t("envios", "Comprobantes del portal")}${t("spot", "Historial de SPOT")}</div>`;
+  if (S.plTab === "spot") return cab + `<section class="panel" id="hist-spot"><h2>Historial de SPOT</h2><p class="muted">Recibos y liquidaciones de este contrato hechos en SPOT (copia guardada al dejar SPOT).</p><div class="empty">Cargando…</div></section>`;
   if (S.plTab === "conceptos") return cab + vConceptosFijos(c);
   if (S.plTab === "envios") return cab + vEnviosContrato(c);
   const d = deudaDe(c), hasta = e ? e.periodo : ymHoy();
@@ -733,12 +737,14 @@ function planillaTotal() {
     <div class="linea"><span>Le corresponde al propietario</span><span class="mono">${money(prop, c)}</span></div>`;
 }
 
+const MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+const textoMeses = (m) => (Array.isArray(m) && m.length && m.length < 12 ? "Solo " + m.slice().sort((a, b) => a - b).map((x) => MESES_CORTOS[x - 1]).join(", ") : "");
 function vConceptosFijos(c) {
   const cs = (S.cf.get(c.id) || []).slice().sort((a, b) => (b.activo - a.activo) || a.nombre.localeCompare(b.nombre));
   const efecto = (n) => (n === 1 ? "Suma" : n === -1 ? "Resta" : "No afecta");
   return `<section class="panel"><div class="ph"><div><h2>Conceptos extras</h2><p class="muted" style="margin:4px 0 0">Se agregan solos a la planilla todos los meses (TSG, Aysa, Expensas…). Si cambiás el importe, se actualizan los meses que todavía no se cobraron.</p></div><button class="btn primary small" data-concepto-nuevo="${c.id}">Agregar un nuevo concepto</button></div>
   <div class="tw"><table><thead><tr><th>Concepto</th><th class="num">Monto</th><th class="num">Porcentual</th><th>Adm.</th><th>Inquilino</th><th>Propietario</th><th>Desde</th><th>Hasta</th><th></th></tr></thead><tbody>
-  ${cs.map((k) => `<tr class="${k.activo ? "" : "apagado"}"><td>${esc(k.nombre)}${k.activo ? "" : ' <span class="chip">De baja</span>'}</td><td class="num">${+k.porcentaje > 0 ? "—" : money(k.monto, c)}</td><td class="num">${+k.porcentaje > 0 ? (+k.porcentaje).toLocaleString("es-AR") + "% del alquiler" : "0%"}</td><td>${k.admin ? "Sí" : "No"}</td><td>${efecto(k.inquilino ?? 1)}</td><td>${efecto(k.propietario)}</td><td>${k.desde ? periodo(k.desde) : "—"}</td><td>${k.hasta ? periodo(k.hasta) : "—"}</td>
+  ${cs.map((k) => `<tr class="${k.activo ? "" : "apagado"}"><td>${esc(k.nombre)}${k.activo ? "" : ' <span class="chip">De baja</span>'}${textoMeses(k.meses) ? `<div class="muted" style="font-size:.85em">${textoMeses(k.meses)}</div>` : ""}</td><td class="num">${+k.porcentaje > 0 ? "—" : money(k.monto, c)}</td><td class="num">${+k.porcentaje > 0 ? (+k.porcentaje).toLocaleString("es-AR") + "% del alquiler" : "0%"}</td><td>${k.admin ? "Sí" : "No"}</td><td>${efecto(k.inquilino ?? 1)}</td><td>${efecto(k.propietario)}</td><td>${k.desde ? periodo(k.desde) : "—"}</td><td>${k.hasta ? periodo(k.hasta) : "—"}</td>
     <td class="num">${k.activo ? `<button class="btn small" data-concepto-editar="${k.id}">Editar</button> <button class="btn small danger" data-concepto-baja="${k.id}">Dar de baja</button>` : ""}</td></tr>`).join("") || `<tr><td colspan="9"><div class="empty">Este contrato no tiene conceptos extras.</div></td></tr>`}
   </tbody></table></div></section>`;
 }
@@ -755,6 +761,7 @@ function modalConceptoFijo(cid, kid) {
     <label class="check" style="align-self:end"><input type="checkbox" id="cf-admin" name="admin" ${k.admin ? "checked" : ""}> Aplica administración</label>
     <label>Desde el período<input type="month" id="cf-desde" name="desde" value="${esc(k.desde || ymHoy())}"></label>
     <label>Hasta el período (opcional)<input type="month" id="cf-hasta" name="hasta" value="${esc(k.hasta || "")}"></label>
+    <fieldset class="full meses-cf"><legend>Meses en que se cobra</legend><div class="row" style="flex-wrap:wrap;gap:6px 14px">${MESES_CORTOS.map((m, i) => `<label class="check"><input type="checkbox" name="mes" value="${i + 1}" ${!Array.isArray(k.meses) || !k.meses.length || k.meses.includes(i + 1) ? "checked" : ""}> ${m}</label>`).join("")}</div><p class="muted" style="margin:6px 0 0">Dejá todos marcados si se cobra todos los meses (por ej. honorarios solo en enero: marcá solo Ene).</p></fieldset>
     <div class="full row"><button class="btn primary" type="submit">Guardar</button><button class="btn" type="button" data-cerrar>Cancelar</button></div>
   </form>`);
 }
@@ -1474,6 +1481,8 @@ async function pedirDatos(pid) {
   if (wa(p.telefono)) { window.open(waMensaje(p.telefono, msg), "_blank", "noopener"); toast("Se abrió WhatsApp con el mensaje (también quedó copiado)"); }
   else toast("No tiene celular cargado: el mensaje quedó copiado para pegarlo donde quieras");
   estadoPedido(p.id);
+  if (S.pedidos && !S.pedidos.has(p.id)) S.pedidos.set(p.id, { persona_id: p.id, created_at: new Date().toISOString() });
+  const b = document.querySelector(`tr [data-pedirdatos="${p.id}"]`); if (b) b.textContent = "Volver a pedir";
 }
 
 /* ================= leer muchos comprobantes de una vez ================= */
@@ -1520,7 +1529,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202610232049");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611021555");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1572,7 +1581,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202610232049");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611021555");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1829,6 +1838,9 @@ document.addEventListener("submit", async (ev) => {
     }
     if (f.id === "f-concepto") {
       const data = { nombre: v.nombre.trim(), monto: r2(v.monto), porcentaje: +v.porcentaje || 0, admin: !!f.admin.checked, propietario: +v.propietario, inquilino: +v.inquilino, desde: v.desde || null, hasta: v.hasta || null };
+      const meses = [...f.querySelectorAll('input[name="mes"]:checked')].map((x) => +x.value);
+      if (!meses.length) { toast("Marcá al menos un mes", "bad"); return; }
+      data.meses = meses.length === 12 ? null : meses;
       if (!(data.monto > 0) && !(data.porcentaje > 0)) { toast("Cargá un monto o un porcentaje", "bad"); return; }
       const q = f.dataset.kid ? sb.from("conceptos_fijos").update(data).eq("id", +f.dataset.kid) : sb.from("conceptos_fijos").insert({ ...data, contrato_id: +f.dataset.cid });
       const { error } = await q; if (error) throw error;
@@ -1904,6 +1916,18 @@ document.addEventListener("submit", async (ev) => {
   finally { bloquear(false); }
 });
 
+async function cargarHistorialSpot() {
+  const cid = S.pl.cid, c = S.contratos.get(cid);
+  const { data, error } = await sb.from("historial_spot").select("*").eq("contrato_id", cid).order("fecha", { ascending: false }).order("id", { ascending: false }).limit(1000);
+  const el = document.getElementById("hist-spot"); if (!el || S.pl.cid !== cid) return;
+  const cabecera = `<h2>Historial de SPOT</h2><p class="muted">Recibos y liquidaciones de este contrato hechos en SPOT (copia guardada al dejar SPOT).</p>`;
+  if (error) { el.innerHTML = cabecera + `<div class="error">No se pudo cargar: ${esc(mensajeError(error))}</div>`; return; }
+  const rs = (data || []).filter((x) => x.tipo === "recibo"), ls = (data || []).filter((x) => x.tipo === "liquidacion");
+  const mon = (n, x) => (x.moneda === "USD" ? "U$S " + (+n).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : money(n, c));
+  const det = (x) => (Array.isArray(x.detalle) ? x.detalle : []).map((i) => `<div style="display:flex;justify-content:space-between;gap:16px;max-width:560px"><span>${esc(i.d || "")}</span><span class="mono">${mon(i.t ?? i.m ?? 0, x)}</span></div>`).join("");
+  el.innerHTML = cabecera + `<h3 style="margin:14px 0 6px">Recibos al inquilino (${rs.length})</h3>` + (rs.length ? `<div class="tw"><table><thead><tr><th>Fecha</th><th>Recibo</th><th>Detalle</th><th class="num">Abonado</th><th class="num">Saldo que quedó</th></tr></thead><tbody>${rs.map((x) => `<tr><td class="num">${fecha(x.fecha)}</td><td class="mono">${esc(x.nro || "")}</td><td><details><summary>${esc(((x.detalle || [])[0] || {}).d || "Ver detalle")}${(x.detalle || []).length > 1 ? ` y ${(x.detalle || []).length - 1} más` : ""}</summary>${det(x)}</details></td><td class="num">${mon(x.abonado, x)}</td><td class="num">${+x.saldo ? mon(x.saldo, x) : "—"}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">No hay recibos de SPOT para este contrato.</div>`)
+    + `<h3 style="margin:18px 0 6px">Liquidaciones al propietario (${ls.length})</h3>` + (ls.length ? `<div class="tw"><table><thead><tr><th>Fecha</th><th>Liquidación</th><th>Detalle</th><th class="num">Total</th></tr></thead><tbody>${ls.map((x) => `<tr><td class="num">${fecha(x.fecha)}</td><td class="mono">${esc(x.nro || "")}</td><td><details><summary>Ver detalle</summary><div class="muted" style="white-space:pre-wrap">${esc(x.texto || "")}</div></details></td><td class="num">${mon(x.total, x)}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">No hay liquidaciones de SPOT para este contrato.</div>`);
+}
 async function cargarDocsPlanilla() {
   const { data } = await sb.from("archivos").select("*").eq("contrato_id", S.pl.cid).order("created_at", { ascending: false }).limit(60);
   const el = document.getElementById("docs-planilla");
