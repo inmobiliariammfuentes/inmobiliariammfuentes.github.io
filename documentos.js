@@ -2,7 +2,7 @@
 // · Renovación: arma una imagen con las condiciones y los importes para mandarle al inquilino por WhatsApp.
 // · Reserva: arma el "Recibo de reserva para alquiler" (mismo texto que el modelo de Word) en PDF y en imagen.
 // Todo se dibuja en esta computadora; lo que se guarda queda en la tabla documentos_generados.
-import { numeroALetras, LOGO_URL } from "./comun.js?v=202611141353";
+import { numeroALetras, LOGO_URL } from "./comun.js?v=202611141358";
 
 const MEMBRETE_URL = new URL("membrete.png", LOGO_URL).href;
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -320,7 +320,7 @@ async function dibujarReserva(cv, d) {
     [" CONTRATO POR " + d.anios + " AÑO/s CON AJUSTE " + textoAjuste(d.ajuste).toUpperCase() + " SEGÚN " + String(d.indice || "").toUpperCase() + ". " + (d.requisitos ? d.requisitos.toUpperCase() + "; " : "") + (d.servicios ? "SERVICIOS A CARGO DEL LOCATARIO: " + d.servicios.toUpperCase() + ". " : "")],
     ["OBSERVACIONES", "b"], [": " + (d.trato === "Sr." ? "El " : d.trato === "Sres." ? "Los " : "La ") + d.trato + " " + ape + ", se compromete" + (d.trato === "Sres." ? "n" : "") + " a presentar la documentación requerida dentro de los próximos " + d.dias + " días CORRIDOS. "],
     ["Importante:", "biu"],
-    [" En el caso de no presentarme a la firma del contrato de locación, o de no reunir los requisitos solicitados para llevar a cabo el contrato de locación, perderé el importe íntegro, entregado en éste documento, quedará la reserva a favor del propietario y de la firma interviniente por partes iguales; una vez debitados los gastos que hubiere incurrido la firma inmobiliaria, dejando en completa libertad de acción a la firma intermediaria para que pueda alquilar ésta propiedad, sin derecho de su parte a reclamo de alguna naturaleza; sin necesidad de interpelación judicial ni extrajudicial alguna. Por su parte la firma M.M. FUENTES, me devolverá el importe entregado en el caso de no ser aceptada esta propuesta, por el propietario del inmueble en cuestión. - En prueba de conformidad se envía por WhatsApp el ejemplar de un mismo tenor y a un solo efecto, en Haedo a los "],
+    [" En el caso de no presentarme a la firma del contrato de locación, o de no reunir los requisitos solicitados para llevar a cabo el contrato de locación, perderé el importe íntegro, entregado en éste documento, quedará la reserva a favor del propietario y de la firma interviniente por partes iguales; una vez debitados los gastos que hubiere incurrido la firma inmobiliaria, dejando en completa libertad de acción a la firma intermediaria para que pueda alquilar ésta propiedad, sin derecho de su parte a reclamo de alguna naturaleza; sin necesidad de interpelación judicial ni extrajudicial alguna. Por su parte la firma M.M. FUENTES, me devolverá el importe entregado en el caso de no ser aceptada esta propuesta, por el propietario del inmueble en cuestión. - En prueba de conformidad " + (d.forma === "EFECTIVO" ? "se firma" : "se envía por WhatsApp") + " el ejemplar de un mismo tenor y a un solo efecto, en Haedo a los "],
     [String(dia), "b"], [" días del mes de "], [mes, "b"], [" del presente año "], [String(anio) + ".-", "b"], [" ACEPTAMOS INTEGRAMENTE LAS CONDICIONES.", "i"],
   ];
   y += parrafo(g, partes, M, y, W - 2 * M, 27, 41, ARIAL, true);
