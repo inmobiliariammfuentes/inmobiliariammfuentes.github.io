@@ -4,11 +4,12 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611021932";
-import { iniciarChat } from "./chat.js?v=202611021932";
-import { iniciarCalculadora } from "./calculadora.js?v=202611021932";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611021932";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611021932";
+} from "./comun.js?v=202611141342";
+import { iniciarChat } from "./chat.js?v=202611141342";
+import { iniciarCalculadora } from "./calculadora.js?v=202611141342";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611141342";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611141342";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611141342";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -130,7 +131,7 @@ async function rpc(fn, args, ok) {
 
 /* ================= navegación ================= */
 const VISTAS = [["contratos", "Contratos"], ["inicio", "Resumen del mes"], ["revisar", "Pagos a revisar"], ["cobrar", "Cobrar en oficina"], ["morosos", "Morosos"],
-  ["ajustes", "Ajustes de precio"], ["liquidaciones", "Liquidaciones"], ["servicios", "Boletas de servicios"], ["caja", "Caja"], ["personas", "Inquilinos y propietarios"], ["config", "Configuración"]];
+  ["ajustes", "Ajustes de precio"], ["liquidaciones", "Liquidaciones"], ["servicios", "Boletas de servicios"], ["caja", "Caja"], ["personas", "Inquilinos y propietarios"], ["documentos", "Reservas y renovaciones"], ["config", "Configuración"]];
 function renderNav() {
   const cs = [...S.contratos.values()];
   const n = { revisar: pendientesRevisar().length,
@@ -146,11 +147,12 @@ function render() {
   renderNav();
   if (!S.cargado) { $("#main").innerHTML = `<div class="cargando">Cargando contratos…</div>`; return; }
   const v = { inicio: vInicio, revisar: vRevisar, contratos: vContratos, cobrar: vCobrar, morosos: vMorosos, ajustes: vAjustes,
-    liquidaciones: vLiquidaciones, servicios: vServicios, caja: vCaja, personas: vPersonas, config: vConfig, planilla: vPlanilla, liqprop: vLiqProp, nuevo: vNuevo, contrato: vContrato }[S.view] || vInicio;
+    liquidaciones: vLiquidaciones, servicios: vServicios, caja: vCaja, personas: vPersonas, config: vConfig, planilla: vPlanilla, liqprop: vLiqProp, nuevo: vNuevo, contrato: vContrato, documentos: vDocumentos }[S.view] || vInicio;
   $("#main").innerHTML = v();
   if (S.view === "planilla" && S.plTab === "planilla") planillaTotal();
   if (S.view === "planilla" && S.plTab === "envios") cargarDocsPlanilla();
   if (S.view === "planilla" && S.plTab === "spot") cargarHistorialSpot();
+  if (S.view === "documentos") montarDocumentos(ctxDocs());
   if (S.view === "liqprop") liqPropTotal();
   if (S.view === "nuevo") nuevoResumen();
   if (S.view === "config") { mostrarNumeracion(); mostrarEspacio(); }
@@ -1235,6 +1237,7 @@ function vContrato() {
     <button type="button" class="btn" data-liqprop="${c.propietario_id}">Liquidación</button>
     <button type="button" class="btn" data-ficha="${c.id}">Estado de cuenta</button>
     <button type="button" class="btn" data-renovar="${c.id}">Renovación</button>
+    <button type="button" class="btn" data-docren="${c.id}">Imagen de renovación</button>
     ${c.rescindido ? `<button type="button" class="btn" data-reactivar="${c.id}">Quitar rescisión</button>` : `<button type="button" class="btn danger" data-rescindir="${c.id}">Rescindir</button>`}
   </div></form>`;
 }
@@ -1546,7 +1549,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611021932");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611141342");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1598,7 +1601,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611021932");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611141342");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1689,6 +1692,8 @@ document.addEventListener("click", async (ev) => {
     if (d.lpmon) { S.lpMon = d.lpmon; render(); return; }
     if (d.volver !== undefined) { S.view = (S.view === "planilla" && S.pl?.volver && S.pl.volver !== "planilla") ? S.pl.volver : S.view === "liqprop" ? "liquidaciones" : "cobrar"; render(); return; }
     if (d.pltab) { S.plTab = d.pltab; render(); return; }
+    if (d.dtab) { tabDocumentos(d.dtab); render(); return; }
+    if (d.docren) { docRenovacion(ctxDocs(), S.contratos.get(+d.docren)); S.view = "documentos"; cerrarModal(); render(); scrollTo(0, 0); return; }
     if (d.adelantar || d.atrasar) { const r = await rpc(d.adelantar ? "adelantar_periodo" : "atrasar_periodo", { p_contrato: +(d.adelantar || d.atrasar) }); if (r) { await recargar(`Período generado hasta ${periodo(r)}`); } return; }
     if (d.conceptoNuevo) { modalConceptoFijo(d.conceptoNuevo); return; }
     if (d.conceptoEditar) { modalConceptoFijo(S.pl.cid, d.conceptoEditar); return; }
@@ -1933,6 +1938,7 @@ document.addEventListener("submit", async (ev) => {
   finally { bloquear(false); }
 });
 
+const ctxDocs = () => ({ sb, S, esc, toast, fecha, P, montoHoy, ymSumar, ymDe, ymHoy, rerender: () => { render(); scrollTo(0, 0); } });
 async function cargarHistorialSpot() {
   const cid = S.pl.cid, c = S.contratos.get(cid);
   const { data, error } = await sb.from("historial_spot").select("*").eq("contrato_id", cid).order("fecha", { ascending: false }).order("id", { ascending: false }).limit(1000);

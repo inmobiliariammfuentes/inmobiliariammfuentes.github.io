@@ -615,3 +615,13 @@ td.saldo-venc{color:var(--fg);font-weight:800}
 /* administración diferida en pagos parciales */
 .difer .lp-hon{text-decoration:line-through;opacity:.55}
 .lp-dif-l{display:flex;justify-content:flex-end;gap:6px;font-size:.82em;margin-top:4px;white-space:nowrap}
+
+/* reservas y renovaciones */
+nav [data-vista="documentos"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpath d='M14 2v6h6'/%3E%3Cpath d='M9 15l2 2 4-4'/%3E%3C/svg%3E")}
+.docs-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:1100px){.docs-grid{grid-template-columns:minmax(0,1fr)}}
+.doc-vista{position:sticky;top:12px}
+.doc-canvas{background:var(--bg2,#f4eff0);border-radius:12px;padding:10px;max-height:78vh;overflow:auto}
+.doc-canvas canvas{display:block;width:100%;height:auto;border-radius:6px;box-shadow:0 2px 12px rgba(0,0,0,.12);background:#fff}
+.doc-renglon{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.8fr) minmax(0,1.4fr) auto;gap:8px;margin-bottom:8px}
+.doc-renglon input{min-width:0}
