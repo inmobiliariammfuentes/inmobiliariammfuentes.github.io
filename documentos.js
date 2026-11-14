@@ -2,7 +2,7 @@
 // · Renovación: arma una imagen con las condiciones y los importes para mandarle al inquilino por WhatsApp.
 // · Reserva: arma el "Recibo de reserva para alquiler" (mismo texto que el modelo de Word) en PDF y en imagen.
 // Todo se dibuja en esta computadora; lo que se guarda queda en la tabla documentos_generados.
-import { numeroALetras, LOGO_URL } from "./comun.js?v=202611141342";
+import { numeroALetras, LOGO_URL } from "./comun.js?v=202611141353";
 
 const MEMBRETE_URL = new URL("membrete.png", LOGO_URL).href;
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -112,7 +112,7 @@ function formRes(d) {
     ${campo("Nombre y apellido", "nombre", d.nombre)}${campo("DNI", "dni", d.dni, 'inputmode="numeric"')}${campo("Celular", "telefono", d.telefono)}
     ${campo("Domicilio", "domicilio", d.domicilio)}${campo("Localidad", "localidad", d.localidad, 'placeholder="Ituzaingó, Prov. de Bs. As."')}
     <label class="full">Email<input type="email" data-k="email" value="${e(d.email)}"></label>
-    ${monto("Importe de la reserva", "reserva", d.reserva)}${sel("Forma de pago de la reserva", "forma", d.forma, [["TRANSFERENCIA", "Transferencia"], ["EFECTIVO", "Efectivo"]])}
+    ${monto("Importe de la reserva", "reserva", d.reserva)}${sel("Forma de pago de la reserva", "forma", d.forma, [["TRANSFERENCIA", "Transferencia"], ["EFECTIVO", "Efectivo (se imprime y firma el inquilino)"]])}
   </div>
   <h2 style="margin-top:18px">La propiedad</h2><div class="form">
     <label class="full">Copiar dirección de un contrato (opcional)<input type="search" id="dres-contrato" list="dl-dres" placeholder="Buscá por dirección" autocomplete="off"><datalist id="dl-dres">${opcionesContratos(false)}</datalist></label>
@@ -334,7 +334,8 @@ async function dibujarReserva(cv, d) {
   const yf = Math.max(y + 170, 1880);
   if (fir) { const w = 300, h = fir.height * (w / fir.width); g.drawImage(fir, M + 50, yf - h - 6, w, h); }
   g.fillStyle = "#111"; g.font = `bold italic 27px ${ARIAL}`; g.textAlign = "center";
-  g.fillText("RESERVA POR " + (d.forma || "TRANSFERENCIA"), W - M - 300, yf - 40);
+  // en efectivo queda en blanco: se imprime y el inquilino firma arriba de la línea
+  if ((d.forma || "TRANSFERENCIA") !== "EFECTIVO") g.fillText("RESERVA POR " + (d.forma || "TRANSFERENCIA"), W - M - 300, yf - 40);
   g.fillRect(M, yf, 400, 2); g.fillRect(W - M - 520, yf, 440, 2);
   g.font = `bold 26px ${ARIAL}`; g.fillText("Por M.M.FUENTES", M + 200, yf + 40); g.fillText("Firma/s  Oferente/s", W - M - 300, yf + 40); g.textAlign = "left";
   // pie
