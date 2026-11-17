@@ -4,13 +4,13 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611171356";
-import { iniciarChat } from "./chat.js?v=202611171356";
-import { iniciarCalculadora } from "./calculadora.js?v=202611171356";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171356";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171356";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171356";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171356";
+} from "./comun.js?v=202611171413";
+import { iniciarChat } from "./chat.js?v=202611171413";
+import { iniciarCalculadora } from "./calculadora.js?v=202611171413";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171413";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171413";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171413";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171413";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -863,19 +863,42 @@ function liqPropTotal() { const x = leerLiqProp(); if (!x) return; $("#lp-resume
 const AJUSTE_DEF = { IPC: 3, ICL: 12, CAC: 3, "Casa Propia": 12, UVA: 12, RIPTE: 6, Fijo: 36 };
 const isoMas = (iso, meses, dias = 0) => { const d = new Date(iso + "T12:00"); d.setMonth(d.getMonth() + meses); d.setDate(d.getDate() + dias); return d.toISOString().slice(0, 10); };
 const nombrePersona = (id) => (id ? P(id).nombre + (P(id).dni ? " · DNI " + P(id).dni : "") : "");
+/* ================= dirección en partes: calle, número, depto, localidad, provincia ================= */
+function partesDireccion(x) {
+  if (x && (x.calle || x.numero)) return { calle: x.calle || "", numero: x.numero || "", depto: x.depto || "", localidad: x.localidad || "", provincia: x.provincia || "" };
+  const d = String(x?.direccion ?? x ?? "").trim().replace(/\s+(N\s*[°º]|Nº|N\.|Nro\.?|N)\s*(?=\d)/i, " ");
+  const m = d.match(/^\s*((?:\d+\s+de\s+)?[^0-9]+)\s(\d{1,3}(?:\.\d{3})+|\d+[A-Za-z]?(?:\s*\/\s*\d+)?)(?:\s+|,|$)(.*)$/i);
+  if (!m || /\b(dto|depto|dpto|uf|coch|cochera|piso|local)\b/i.test(m[1])) return { calle: d, numero: "", depto: "", localidad: x?.localidad || "", provincia: x?.provincia || "" };
+  return { calle: m[1].replace(/[\s,.]+$/, "").replace(/\s+/g, " "), numero: m[2].replace(/\s*\/\s*/, "/").replace(/\./g, ""), depto: m[3].replace(/^[\s,]+|[\s,]+$/g, ""), localidad: x?.localidad || "", provincia: x?.provincia || "" };
+}
+const componerDireccion = (v) => `${String(v.calle || "").trim().replace(/\s+/g, " ")}${String(v.numero || "").trim() ? " N° " + String(v.numero).trim().replace(/^N\s*[°º]?\s*/i, "") : ""}${String(v.depto || "").trim() ? " " + String(v.depto).trim() : ""}`;
+const datosDireccion = (v) => ({ direccion: componerDireccion(v), calle: String(v.calle || "").trim() || null, numero: String(v.numero || "").trim().replace(/^N\s*[°º]?\s*/i, "") || null,
+  depto: String(v.depto || "").trim() || null, localidad: String(v.localidad || "").trim() || null, provincia: String(v.provincia || "").trim() || null });
+function camposDireccion(pref, x, conAyuda) {
+  const d = partesDireccion(x || {}), calles = [...new Set([...S.contratos.values()].map((c) => c.calle).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
+  const loc = d.localidad || (x && (x.calle || x.direccion) ? "" : "Haedo"), prov = d.provincia || (x && (x.calle || x.direccion) ? "" : "Buenos Aires");
+  return `<label class="dir-calle">Calle<input type="text" id="${pref}-calle" name="calle" list="dl-calles" value="${esc(d.calle)}" required placeholder="Ej.: Carlos Gardel" autocomplete="off"></label>
+    <label class="dir-num">Número<input type="text" id="${pref}-numero" name="numero" value="${esc(d.numero)}" inputmode="numeric" placeholder="Ej.: 2436" autocomplete="off"></label>
+    <label class="dir-depto">Departamento / unidad <span class="muted">(opcional)</span><input type="text" id="${pref}-depto" name="depto" value="${esc(d.depto)}" placeholder="Ej.: 3° B · Cochera 4 · Local 2" autocomplete="off"></label>
+    <label>Localidad<input type="text" id="${pref}-localidad" name="localidad" list="dl-localidades" value="${esc(loc)}" placeholder="Ej.: Haedo"></label>
+    <label>Provincia<input type="text" id="${pref}-provincia" name="provincia" value="${esc(prov)}" placeholder="Ej.: Buenos Aires"></label>
+    <datalist id="dl-calles">${calles.map((c) => `<option value="${esc(c)}"></option>`).join("")}</datalist>
+    <datalist id="dl-localidades">${["Haedo", "Morón", "Castelar", "Ituzaingó", "Ramos Mejía", "El Palomar", "Villa Sarmiento", "Ciudadela", "Hurlingham", "San Justo", "Villa Luzuriaga", "Merlo", "Padua"].map((l) => `<option value="${l}"></option>`).join("")}</datalist>
+    ${conAyuda ? `<div class="full muted dir-vista" id="${pref}-vista">Se va a ver así: <b>${esc(componerDireccion(d) || "—")}</b></div>` : ""}`;
+}
 function abrirNuevo(pref) {
   const hoy = new Date(); const ini = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1).toISOString().slice(0, 10);
   const maxCarp = Math.max(0, ...[...S.contratos.values()].map((c) => +c.carpeta || 0));
   S.nc = Object.assign({ inicio: ini, duracion: 24, indice: "IPC", ajuste_meses: 3, forma_pago: "inmobiliaria", comision: "", dia_vto: "", carpeta: maxCarp + 1, conceptos: [] }, pref || {});
   if (!S.nc.fin) S.nc.fin = isoMas(S.nc.inicio, +S.nc.duracion, -1);
   S.ncArchivo = null;
-  S.view = "nuevo"; cerrarModal(); render(); scrollTo(0, 0); setTimeout(() => $("#nc-dir")?.focus(), 50);
+  S.view = "nuevo"; cerrarModal(); render(); scrollTo(0, 0); setTimeout(() => $("#nc-calle")?.focus(), 50);
 }
 function abrirRenovacion(cid) {
   const c = S.contratos.get(+cid);
   const meses = Math.max(1, Math.round((new Date(c.fin) - new Date(c.inicio)) / (30.44 * 864e5)));
   const ini = isoMas(c.fin, 0, 1);
-  abrirNuevo({ renovacion_de: c.id, direccion: c.direccion, carpeta: c.carpeta, inquilino_id: c.inquilino_id, propietario_id: c.propietario_id,
+  abrirNuevo({ renovacion_de: c.id, direccion: c.direccion, calle: c.calle, numero: c.numero, depto: c.depto, localidad: c.localidad, provincia: c.provincia, carpeta: c.carpeta, inquilino_id: c.inquilino_id, propietario_id: c.propietario_id,
     inicio: ini, duracion: [12, 24, 36].includes(meses) ? meses : "otra", fin: isoMas(ini, meses, -1), monto_base: montoEn(c, ajDe(c), ymDe(c.fin)), deposito: c.deposito, moneda: c.moneda,
     indice: c.indice, ajuste_meses: c.ajuste_meses, forma_pago: c.forma_pago, comision: c.comision ?? "", dia_vto: c.dia_vto ?? "",
     conceptos: (S.cf.get(c.id) || []).filter((k) => k.activo).map((k) => ({ nombre: k.nombre, monto: k.monto, porcentaje: k.porcentaje, admin: k.admin, propietario: k.propietario, inquilino: k.inquilino })) });
@@ -908,8 +931,7 @@ function vNuevo() {
   <form id="f-nuevo" class="nuevo-grid" autocomplete="off">
     <section class="panel form">
       <h2 class="full">1 · Propiedad</h2>
-      <label class="full">Dirección<input type="text" id="nc-dir" name="direccion" list="dl-dirs" value="${esc(n.direccion || "")}" required placeholder="Ej.: Carlos Gardel 2436 Dto 3"></label>
-      <datalist id="dl-dirs">${dirs.map((d) => `<option value="${esc(d)}"></option>`).join("")}</datalist>
+      ${camposDireccion("nc", n.calle || n.direccion ? n : null, true)}
       <label>Carpeta<input type="number" id="nc-carpeta" name="carpeta" value="${esc(n.carpeta || "")}"></label>
       <div class="muted" id="nc-dir-ayuda" style="align-self:end;font-size:14.5px"></div>
       <h2 class="full">2 · Partes</h2>
@@ -957,8 +979,11 @@ function nuevoResumen() {
     <div><dt>Depósito</dt><dd class="mono">${money(v.deposito, v.moneda)}</dd></div></dl>`;
 }
 function nuevoDireccionCambio() {
-  const f = $("#f-nuevo"); const dir = f.direccion.value.trim().toLowerCase(); if (!dir) return;
-  const prev = [...S.contratos.values()].filter((c) => c.direccion.trim().toLowerCase() === dir).sort((a, b) => b.inicio.localeCompare(a.inicio))[0];
+  const f = $("#f-nuevo"); const v = { calle: f.calle.value, numero: f.numero.value, depto: f.depto.value };
+  const vista = $("#nc-vista"); if (vista) vista.innerHTML = `Se va a ver así: <b>${esc(componerDireccion(v) || "—")}</b>`;
+  if (!v.calle.trim() || !v.numero.trim()) return;
+  const clave = claveDireccion(componerDireccion(v));
+  const prev = [...S.contratos.values()].filter((c) => claveDireccion(c.direccion) === clave).sort((a, b) => b.inicio.localeCompare(a.inicio))[0];
   if (!prev) { $("#nc-dir-ayuda").textContent = ""; return; }
   if (!f.propietario.value) f.propietario.value = nombrePersona(prev.propietario_id);
   if (prev.carpeta) f.carpeta.value = prev.carpeta;
@@ -972,12 +997,14 @@ async function guardarNuevo(f, modo) {
     const o = { nombre: (v[t] || "").replace(/ · DNI .*$/, "").trim(), dni: v[t + "_dni"], telefono: v[t + "_tel"], email: v[t + "_email"] };
     if (t === "propietario" && v.propietario_alias) { const a = v.propietario_alias.trim(); if (/^\d{22}$/.test(a.replace(/\D/g, ""))) o.cbu = a.replace(/\D/g, ""); else o.alias = a; }
     return { [t]: o }; };
-  const p = { ...persona("inquilino"), ...persona("propietario"), carpeta: v.carpeta, direccion: v.direccion, inicio: v.inicio, fin: v.fin, monto_base: v.monto_base, deposito: v.deposito,
+  const p = { ...persona("inquilino"), ...persona("propietario"), carpeta: v.carpeta, direccion: componerDireccion(v), inicio: v.inicio, fin: v.fin, monto_base: v.monto_base, deposito: v.deposito,
     indice: v.indice, ajuste_meses: v.ajuste_meses, forma_pago: v.forma_pago, comision: v.comision, dia_vto: v.dia_vto, notas: v.notas, renovacion_de: S.nc.renovacion_de || null,
     conceptos: [...f.querySelectorAll(".nc-concepto")].map((r) => ({ nombre: r.querySelector('[data-c="nombre"]').value, monto: r.querySelector('[data-c="monto"]').value,
       propietario: r.querySelector('[data-c="propietario"]').value, inquilino: r.querySelector('[data-c="inquilino"]').value, admin: r.querySelector('[data-c="admin"]').checked })) };
+  if (!String(v.calle || "").trim() || !String(v.numero || "").trim()) { toast("Completá la calle y el número de la propiedad", "bad"); return; }
   const id = await rpc("crear_contrato", { p }, S.nc.renovacion_de ? "Renovación guardada" : "Contrato guardado");
   if (!id) return;
+  { const { error } = await sb.from("contratos").update(datosDireccion(v)).eq("id", id); if (error) toast("No se pudo guardar la dirección en partes: " + mensajeError(error), "bad"); }
   if (v.moneda === "USD") { const { error } = await sb.from("contratos").update({ moneda: "USD" }).eq("id", id); if (error) toast("No se pudo marcar el contrato en dólares: " + mensajeError(error), "bad"); }
   await cargarTodo();
   if (S.ncArchivo) { await guardarArchivoContrato(id); await cargarTodo(); }
@@ -1011,11 +1038,11 @@ async function aplicarWord(file) {
   // propiedad: si ya existe en el sistema, se usa esa dirección (y su carpeta y conceptos)
   const prev = d.direccion ? [...S.contratos.values()].filter((c) => claveDireccion(c.direccion) === claveDireccion(d.direccion)).sort((a, b) => b.inicio.localeCompare(a.inicio))[0] : null;
   if (prev) {
-    Object.assign(n, { direccion: prev.direccion, carpeta: prev.carpeta || n.carpeta, forma_pago: prev.forma_pago, comision: prev.comision ?? "",
+    Object.assign(n, { direccion: prev.direccion, calle: prev.calle, numero: prev.numero, depto: prev.depto, localidad: prev.localidad, provincia: prev.provincia, carpeta: prev.carpeta || n.carpeta, forma_pago: prev.forma_pago, comision: prev.comision ?? "",
       conceptos: n.conceptos.length ? n.conceptos : (S.cf.get(prev.id) || []).filter((k) => k.activo).map((k) => ({ nombre: k.nombre, monto: k.monto, porcentaje: k.porcentaje, admin: k.admin, propietario: k.propietario, inquilino: k.inquilino })) });
     if (d.renovacion || prev.inquilino_id === buscarPersona("inquilino", d.inquilino)?.id) n.renovacion_de = prev.id;
     items.push(["Propiedad", `${prev.direccion} (ya estaba en el sistema, carpeta ${prev.carpeta || "—"})`, true]);
-  } else if (d.direccion) { n.direccion = d.direccion; items.push(["Propiedad", d.direccion + " (nueva)", true]); }
+  } else if (d.direccion) { n.direccion = d.direccion; delete n.calle; delete n.numero; delete n.depto; items.push(["Propiedad", d.direccion + " (nueva)", true]); }
   else items.push(["Propiedad", "", false]);
   // partes
   for (const [tipo, et] of [["propietario", "Propietario (locador)"], ["inquilino", "Inquilino (locatario)"]]) {
@@ -1121,7 +1148,7 @@ function formContrato(c) {
   const nom = (id) => (id ? P(id).nombre + (P(id).dni ? " · DNI " + P(id).dni : "") : "");
   return `<form class="form" id="f-contrato" data-id="${nuevo ? "" : c.id}">
     <label>Carpeta<input type="number" id="fc-carpeta" name="carpeta" value="${esc(c.carpeta || "")}"></label>
-    <label>Dirección<input type="text" id="fc-direccion" name="direccion" value="${esc(c.direccion || "")}" required></label>
+    ${camposDireccion("fc", nuevo ? null : c)}
     <label>Inquilino<input type="text" id="fc-inq" name="inquilino" list="dl-inq" value="${esc(nom(c.inquilino_id))}" required placeholder="Elegí de la lista o escribí un nombre nuevo"></label>
     <label>Propietario<input type="text" id="fc-prop" name="propietario" list="dl-prop" value="${esc(nom(c.propietario_id))}" required></label>
     <datalist id="dl-inq">${opcionesPersonas("inquilino")}</datalist><datalist id="dl-prop">${opcionesPersonas("propietario")}</datalist>
@@ -1204,7 +1231,7 @@ function vContrato() {
     <div class="muted">Fecha de alta ${fecha(String(c.created_at || "").slice(0, 10))}</div></div>
 
   <section class="panel"><div class="form">
-    <label>Propiedad (dirección)<input type="text" name="direccion" value="${esc(c.direccion)}" required></label>
+    ${camposDireccion("ct", c)}
     <label>Carpeta<input type="number" name="carpeta" value="${esc(c.carpeta || "")}"></label>
     <label><span class="lbl">Inquilino <button type="button" class="link" data-persona="${pi.id}">ver datos</button></span><input type="text" name="inquilino" list="dl-inq" value="${esc(nom(pi))}" required></label>
     <label><span class="lbl">Propietario <button type="button" class="link" data-persona="${pp.id}">ver datos</button></span><input type="text" name="propietario" list="dl-prop" value="${esc(nom(pp))}" required></label>
@@ -1282,7 +1309,7 @@ async function guardarContrato(f, v) {
   const inqId = idPersonaDesdeTexto(v.inquilino, "inquilino"), propId = idPersonaDesdeTexto(v.propietario, "propietario");
   if (!inqId || !propId) { toast("Elegí el inquilino y el propietario de la lista (para uno nuevo usá Inquilinos y propietarios).", "bad"); return; }
   const fin = finDesdeCuotas(v.inicio, +v.cuotas);
-  const data = { carpeta: +v.carpeta || 0, direccion: v.direccion.trim(), inicio: v.inicio, fin, monto_base: r2(v.monto1), deposito: r2(v.deposito), moneda: v.moneda === "USD" ? "USD" : "ARS",
+  const data = { carpeta: +v.carpeta || 0, ...datosDireccion(v), inicio: v.inicio, fin, monto_base: r2(v.monto1), deposito: r2(v.deposito), moneda: v.moneda === "USD" ? "USD" : "ARS",
     indice: v.indice, ajuste_meses: +v.ajuste_meses || 12, ajuste_revisar: false, forma_pago: v.forma_pago, comision: v.comision === "" ? null : +v.comision,
     dia_vto: v.dia_vto ? +v.dia_vto : null, notas: (v.notas || "").trim() || null, inquilino_id: inqId, propietario_id: propId,
     ajuste_desde: v.ajuste_desde && v.ajuste_desde !== ymSumar(ymDe(v.inicio), +v.ajuste_meses || 12) ? v.ajuste_desde : null };
@@ -1561,7 +1588,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171356");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171413");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1613,7 +1640,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171356");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171413");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1825,6 +1852,7 @@ document.addEventListener("input", (ev) => {
     if (t.classList.contains("ct-pct")) { ctDesdePct(t); return; }
     if (t.classList.contains("ct-monto")) { ctPorcentajes(); return; }
   }
+  if (["nc-calle", "nc-numero", "nc-depto"].includes(t.id)) { const f = $("#f-nuevo"), el = $("#nc-vista"); if (f && el) el.innerHTML = `Se va a ver así: <b>${esc(componerDireccion({ calle: f.calle.value, numero: f.numero.value, depto: f.depto.value }) || "—")}</b>`; }
   if (t.closest("#f-nuevo")) { nuevoResumen(); return; }
   if (t.closest("#f-liqprop")) { liqPropTotal(); return; }
   if (t.closest("#f-aprobar")) { aprobarTotal(); return; }
@@ -1836,7 +1864,7 @@ document.addEventListener("input", (ev) => {
 document.addEventListener("change", async (ev) => {
   const t = ev.target;
   if (t.id === "nc-word" && t.files && t.files[0]) { const fl = t.files[0]; t.value = ""; await aplicarWord(fl); return; }
-  if (t.id === "nc-dir") nuevoDireccionCambio();
+  if (["nc-calle", "nc-numero", "nc-depto"].includes(t.id)) nuevoDireccionCambio();
   if (t.id === "nc-inicio" || t.id === "nc-duracion") { const f = $("#f-nuevo"); if (f.duracion.value !== "otra" && f.inicio.value) f.fin.value = isoMas(f.inicio.value, +f.duracion.value, -1); nuevoResumen(); }
   if (t.id === "nc-fin") { const f = $("#f-nuevo"); f.duracion.value = "otra"; }
   if (t.id === "nc-indice") { const f = $("#f-nuevo"); f.ajuste_meses.value = AJUSTE_DEF[t.value] || 12; nuevoResumen(); }
@@ -1929,7 +1957,7 @@ document.addEventListener("submit", async (ev) => {
     if (f.id === "f-contrato") {
       const inqId = idPersonaDesdeTexto(v.inquilino, "inquilino"), propId = idPersonaDesdeTexto(v.propietario, "propietario");
       const crear = async (nombre, tipo) => { const { data, error } = await sb.from("personas").insert({ nombre: nombre.trim(), tipo }).select().single(); if (error) throw error; return data.id; };
-      const data = { carpeta: +v.carpeta || 0, direccion: v.direccion.trim(), inicio: v.inicio, fin: v.fin, monto_base: r2(v.monto_base), deposito: r2(v.deposito), moneda: v.moneda === "USD" ? "USD" : "ARS",
+      const data = { carpeta: +v.carpeta || 0, ...datosDireccion(v), inicio: v.inicio, fin: v.fin, monto_base: r2(v.monto_base), deposito: r2(v.deposito), moneda: v.moneda === "USD" ? "USD" : "ARS",
         indice: v.indice, ajuste_meses: +v.ajuste_meses || 12, ajuste_revisar: false, forma_pago: v.forma_pago, comision: v.comision === "" ? null : +v.comision,
         dia_vto: v.dia_vto ? +v.dia_vto : null, notas: v.notas.trim() || null,
         inquilino_id: inqId || (await crear(v.inquilino, "inquilino")), propietario_id: propId || (await crear(v.propietario, "propietario")) };
