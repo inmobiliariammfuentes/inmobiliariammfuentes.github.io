@@ -4,13 +4,13 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611171347";
-import { iniciarChat } from "./chat.js?v=202611171347";
-import { iniciarCalculadora } from "./calculadora.js?v=202611171347";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171347";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171347";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171347";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171347";
+} from "./comun.js?v=202611171356";
+import { iniciarChat } from "./chat.js?v=202611171356";
+import { iniciarCalculadora } from "./calculadora.js?v=202611171356";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171356";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171356";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171356";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171356";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -331,7 +331,7 @@ function celdaCalculo(a, c) {
 }
 async function mostrarImagenAumento(c, x) {
   const pi = P(c.inquilino_id), nom = (pi.nombre || "").includes(",") ? pi.nombre.split(",").reverse().map((s) => s.trim()).join(" ") : pi.nombre;
-  const datos = { inquilino: nom, direccion: c.direccion, indice: c.indice, meses: c.ajuste_meses, anterior: x.anterior, nuevo: x.nuevo, pct: x.pct, desde: x.desde, estimado: x.estimado, usd: esUSD(c), proximo: ymSumar(x.desde, +c.ajuste_meses || 12) <= ymDe(c.fin) ? ymSumar(x.desde, +c.ajuste_meses || 12) : null };
+  const datos = { inquilino: nom, direccion: c.direccion, indice: c.indice, meses: c.ajuste_meses, anterior: x.anterior, nuevo: x.nuevo, pct: x.pct, desde: x.desde, estimado: x.estimado, usd: esUSD(c), indiceMonto: x.indiceMonto || null, proximo: ymSumar(x.desde, +c.ajuste_meses || 12) <= ymDe(c.fin) ? ymSumar(x.desde, +c.ajuste_meses || 12) : null };
   const cv = await imagenAumento(datos, S.cfg);
   S.aumImg = { cv, tel: pi.telefono, texto: textoAumento(datos), nombre: "Aumento " + c.direccion };
   abrirModal(modalImagenHtml("Aumento de " + esc(c.direccion)));
@@ -339,7 +339,8 @@ async function mostrarImagenAumento(c, x) {
 }
 async function guardarAumento(c, a, monto, auto) {
   const { error } = await sb.from("ajustes").insert({ contrato_id: c.id, desde: a.p, monto_anterior: r2(a.base), monto: r2(monto),
-    pct: Math.round((monto / a.base - 1) * 10000) / 100, automatico: !!auto, detalle: a.calc && !a.calc.error ? a.calc.detalle : null });
+    pct: Math.round((monto / a.base - 1) * 10000) / 100, automatico: !!auto, detalle: a.calc && !a.calc.error ? a.calc.detalle : null,
+    monto_indice: a.calc && !a.calc.error ? r2(a.calc.original ?? a.calc.nuevo) : null });
   if (error && !/duplicate|unique/i.test(error.message)) throw error;
   return !error;
 }
@@ -1423,15 +1424,15 @@ function modalAjuste(id) {
   const c = S.contratos.get(+id); const a = aumentoDe(c); const p = a?.p || ymHoy(); const ant = a ? a.base : montoEn(c, ajDe(c), ymSumar(p, -1));
   const ok = a && a.calc && !a.calc.error;
   abrirModal(`<div class="mh"><div><h2>Aplicar ajuste</h2><div class="muted">${esc(c.direccion)} · ${esc(c.indice)} cada ${c.ajuste_meses} meses</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
-  <form class="form" id="f-ajuste" data-id="${c.id}" data-ant="${ant}">
+  <form class="form" id="f-ajuste" data-id="${c.id}" data-ant="${ant}" data-indice="${ok ? (a.calc.original ?? a.calc.nuevo) : ""}" data-estimado="${ok && a.calc.estimado ? 1 : ""}">
     <label>Rige desde<input type="month" id="aj-desde" name="desde" value="${p}" required></label>
     <label>Alquiler anterior<input type="text" value="${money(ant, c)}" disabled id="aj-ant"></label>
     <label>Variación del índice (%)<input type="number" step="0.0001" id="aj-pct" name="pct" value="${ok ? a.calc.pct : ""}" autofocus></label>
     <label>Nuevo alquiler<input type="number" step="0.01" id="aj-monto" name="monto" value="${ok ? a.calc.nuevo : ""}" required></label>
     <div class="full row" style="gap:8px;align-items:center"><span class="muted">Redondear a mano:</span>${[1000, 5000, 10000].map((p) => `<button type="button" class="btn small" data-redmonto="arriba|${p}">▲ $ ${p.toLocaleString("es-AR")}</button><button type="button" class="btn small" data-redmonto="abajo|${p}">▼ $ ${p.toLocaleString("es-AR")}</button>`).join("")}</div>
     ${ok ? `<p class="full muted" style="margin:0">Calculado con ${esc(a.calc.detalle)}${a.calc.estimado ? " (estimado)" : ""}. Podés modificar el % o el monto (por ejemplo para redondear).</p>` : a?.calc?.error ? `<p class="full muted" style="margin:0">${esc(a.calc.error)}: cargá el % o el monto.</p>` : ""}
-    <div class="full row"><button class="btn primary" type="submit">Guardar ajuste</button><button class="btn" type="button" data-cerrar>Cancelar</button></div>
-  </form>`);
+    <div class="full row"><button class="btn primary" type="submit">Guardar ajuste</button><button class="btn" type="button" data-ajcompartir="${c.id}" title="Imagen para el inquilino con el valor según el índice y el valor final">Compartir imagen</button><button class="btn" type="button" data-cerrar>Cancelar</button></div>
+  </form><div id="aj-img"></div>`);
 }
 
 function modalLiquidar(pid) {
@@ -1560,7 +1561,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171347");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171356");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1612,7 +1613,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171347");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171356");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1747,12 +1748,22 @@ document.addEventListener("click", async (ev) => {
     if (d.a === "calc-aumentos") { if (!S.indices) { toast("Todavía se están bajando los índices, probá en unos segundos", "bad"); return; } abrirModal(calculadoraHtml(S.calcAum || {})); return; }
     if (d.redondeo) { const { error } = await sb.from("config").update({ redondeo: d.redondeo }).eq("id", 1); if (error) throw error; S.cfg.redondeo = d.redondeo; render(); toast(d.redondeo === "exacto" ? "Aumentos sin redondear" : `Aumentos redondeados para ${d.redondeo} de a ${money(+S.cfg.redondeo_paso || 5000)}`); return; }
     if (d.redmonto) { const f = $("#f-ajuste"); if (!f) return; const [modo, paso] = d.redmonto.split("|"); const v0 = +f.monto.value || 0; if (!v0) return; f.monto.value = redondear(v0, modo, +paso); const ant = +f.dataset.ant; if (ant) f.pct.value = Math.round((+f.monto.value / ant - 1) * 10000) / 100; return; }
-    if (d.aumimg) { const c = S.contratos.get(+d.aumimg), a = aumentoDe(c); if (!a?.calc || a.calc.error) return; await mostrarImagenAumento(c, { anterior: a.base, nuevo: a.calc.nuevo, pct: a.calc.pct, desde: a.p, estimado: a.calc.estimado }); return; }
-    if (d.ajimg) { const aj = [...S.aj.values()].flat().find((x) => x.id === +d.ajimg); const c = aj && S.contratos.get(aj.contrato_id); if (!c) return; await mostrarImagenAumento(c, { anterior: +aj.monto_anterior, nuevo: +aj.monto, pct: aj.pct != null ? +aj.pct : (aj.monto / aj.monto_anterior - 1) * 100, desde: aj.desde }); return; }
+    if (d.aumimg) { const c = S.contratos.get(+d.aumimg), a = aumentoDe(c); if (!a?.calc || a.calc.error) return; await mostrarImagenAumento(c, { anterior: a.base, nuevo: a.calc.nuevo, pct: a.calc.pct, desde: a.p, estimado: a.calc.estimado, indiceMonto: a.calc.original || null }); return; }
+    if (d.ajimg) { const aj = [...S.aj.values()].flat().find((x) => x.id === +d.ajimg); const c = aj && S.contratos.get(aj.contrato_id); if (!c) return; await mostrarImagenAumento(c, { anterior: +aj.monto_anterior, nuevo: +aj.monto, pct: aj.pct != null ? +aj.pct : (aj.monto / aj.monto_anterior - 1) * 100, desde: aj.desde, indiceMonto: aj.monto_indice != null ? +aj.monto_indice : null }); return; }
+    if (d.ajcompartir) { const f = $("#f-ajuste"); const c = S.contratos.get(+d.ajcompartir); const monto = +f.monto.value, ant = +f.dataset.ant;
+      if (!(monto > 0)) { toast("Cargá el nuevo alquiler", "bad"); return; }
+      const pi = P(c.inquilino_id), nom = (pi.nombre || "").includes(",") ? pi.nombre.split(",").reverse().map((x) => x.trim()).join(" ") : pi.nombre;
+      const ind = +f.dataset.indice || 0, desde = f.desde.value;
+      const datos = { inquilino: nom, direccion: c.direccion, indice: c.indice, meses: c.ajuste_meses, anterior: ant, nuevo: monto, pct: (monto / ant - 1) * 100, desde, usd: esUSD(c), indiceMonto: ind || null, estimado: !!f.dataset.estimado,
+        proximo: ymSumar(desde, +c.ajuste_meses || 12) <= ymDe(c.fin) ? ymSumar(desde, +c.ajuste_meses || 12) : null };
+      const cv = await imagenAumento(datos, S.cfg); S.aumImg = { cv, tel: pi.telefono, texto: textoAumento(datos), nombre: "Aumento " + c.direccion };
+      const box = $("#aj-img"); cv.style.cssText = "width:100%;height:auto;display:block";
+      box.innerHTML = `<div class="row" style="flex-wrap:wrap;margin-top:12px"><button class="btn primary" data-aumacc="compartir">Compartir / WhatsApp</button><button class="btn" data-aumacc="copiar">Copiar imagen</button><button class="btn" data-aumacc="descargar">Descargar imagen</button></div><div class="doc-canvas" style="margin-top:10px"></div>`;
+      box.querySelector(".doc-canvas").appendChild(cv); box.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
     if (d.aumacc && S.aumImg) { await enviarImagen(S.aumImg.cv, d.aumacc, { tel: S.aumImg.tel, texto: S.aumImg.texto, nombre: S.aumImg.nombre, toast }); return; }
     if (d.calcimg !== undefined && S.calcRes) { const r = S.calcRes, ult = r.filas[r.filas.length - 1], prev = r.filas[r.filas.length - 2];
       const [quien, dir] = String(r.v.quien || "").split("·").map((x) => x.trim());
-      const datos = { inquilino: quien || "", direccion: dir || "", indice: r.v.indice, meses: r.v.meses, anterior: prev.monto, nuevo: ult.monto, pct: ult.pct, desde: ult.desde.slice(0, 7), estimado: ult.estimado };
+      const datos = { inquilino: quien || "", direccion: dir || "", indice: r.v.indice, meses: r.v.meses, anterior: prev.monto, nuevo: ult.monto, pct: ult.pct, desde: ult.desde.slice(0, 7), estimado: ult.estimado, indiceMonto: ult.original || null };
       const cv = await imagenAumento(datos, S.cfg); S.aumImg = { cv, texto: textoAumento(datos), nombre: "Aumento " + (dir || quien || "") };
       const box = $("#aum-cv"); if (box) { box.hidden = false; box.innerHTML = ""; cv.style.cssText = "width:100%;height:auto;display:block"; box.appendChild(cv);
         box.insertAdjacentHTML("beforebegin", `<div class="row" style="flex-wrap:wrap;margin-top:10px"><button class="btn primary" data-aumacc="compartir">Compartir / WhatsApp</button><button class="btn" data-aumacc="copiar">Copiar imagen</button><button class="btn" data-aumacc="descargar">Descargar imagen</button></div>`); el.remove(); }
@@ -1909,7 +1920,7 @@ document.addEventListener("submit", async (ev) => {
     if (f.id === "f-rechazar") { if (await rpc("rechazar_envio", { p_envio: +f.dataset.id, p_motivo: v.motivo }, "Rechazado. Le avisamos al inquilino.")) { cerrarModal(); await recargar(); } return; }
     if (f.id === "f-ajuste") {
       const c = S.contratos.get(+f.dataset.id); const monto = r2(v.monto); if (!(monto > 0)) { toast("Cargá el nuevo alquiler", "bad"); return; }
-      const { error } = await sb.from("ajustes").insert({ contrato_id: c.id, desde: v.desde, monto_anterior: r2(f.dataset.ant), monto, pct: v.pct === "" ? null : +v.pct });
+      const { error } = await sb.from("ajustes").insert({ contrato_id: c.id, desde: v.desde, monto_anterior: r2(f.dataset.ant), monto, pct: v.pct === "" ? null : +v.pct, monto_indice: f.dataset.indice ? r2(f.dataset.indice) : null });
       if (error) throw error;
       if (c.ajuste_revisar) await sb.from("contratos").update({ ajuste_revisar: false }).eq("id", c.id);
       cerrarModal(); await recargar("Ajuste guardado: " + money(monto, c)); return;

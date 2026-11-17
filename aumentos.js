@@ -2,8 +2,8 @@
 // · Redondeo de los aumentos calculados (exacto, para arriba o para abajo, de a $ 5.000 u otro paso)
 // · Imagen del aumento para mandarle al inquilino (copiar / compartir / WhatsApp)
 // · Calculadora libre: alquiler inicial + fecha + cada cuántos meses + índice → progresión completa
-import { LOGO_URL } from "./comun.js?v=202611171347";
-import { calcularAumento, FUENTES, masMeses, hoyISO } from "./indices.js?v=202611171347";
+import { LOGO_URL } from "./comun.js?v=202611171356";
+import { calcularAumento, FUENTES, masMeses, hoyISO } from "./indices.js?v=202611171356";
 
 const BORDO = "#6e1b2a", BORDO2 = "#8c2a3b";
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -60,13 +60,22 @@ export async function imagenAumento(d, cfg = {}) {
     if (d.direccion) etiqueta("PROPIEDAD", d.direccion);
     g.font = `600 28px ${SANS}`; const cond = `Ajuste ${d.meses ? "cada " + d.meses + (+d.meses === 1 ? " mes" : " meses") + " " : ""}por ${d.indice}`;
     g.fillStyle = "#f6ecee"; rr(g, 56, y, W - 112, 76, 20); g.fill(); g.fillStyle = BORDO; g.fillText(cond, 88, y + 48); y += 112;
+    // si el valor final no es el que daba el índice (redondeo o valor puesto a mano), se muestran los dos
+    const conIndice = d.indiceMonto > 0 && Math.abs(d.indiceMonto - d.nuevo) >= 1;
+    if (conIndice) {
+      const pi = d.indicePct != null ? d.indicePct : (d.indiceMonto / d.anterior - 1) * 100;
+      g.strokeStyle = "#e3d6d8"; g.lineWidth = 2; rr(g, 56, y, W - 112, 96, 20); g.stroke();
+      g.fillStyle = "#7a6a6c"; g.font = `700 22px ${SANS}`; g.fillText(("SEGÚN EL ÍNDICE " + d.indice).toUpperCase(), 88, y + 40);
+      g.fillStyle = "#444"; g.font = `600 30px ${SANS}`; g.fillText(pesos(d.indiceMonto, d.usd) + "   (" + pctTxt(pi) + ")", 88, y + 78);
+      y += 124;
+    }
     // tarjetas: actual → nuevo
     const cw = (W - 112 - 24) / 2;
     g.fillStyle = "#f7f3f3"; rr(g, 56, y, cw, 190, 22); g.fill();
     g.fillStyle = BORDO; rr(g, 56 + cw + 24, y, cw, 190, 22); g.fill();
     g.fillStyle = "#7a6a6c"; g.font = `700 22px ${SANS}`; g.fillText("ALQUILER ACTUAL", 88, y + 50);
     g.fillStyle = "#111"; g.font = `800 46px ${SANS}`; g.fillText(pesos(d.anterior, d.usd), 88, y + 112);
-    g.fillStyle = "rgba(255,255,255,.8)"; g.font = `700 22px ${SANS}`; g.fillText(("DESDE " + mesTexto(d.desde)).toUpperCase(), 88 + cw + 24, y + 50);
+    g.fillStyle = "rgba(255,255,255,.8)"; g.font = `700 22px ${SANS}`; g.fillText(((conIndice ? "QUEDA EN · " : "") + "DESDE " + mesTexto(d.desde)).toUpperCase(), 88 + cw + 24, y + 50);
     g.fillStyle = "#fff"; g.font = `800 46px ${SANS}`; g.fillText(pesos(d.nuevo, d.usd), 88 + cw + 24, y + 112);
     g.font = `600 26px ${SANS}`; g.fillStyle = "rgba(255,255,255,.9)"; g.fillText(pctTxt(d.pct) + " de aumento", 88 + cw + 24, y + 158);
     y += 230;
@@ -83,7 +92,10 @@ export async function imagenAumento(d, cfg = {}) {
 }
 export function textoAumento(d) {
   const n = (d.inquilino || "").split(" ")[0];
-  return `Hola${n ? " " + n : ""}, te informamos la actualización del alquiler de ${d.direccion}: desde ${mesTexto(d.desde)} pasa de ${pesos(d.anterior, d.usd)} a ${pesos(d.nuevo, d.usd)} (${pctTxt(d.pct)}, ${d.indice}).`;
+  const conIndice = d.indiceMonto > 0 && Math.abs(d.indiceMonto - d.nuevo) >= 1;
+  const pi = conIndice ? (d.indicePct != null ? d.indicePct : (d.indiceMonto / d.anterior - 1) * 100) : null;
+  return `Hola${n ? " " + n : ""}, te informamos la actualización del alquiler de ${d.direccion}: desde ${mesTexto(d.desde)} pasa de ${pesos(d.anterior, d.usd)} a ${pesos(d.nuevo, d.usd)} (${pctTxt(d.pct)}).`
+    + (conIndice ? ` Según el índice ${d.indice} correspondía ${pesos(d.indiceMonto, d.usd)} (${pctTxt(pi)}); el valor quedó redondeado en ${pesos(d.nuevo, d.usd)}.` : ` Ajuste por ${d.indice}.`);
 }
 // accion: "copiar" | "compartir" | "descargar"
 export async function enviarImagen(cv, accion, { tel, texto, nombre, toast }) {
