@@ -4,13 +4,14 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611171448";
-import { iniciarChat } from "./chat.js?v=202611171448";
-import { iniciarCalculadora } from "./calculadora.js?v=202611171448";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171448";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171448";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171448";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171448";
+} from "./comun.js?v=202611171458";
+import { iniciarChat } from "./chat.js?v=202611171458";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611171458";
+import { iniciarCalculadora } from "./calculadora.js?v=202611171458";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171458";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171458";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171458";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171458";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -140,7 +141,7 @@ function renderNav() {
     ajustes: S.cargado ? cs.filter((c) => contratoActivo(c) && proximoAjuste(c, ajDe(c), S.cfg) === ymSumar(ymHoy(), 1)).length : 0,
     servicios: S.cargado && S.cs ? controlServicios().filter((x) => x.faltan.length).length : 0 };
   const actual = S.view === "planilla" ? "cobrar" : S.view === "liqprop" ? "liquidaciones" : S.view === "nuevo" || S.view === "contrato" ? "contratos" : S.view;
-  $("#nav").innerHTML = VISTAS.map(([k, l]) => `<button data-vista="${k}" ${actual === k ? 'aria-current="page"' : ""}><span>${l}</span>${n[k] ? `<span class="n">${n[k]}</span>` : ""}</button>`).join("");
+  $("#nav").innerHTML = vistasVisibles(VISTAS).map(([k, l]) => `<button data-vista="${k}" ${actual === k ? 'aria-current="page"' : ""}><span>${l}</span>${n[k] ? `<span class="n">${n[k]}</span>` : ""}</button>`).join("");
   $("#quien").textContent = S.yo ? S.yo.nombre : "";
   const bt = $("#tema"); if (bt) bt.innerHTML = botonTema();
 }
@@ -1648,7 +1649,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171448");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171458");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1700,7 +1701,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171448");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171458");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1761,11 +1762,12 @@ document.addEventListener("click", async (ev) => {
     if (d.tipo) { S.tipoPersona = d.tipo; S.limite = 150; render(); return; }
     if (d.a === "mas") { S.limite += 150; render(); return; }
     if (d.a === "refrescar") { await cargarEnvios(); render(); toast("Actualizado"); return; }
-    if (d.a === "tema") { alternarTema(); renderNav(); return; }
+    if (d.a === "tema") { alternarTema(); persoTema(); renderNav(); return; }
+    if (d.a === "personalizar") { abrirPersonalizar(VISTAS, renderNav); return; }
     if (d.a === "mi-clave") { abrirModal(`<div class="mh"><h2>Cambiar mi clave</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
       <form class="form" id="f-miclave"><label>Clave nueva<input type="password" name="c1" minlength="6" required autocomplete="new-password"></label><label>Repetir clave nueva<input type="password" name="c2" minlength="6" required autocomplete="new-password"></label>
       <div class="full row"><button class="btn primary" type="submit">Guardar clave</button><button class="btn" type="button" data-cerrar>Cancelar</button></div></form>`); return; }
-    if (d.a === "salir") { await sb.auth.signOut(); location.reload(); return; }
+    if (d.a === "salir") { salirPerso(); await sb.auth.signOut(); location.reload(); return; }
     if (d.a === "nuevo-contrato") { abrirNuevo(); return; }
     if (d.renovar) { abrirRenovacion(d.renovar); return; }
     if (d.ncconcepto !== undefined) { $("#nc-conceptos").insertAdjacentHTML("beforeend", filaConceptoNuevo({ nombre: d.ncconcepto })); const r = $("#nc-conceptos").lastElementChild; r.querySelector(d.ncconcepto ? '[data-c="monto"]' : "input").focus(); nuevoResumen(); return; }
@@ -2152,7 +2154,10 @@ async function iniciar() {
   if (!session) return pantallaLogin();
   const { data: yo } = await sb.from("staff").select("*").eq("user_id", session.user.id).maybeSingle();
   if (!yo || !yo.activo) { await sb.auth.signOut(); return pantallaLogin("Esta cuenta no pertenece al equipo de la inmobiliaria."); }
-  S.yo = yo; render();
+  S.yo = yo;
+  await cargarPerso(sb, { sb, userId: session.user.id });
+  if (VISTAS.some(([k]) => k === perso().inicio)) S.view = perso().inicio;
+  render();
   try { await cargarTodo(); } catch (e) { $("#main").innerHTML = `<div class="panel"><h1>No se pudieron cargar los datos</h1><p>${esc(mensajeError(e))}</p></div>`; return; }
   render();
   iniciarChat(S.yo);
