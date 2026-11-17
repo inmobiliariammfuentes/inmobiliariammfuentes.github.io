@@ -4,26 +4,44 @@ import {
   estadoContrato, contratoActivo, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, vtoDe,
   toast, abrirModal, cerrarModal, copiar, mensajeError, rutaArchivo, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, temaActual, serviciosControl, achicarImagen,
-} from "./comun.js?v=202611171928";
+} from "./comun.js?v=202611171951";
 
 const $ = (s) => document.querySelector(s);
 const S = { cfg: null, contratos: [], yo: [], aj: [], pg: [], ov: [], cargos: [], envios: [], archivos: [], liqs: [], avisos: [], rol: null, anteriores: false, esStaff: false };
 const MAX_MB = 10;
 
 /* ---------- sesión ---------- */
+let dniPrevio = "";
 function pantallaLogin(msg) {
   $("#app").innerHTML = `<div class="login"><form class="card" id="f-login">
     <div class="brand"><img class="logo logo-grande" src="${LOGO_URL}" alt="Logo de Inmobiliaria M.M. Fuentes"><b>M.M. Fuentes</b><span>Portal de inquilinos y propietarios</span></div>
     <p class="muted" style="margin:0">Consultá cuánto pagar, enviá tus comprobantes y descargá recibos y liquidaciones.</p>
-    <label>DNI<input type="text" inputmode="numeric" id="lg-dni" name="dni" required autocomplete="username" placeholder="Sin puntos"></label>
-    <label>Clave<input type="password" id="lg-clave" name="clave" required autocomplete="current-password"></label>
+    <label>Tu DNI<input type="text" inputmode="numeric" id="lg-dni" name="dni" required autocomplete="username" placeholder="Sin puntos" maxlength="11" value="${esc(dniPrevio)}" autofocus></label>
     ${msg ? `<div class="error" role="alert">${esc(msg)}</div>` : ""}
-    <button class="btn primary" type="submit">Ingresar</button>
-    <p class="muted" style="margin:0;font-size:14.5px">¿No tenés clave o la olvidaste? Pedila a la inmobiliaria por WhatsApp.</p>
+    <button class="btn primary lg-btn" type="submit">Entrar</button>
+    <p class="muted" style="margin:0;font-size:14.5px">No necesitás clave. Una vez que entrás, queda abierto en este celular.</p>
   </form></div>`;
+}
+// Entrar con el DNI: la función "ingreso" devuelve un código de un solo uso y con eso se abre la sesión
+async function entrarConDni(dniTxt) {
+  const dni = String(dniTxt || "").replace(/\D/g, ""); dniPrevio = dni;
+  if (dni.length < 7 || dni.length > 8) return pantallaLogin("Escribí tu DNI sin puntos (7 u 8 números).");
+  $("#app").innerHTML = `<div class="cargando">Entrando…</div>`;
+  const { data, error } = await sb.functions.invoke("ingreso", { body: { dni } });
+  if (error || !data?.token_hash) {
+    let msg = data?.error || "No pudimos entrar. Probá de nuevo en un momento.";
+    try { const j = await error?.context?.json(); if (j?.error) msg = j.error; } catch {}
+    return pantallaLogin(msg);
+  }
+  const { error: e2 } = await sb.auth.verifyOtp({ token_hash: data.token_hash, type: "magiclink" });
+  if (e2) return pantallaLogin("No pudimos abrir tu sesión: " + e2.message);
+  return iniciar();
 }
 async function iniciar() {
   const { data: { session } } = await sb.auth.getSession();
+  const qs = new URLSearchParams(location.search), dniLink = qs.get("dni");
+  if (dniLink) { qs.delete("dni"); history.replaceState(null, "", location.pathname + (qs.toString() ? "?" + qs : "") + location.hash); }
+  if (!session && dniLink) return entrarConDni(dniLink);
   if (!session) return pantallaLogin();
   $("#app").innerHTML = `<div class="cargando">Cargando tu información…</div>`;
   try { await cargar(session.user.id); } catch (e) { $("#app").innerHTML = `<div class="login"><div class="card"><b>No pudimos cargar tus datos</b><p>${esc(mensajeError(e))}</p><button class="btn" data-a="salir">Salir</button></div></div>`; return; }
@@ -32,6 +50,7 @@ async function iniciar() {
   const roles = [...new Set(S.contratos.map((c) => c.rol))];
   S.rol = S.rol && roles.includes(S.rol) ? S.rol : roles[0];
   render();
+  setTimeout(mostrarInstalar, 1200);
 }
 async function cargar(uid) {
   const q = (t, f = (x) => x) => f(sb.from(t).select("*")).then((r) => { if (r.error) throw r.error; return r.data; });
@@ -66,7 +85,7 @@ function render() {
     .filter((c) => S.anteriores || contratoActivo(c) || (c.rol === "inquilino" && deudaDe(c).length) || (c.rol === "propietario" && ymDe(c.fin) >= ymSumar(ymHoy(), -3)));
   const ocultos = S.contratos.filter((c) => c.rol === S.rol).length - lista.length;
   $("#app").innerHTML = `<header class="phead"><div class="brand brand-fila"><img class="logo logo-chico" src="${LOGO_URL}" alt=""><div><b>M.M. Fuentes</b><span>Hola${nombre ? ", " + esc(nombre) : ""}</span></div></div>
-    <div class="row"><button class="btn small" data-a="avisos">Avisos ${sinLeer ? `<span class="badge">${sinLeer}</span>` : ""}</button><button class="btn small" data-a="clave">Cambiar clave</button><button class="btn small" data-a="tema" title="Cambiar entre modo claro y oscuro">${temaActual() === "dark" ? "Modo claro" : "Modo oscuro"}</button><button class="btn small ghost" data-a="salir">Salir</button></div></header>
+    <div class="row"><button class="btn small" data-a="avisos">Avisos ${sinLeer ? `<span class="badge">${sinLeer}</span>` : ""}</button><button class="btn small" data-a="tema" title="Cambiar entre modo claro y oscuro">${temaActual() === "dark" ? "Modo claro" : "Modo oscuro"}</button><button class="btn small ghost" data-a="salir">Salir</button></div></header>
   <main class="pmain">
     ${S.esStaff ? `<div class="banner">Estás usando una cuenta del equipo. <a href="gestion.html">Ir al sistema de gestión</a></div>` : ""}
     ${roles.length > 1 ? `<div class="seg">${roles.map((r) => `<button data-rol="${r}" aria-pressed="${S.rol === r}">${r === "inquilino" ? "Como inquilino" : "Como propietario"}</button>`).join("")}</div>` : ""}
@@ -276,10 +295,7 @@ document.addEventListener("submit", async (ev) => {
   ev.preventDefault(); const f = ev.target; const v = Object.fromEntries(new FormData(f).entries());
   try {
     if (f.id === "f-login") {
-      const dni = String(v.dni).replace(/\D/g, "");
-      const { error } = await sb.auth.signInWithPassword({ email: `${dni}@${DOMINIO_USUARIOS}`, password: v.clave });
-      if (error) return pantallaLogin("DNI o clave incorrectos.");
-      return iniciar();
+      return entrarConDni(v.dni);
     }
     if (f.id === "f-pago") return await enviar(f, "pago");
     if (f.id === "f-servicios") return await enviar(f, "servicios");
@@ -290,4 +306,35 @@ document.addEventListener("submit", async (ev) => {
     }
   } catch (e) { toast(mensajeError(e), "bad"); }
 });
+/* ---------- instalar el portal como app en el celular ---------- */
+let pedidoInstalar = null;
+addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); pedidoInstalar = e; document.getElementById("instalar")?.remove(); mostrarInstalar(); });
+addEventListener("appinstalled", () => { document.getElementById("instalar")?.remove(); toast("¡Listo! Ya tenés el portal en tu celular"); });
+const esApp = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const esAndroid = () => /android/i.test(navigator.userAgent);
+function mostrarInstalar(esperado) {
+  if (esApp() || !document.querySelector(".phead") || document.getElementById("instalar")) return;
+  if (!(esIOS() || esAndroid())) return;
+  if (esAndroid() && !pedidoInstalar && !esperado) { setTimeout(() => mostrarInstalar(true), 3500); return; } // Chrome avisa un poco después
+  try { if (+localStorage.getItem("instalar-despues") > Date.now()) return; } catch {}
+  const d = document.createElement("div"); d.id = "instalar"; d.className = "instalar"; d.setAttribute("role", "dialog"); d.setAttribute("aria-label", "Agregar el portal al celular");
+  const icono = `<img src="${new URL("icono-192.png", LOGO_URL).href}" alt="" width="48" height="48">`;
+  d.innerHTML = pedidoInstalar
+    ? `${icono}<div class="ins-txt"><b>Tené el portal como una app</b><span>Un ícono en tu celular para entrar con un toque, sin escribir nada.</span></div>
+       <div class="ins-acc"><button class="btn primary" data-ins="si">Agregar</button><button class="btn ghost" data-ins="no">Ahora no</button></div>`
+    : esIOS()
+      ? `${icono}<div class="ins-txt"><b>Tené el portal como una app</b><span>Tocá <b>Compartir</b> <svg class="ins-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-label="(el cuadrado con la flecha hacia arriba)"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg> abajo en la pantalla y después <b>Agregar a inicio</b>.</span></div>
+         <div class="ins-acc"><button class="btn ghost" data-ins="no">Entendido</button></div>`
+      : `${icono}<div class="ins-txt"><b>Tené el portal como una app</b><span>Tocá el menú <b>⋮</b> del navegador (arriba a la derecha) y después <b>Instalar app</b> o <b>Agregar a pantalla principal</b>.</span></div>
+         <div class="ins-acc"><button class="btn ghost" data-ins="no">Entendido</button></div>`;
+  document.body.appendChild(d);
+  d.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-ins]"); if (!b) return;
+    if (b.dataset.ins === "si" && pedidoInstalar) { pedidoInstalar.prompt(); const r = await pedidoInstalar.userChoice.catch(() => null); pedidoInstalar = null; if (r?.outcome === "accepted") { d.remove(); return; } }
+    try { localStorage.setItem("instalar-despues", String(Date.now() + 7 * 864e5)); } catch {}
+    d.remove();
+  });
+}
+if ("serviceWorker" in navigator) navigator.serviceWorker.register(new URL("sw.js", location.href)).catch(() => {});
 iniciar();

@@ -1,6 +1,6 @@
 // Cobranza Fuentes · Página pública "Mis datos": el inquilino o propietario completa sus datos y crea su clave del portal.
 // Se abre con el link personal que manda la inmobiliaria (datos.html?t=...).
-import { sb, esc, LOGO_URL } from "./comun.js?v=202611171928";
+import { sb, esc, LOGO_URL } from "./comun.js?v=202611171951";
 
 const $ = (s) => document.querySelector(s);
 const token = (new URLSearchParams(location.search).get("t") || "").trim();
@@ -19,7 +19,7 @@ function pantalla(d) {
   const nombre = n0.charAt(0).toUpperCase() + n0.slice(1).toLowerCase();
   const prop = d.tipo === "propietario";
   const campo = (k, l, v, tipo = "text", extra = "") => `<label>${l}<input type="${tipo}" name="${k}" value="${esc(v || "")}" ${extra}></label>`;
-  const falta = [!d.dni && "DNI", !d.telefono && "celular", !d.email && "email", prop && !d.cbu && !d.alias && "CBU o alias", !d.tiene_acceso && "tu clave del portal"].filter(Boolean);
+  const falta = [!d.dni && "DNI", !d.telefono && "celular", !d.email && "email", prop && !d.cbu && !d.alias && "CBU o alias"].filter(Boolean);
   $("#app").innerHTML = cabecera(d.inmobiliaria) + `
   <section class="panel">
     <h1>Hola ${esc(nombre)}</h1>
@@ -35,19 +35,17 @@ function pantalla(d) {
     ${prop ? `<h2 class="full">Cuenta donde te transferimos</h2>
     ${campo("cbu", "CBU o CVU (22 números)", d.cbu, "text", 'inputmode="numeric" autocomplete="off"')}${campo("alias", "Alias", d.alias, "text", 'autocomplete="off" autocapitalize="none"')}
     ${campo("banco", "Banco o billetera", d.banco)}${campo("titular", "Titular de la cuenta", d.titular)}` : ""}
-    <h2 class="full">${d.tiene_acceso ? "Tu clave del portal" : "Creá tu clave del portal"}</h2>
-    <p class="full muted" style="margin:0">${d.tiene_acceso ? "Ya tenés acceso al portal. Si querés cambiar la clave, escribí una nueva; si no, dejalo vacío." : "Con tu DNI y esta clave vas a poder ver lo que debés, mandar comprobantes y bajar tus recibos desde el portal."}</p>
-    <label>Clave (mínimo 8 caracteres)<input type="password" name="clave" autocomplete="new-password" minlength="8"></label>
-    <label>Repetí la clave<input type="password" name="clave2" autocomplete="new-password"></label>
     <div class="full error" id="d-error" role="alert"></div>
-    <div class="full row"><button class="btn primary grande" type="submit">Guardar mis datos</button></div>
+    <div class="full row"><button class="btn primary grande" type="submit">Guardar y entrar a mi portal</button></div>
   </form>`;
 }
-function listo(r, d) {
+function listo(r, d, dni) {
+  const ir = `${PORTAL}${PORTAL.includes("?") ? "&" : "?"}dni=${encodeURIComponent(dni)}`;
   $("#app").innerHTML = cabecera(d.inmobiliaria) + `<section class="panel"><div class="estado ok"><b>¡Listo! Tus datos quedaron guardados.</b></div>
-    ${r.con_clave || d.tiene_acceso ? `<p>Para entrar al portal usá:</p><dl class="dl"><div><dt>Usuario</dt><dd class="mono">${esc(r.usuario)} (tu DNI)</dd></div><div><dt>Clave</dt><dd>${r.con_clave ? "La que acabás de crear" : "La que ya tenías"}</dd></div></dl>
-    <div class="row"><a class="btn primary grande" href="${PORTAL}">Ir al portal</a></div>` : `<p class="muted">Cuando quieras, podés volver a este link para crear tu clave del portal.</p>`}
+    <p>Para entrar al portal no necesitás clave: solo tu DNI. Te queda abierto en este celular.</p>
+    <div class="row"><a class="btn primary grande" href="${esc(ir)}">Entrar a mi portal</a></div>
   </section>`;
+  setTimeout(() => { location.href = ir; }, 2500);
 }
 
 async function iniciar() {
@@ -61,17 +59,12 @@ async function iniciar() {
     err.textContent = "";
     const dni = (v.dni || "").replace(/\D/g, "");
     if (dni.length < 7 || dni.length > 8) return (err.textContent = "Escribí tu DNI (7 u 8 números, sin puntos).");
-    if (v.clave || v.clave2) {
-      if (v.clave.length < 8) return (err.textContent = "La clave tiene que tener al menos 8 caracteres.");
-      if (v.clave !== v.clave2) return (err.textContent = "Las dos claves no coinciden.");
-    } else if (!d.tiene_acceso && !confirm("No creaste tu clave del portal. ¿Guardar los datos igual?")) return;
     if (v.cbu && v.cbu.replace(/\D/g, "").length !== 22) return (err.textContent = "El CBU o CVU tiene que tener 22 números.");
     b.disabled = true; b.textContent = "Guardando…";
     try {
-      const { clave } = v; delete v.clave; delete v.clave2;
-      const r = await llamar("guardar", { datos: v, clave: clave || undefined });
-      listo(r, d); scrollTo(0, 0);
-    } catch (x) { err.textContent = x.message; b.disabled = false; b.textContent = "Guardar mis datos"; }
+      const r = await llamar("guardar", { datos: v });
+      listo(r, d, dni); scrollTo(0, 0);
+    } catch (x) { err.textContent = x.message; b.disabled = false; b.textContent = "Guardar y entrar a mi portal"; }
   });
 }
 iniciar();

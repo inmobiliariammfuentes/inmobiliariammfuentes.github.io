@@ -4,17 +4,17 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611171928";
-import { iniciarChat } from "./chat.js?v=202611171928";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611171928";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611171928";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611171928";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611171928";
-import { iniciarCalculadora } from "./calculadora.js?v=202611171928";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171928";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171928";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171928";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171928";
+} from "./comun.js?v=202611171951";
+import { iniciarChat } from "./chat.js?v=202611171951";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611171951";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611171951";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611171951";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611171951";
+import { iniciarCalculadora } from "./calculadora.js?v=202611171951";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171951";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171951";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171951";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171951";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -38,6 +38,11 @@ function lineaRegistro(pid) {
   if (!campanaRegistro()) return ""; const p = P(pid);
   return p.user_id ? "\nEn ese mismo link podés revisar que tus datos estén bien y corregirlos si hace falta."
     : "\nEn ese mismo link también podés crear tu usuario del portal de clientes y completar o corregir tus datos. ¡Tarda un minuto!";
+}
+function msgPortal(p) {
+  const n = primerNombre(p.nombre), dni = (p.dni || "").replace(/\D/g, "");
+  const link = new URL(dni ? "?dni=" + dni : "", PORTAL_URL).href;
+  return `Hola${n ? " " + n : ""}! Te pasamos el portal de clientes de ${S.cfg.nombre || "la inmobiliaria"}: ahí ${p.tipo === "propietario" ? "ves los pagos de tus inquilinos y tus liquidaciones" : "ves cuánto pagar, nos avisás tus pagos y bajás tus recibos"}.\nEntrá desde acá (te queda abierto en el celular):\n${link}\nNo necesitás clave: si alguna vez te lo pide, es solo tu DNI.`;
 }
 function msgRecibo(p, c) {
   const n = primerNombre(inq(c));
@@ -1596,11 +1601,13 @@ function modalPersona(id) {
     <div class="full row"><button class="btn primary" type="submit">Guardar</button></div>
   </form>
   ${id ? `<section class="panel"><div class="ph"><h2>Que complete sus datos</h2><button class="btn small primary" data-pedirdatos="${p.id}">Mandar link por WhatsApp</button></div>
-    <p class="muted" style="margin:0">Le llega un link personal para cargar DNI, celular, email${p.tipo === "propietario" ? ", CBU y alias" : ""} y crear su clave del portal. Vence a los 60 días.</p>
+    <p class="muted" style="margin:0">Le llega un link personal para cargar DNI, celular, email${p.tipo === "propietario" ? ", CBU y alias" : ""} y entrar al portal. Vence a los 60 días.</p>
     <div id="pedido-estado" class="muted"></div></section>
   <section class="panel"><div class="ph"><h2>Acceso al portal</h2>${p.user_id ? `<span class="chip ok">Con acceso</span>` : `<span class="chip">Sin acceso</span>`}</div>
-    <p class="muted" style="margin:0">Usuario: DNI. La clave se genera acá y se la pasás por WhatsApp. Después puede cambiarla desde el portal.</p>
-    <div class="row"><button class="btn primary" data-acceso="${p.id}" ${p.dni ? "" : "disabled"}>${p.user_id ? "Generar nueva clave" : "Crear acceso"}</button>${p.user_id ? `<button class="btn danger" data-quitaracceso="${p.id}">Quitar acceso</button>` : ""}${p.dni ? "" : `<span class="muted">Cargá el DNI y guardá para poder crear el acceso.</span>`}</div>
+    <p class="muted" style="margin:0">${p.portal_bloqueado ? "El acceso está pausado: aunque escriba su DNI, no puede entrar." : "Entra solo con su DNI, sin clave. La primera vez que entra desde el celular le queda abierto."}</p>
+    <div class="row">${p.portal_bloqueado ? `<button class="btn primary" data-permitiracceso="${p.id}">Permitir el acceso de nuevo</button>`
+      : `<a class="btn primary ${p.dni ? "" : "disabled"}" ${p.dni ? `href="${esc(waMensaje(p.telefono, msgPortal(p)))}" target="_blank" rel="noopener"` : 'aria-disabled="true"'}>Mandar el portal por WhatsApp</a><button class="btn" data-copiarportal="${p.id}" ${p.dni ? "" : "disabled"}>Copiar mensaje</button><button class="btn danger" data-quitaracceso="${p.id}">Pausar acceso</button>`}
+      ${p.dni ? "" : `<span class="muted">Cargá el DNI y guardá para que pueda entrar.</span>`}</div>
     <div id="acceso-resultado"></div></section>
   <h2>Contratos</h2><div class="tw"><table><tbody>${contratos.map((c) => `<tr class="click" data-ficha="${c.id}"><td>${esc(c.direccion)}</td><td class="num">${fecha(c.inicio)} – ${fecha(c.fin)}</td><td>${chipEstado(c)}</td></tr>`).join("")}</tbody></table></div>` : ""}`, true);
   if (id) estadoPedido(p.id);
@@ -1620,7 +1627,7 @@ async function pedirDatos(pid) {
   const link = new URL("datos.html?t=" + token, PORTAL_URL).href;
   const n0 = (p.nombre.split(",")[1] || p.nombre).trim().split(" ")[0] || "";
   const nombre = n0.charAt(0).toUpperCase() + n0.slice(1).toLowerCase();
-  const msg = `¡Hola ${nombre}! Te escribimos de ${S.cfg.nombre || "la inmobiliaria"}. Para tener tus datos al día${p.tipo === "propietario" ? " (incluida la cuenta donde te transferimos los alquileres)" : ""} y crear tu clave del portal de clientes, completá este formulario: ${link}\nEs personal, no lo compartas. ¡Gracias!`;
+  const msg = `¡Hola ${nombre}! Te escribimos de ${S.cfg.nombre || "la inmobiliaria"}. Para tener tus datos al día${p.tipo === "propietario" ? " (incluida la cuenta donde te transferimos los alquileres)" : ""} y entrar al portal de clientes, completá este formulario: ${link}\nEs personal, no lo compartas. ¡Gracias!`;
   copiar(msg);
   if (wa(p.telefono)) { window.open(waMensaje(p.telefono, msg), "_blank", "noopener"); toast("Se abrió WhatsApp con el mensaje (también quedó copiado)"); }
   else toast("No tiene celular cargado: el mensaje quedó copiado para pegarlo donde quieras");
@@ -1673,7 +1680,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171928");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171951");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1725,7 +1732,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171928");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171951");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1948,7 +1955,15 @@ document.addEventListener("click", async (ev) => {
       $("#copiar-acceso").onclick = () => copiar(msg); el.textContent = "Generar nueva clave"; el.disabled = false;
       cargarTodo().then(render); return;
     }
-    if (d.quitaracceso) { if (!confirmar("¿Quitar acceso?")) return; const { data, error } = await sb.functions.invoke("accesos", { body: { accion: "quitar_acceso", persona_id: +d.quitaracceso } }); if (error || data?.error) throw new Error(data?.error || error.message); cerrarModal(); await recargar("Acceso quitado"); return; }
+    if (d.quitaracceso) { if (!confirmar("¿Pausar el acceso al portal?")) return; const pid = +d.quitaracceso, dni = (P(pid).dni || "").replace(/\D/g, "");
+      const ids = [...S.personas.values()].filter((x) => x.id === pid || (dni && (x.dni || "").replace(/\D/g, "") === dni)).map((x) => x.id);
+      const { error } = await sb.from("personas").update({ portal_bloqueado: true }).in("id", ids); if (error) throw error;
+      if (P(pid).user_id) await sb.functions.invoke("accesos", { body: { accion: "quitar_acceso", persona_id: pid } }).catch(() => {});
+      cerrarModal(); await recargar("Acceso pausado: ya no puede entrar con su DNI"); return; }
+    if (d.permitiracceso) { const pid = +d.permitiracceso, dni = (P(pid).dni || "").replace(/\D/g, "");
+      const ids = [...S.personas.values()].filter((x) => x.id === pid || (dni && (x.dni || "").replace(/\D/g, "") === dni)).map((x) => x.id);
+      const { error } = await sb.from("personas").update({ portal_bloqueado: false }).in("id", ids); if (error) throw error; await recargar("Acceso habilitado"); modalPersona(pid); return; }
+    if (d.copiarportal) { copiar(msgPortal(P(+d.copiarportal))); toast("Mensaje copiado"); return; }
     if (d.staffclave) { if (!confirmar("¿Generar nueva clave?")) return; const { data, error } = await sb.functions.invoke("accesos", { body: { accion: "clave_staff", user_id: d.staffclave } }); if (error || data?.error) throw new Error(data?.error || error.message); abrirModal(`<div class="mh"><h2>Nueva clave</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div><p>Clave: <b class="mono">${esc(data.clave)}</b></p><p class="muted">Pasásela a la persona. No se vuelve a mostrar.</p>`); return; }
     if (d.staffactivo) { const s = S.staff.find((x) => x.user_id === d.staffactivo); const { error } = await sb.from("staff").update({ activo: !s.activo }).eq("user_id", s.user_id); if (error) throw error; await recargar(); return; }
   } catch (e) { toast(mensajeError(e), "bad"); }

@@ -1,9 +1,12 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611171928";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611171951";
 
+// El sistema del equipo y el portal guardan la sesión por separado: entrar al portal con un DNI
+// en la compu de la oficina no cierra la sesión del sistema de gestión.
+const ES_GESTION = /gestion/i.test(location.pathname);
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { persistSession: true, autoRefreshToken: true, storageKey: "cobranza-fuentes" },
+  auth: { persistSession: true, autoRefreshToken: true, storageKey: ES_GESTION ? "cobranza-fuentes" : "cobranza-fuentes-portal" },
 });
 export const LOGO_URL = new URL("logo.png", import.meta.url).href;
 export const DOMINIO_USUARIOS = "clientes.inmobiliariammfuentes.com";
