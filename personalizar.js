@@ -2,7 +2,7 @@
 // Cada persona del equipo elige su color, modo claro/oscuro, tamaño de letra, qué ve en el menú lateral y en qué orden.
 // Se guarda en la base (tabla preferencias_staff, una fila por usuario) y una copia en el navegador para que
 // al abrir el sistema se vea enseguida con su personalización.
-import { esc, toast, abrirModal } from "./comun.js?v=202611171458";
+import { esc, toast, abrirModal } from "./comun.js?v=202611171516";
 
 export const COLORES = [
   ["#7a1f2e", "Bordó (original)"], ["#a3355f", "Frambuesa"], ["#a14a1f", "Terracota"], ["#8a6a12", "Mostaza"],
@@ -10,7 +10,7 @@ export const COLORES = [
 ];
 const ORIGINAL = "#7a1f2e";
 const TAMANOS = [["0.92", "Chica"], ["1", "Normal"], ["1.08", "Grande"], ["1.16", "Muy grande"]];
-export const PERSO_BASE = { color: ORIGINAL, modo: "auto", zoom: "1", compacto: false, quieto: false, dolar: true, calc: true, inicio: "contratos", orden: [], ocultos: [] };
+export const PERSO_BASE = { color: ORIGINAL, modo: "auto", zoom: "1", compacto: false, quieto: false, dolar: true, calc: true, web: true, favs: [], inicio: "contratos", orden: [], ocultos: [] };
 
 let P = { ...PERSO_BASE }, ctx = null, tGuardar = null;
 export const perso = () => P;
@@ -34,6 +34,7 @@ function cssDe(p) {
   if (p.quieto) s += `.side{animation:none!important;background-size:100% 100%!important}`;
   if (!p.dolar) s += `#dolar{display:none!important}`;
   if (!p.calc) s += `#calc-abrir{display:none!important}`;
+  if (!p.web) s += `#web-abrir{display:none!important}`;
   return s;
 }
 /** Aplica la personalización a la pantalla (y deja una copia en el navegador para la próxima apertura). */
@@ -69,6 +70,8 @@ export function guardarPerso(aviso) {
 }
 /** Al tocar el botón de modo claro/oscuro del menú: queda guardado como preferencia. */
 export function persoTema() { P.modo = document.documentElement.dataset.theme || "auto"; aplicarPerso(P); guardarPerso(false); }
+/** Cambia y guarda algunos datos sin avisar (por ejemplo los favoritos de la web flotante). */
+export function actualizarPerso(x) { aplicarPerso({ ...P, ...x }); guardarPerso(false); }
 export function salirPerso() { try { localStorage.removeItem("perso-css"); } catch {} }
 
 /** Las secciones del menú en el orden y con la visibilidad que eligió el usuario. */
@@ -97,7 +100,7 @@ function html(vistas) {
       <p class="muted">Destildá lo que no usás y ordená con las flechas. Lo que ocultes se puede volver a mostrar cuando quieras.</p>
       <div class="pp-menu">${ord.map(([k, l], i) => `<div class="pp-it ${p.ocultos.includes(k) ? "off" : ""}"><label><input type="checkbox" data-pver="${k}" ${p.ocultos.includes(k) ? "" : "checked"}> ${esc(l)}</label>
         <span class="pp-fl"><button type="button" class="btn small ghost" data-pmov="${k}" data-d="-1" ${i === 0 ? "disabled" : ""} aria-label="Subir ${esc(l)}">↑</button><button type="button" class="btn small ghost" data-pmov="${k}" data-d="1" ${i === n - 1 ? "disabled" : ""} aria-label="Bajar ${esc(l)}">↓</button></span></div>`).join("")}</div>
-      <div class="pp-sws">${sw("dolar", "Mostrar dólar blue")}${sw("calc", "Mostrar botón de la calculadora")}${sw("quieto", "Fondo del menú sin movimiento")}</div></section>
+      <div class="pp-sws">${sw("dolar", "Mostrar dólar blue")}${sw("calc", "Mostrar botón de la calculadora")}${sw("web", "Mostrar botón de la web flotante")}${sw("quieto", "Fondo del menú sin movimiento")}</div></section>
     <section><h3>Al entrar al sistema abrir</h3>
       <select data-pinicio>${visibles.map(([k, l]) => `<option value="${k}" ${p.inicio === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></section>
     <section><h3>Tablas</h3><div class="pp-sws">${sw("compacto", "Tablas compactas", "Renglones más bajos: entran más contratos en la pantalla")}</div></section>
@@ -117,7 +120,7 @@ export function abrirPersonalizar(vistas, alCambiar) {
       else if (d.pmov) {
         const o = vistasOrdenadas(vistas).map((v) => v[0]), i = o.indexOf(d.pmov), j = i + +d.d;
         if (j < 0 || j >= o.length) return; [o[i], o[j]] = [o[j], o[i]]; cambio({ orden: o });
-      } else if (d.preset !== undefined) { if (confirm("¿Volver al diseño original del sistema?")) cambio({ ...PERSO_BASE }); }
+      } else if (d.preset !== undefined) { if (confirm("¿Volver al diseño original del sistema?")) cambio({ ...PERSO_BASE, favs: P.favs }); }
     };
     r.onchange = (e) => {
       const t = e.target, d = t.dataset;
