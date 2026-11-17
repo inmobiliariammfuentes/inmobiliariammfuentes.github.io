@@ -4,13 +4,13 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611171419";
-import { iniciarChat } from "./chat.js?v=202611171419";
-import { iniciarCalculadora } from "./calculadora.js?v=202611171419";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171419";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171419";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171419";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171419";
+} from "./comun.js?v=202611171436";
+import { iniciarChat } from "./chat.js?v=202611171436";
+import { iniciarCalculadora } from "./calculadora.js?v=202611171436";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171436";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171436";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171436";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171436";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -305,7 +305,7 @@ function vAjustes() {
     <td class="num acciones">${c.ajuste_revisar ? `<button class="btn small" data-contrato="${c.id}" title="Revisá cada cuántos meses ajusta y el primer ajuste">Confirmar periodicidad</button>` : `${a.calc && !a.calc.error ? `<button class="btn small primary" data-aplicaraumento="${c.id}">Aplicar</button> <button class="btn small" data-aumimg="${c.id}" title="Imagen del aumento para mandarle al inquilino">Imagen</button> ` : ""}<button class="btn small" data-ajustar="${c.id}">${a.calc && !a.calc.error ? "Modificar" : "Cargar"}</button>`}</td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">No hay aumentos en este período.</div></td></tr>`}</tbody></table></div>`;
   const ultimo = S.indices ? Object.entries(FUENTES).map(([k]) => S.indices[k] ? `${k}: ${S.indices[k].tipo === "diario" ? fecha(S.indices[k].ultima) : periodo(S.indices[k].ultimoMes.slice(0, 7))}` : "").filter(Boolean).join(" · ") : "bajando…";
   return `<div class="head"><div><h1>Ajustes de precio</h1><p>El sistema calcula cada aumento con los índices oficiales (BCRA e INDEC), con las mismas reglas que la Calculadora de Alquileres. Cuando el índice ya está publicado, el aumento se carga solo el mes que corresponde; siempre se puede modificar.</p></div>
-    <div class="row"><button class="btn" data-a="calc-aumentos">Calculadora de aumentos</button><button class="btn" data-a="indices">Actualizar índices</button>${delMes.length ? `<button class="btn" data-a="exportar-aumentos">Exportar a Excel</button>` : ""}${listos.length ? `<button class="btn primary" data-a="aplicar-listos">Aplicar los ${listos.length} calculados</button>` : ""}</div></div>
+    <div class="row"><button class="btn" data-a="aumento-grupo">Aumento por grupo</button><button class="btn" data-a="calc-aumentos">Calculadora de aumentos</button><button class="btn" data-a="indices">Actualizar índices</button>${delMes.length ? `<button class="btn" data-a="exportar-aumentos">Exportar a Excel</button>` : ""}${listos.length ? `<button class="btn primary" data-a="aplicar-listos">Aplicar los ${listos.length} calculados</button>` : ""}</div></div>
   ${controlRedondeo(S.cfg)}
   <p class="muted" style="margin:0">Último dato publicado · ${esc(ultimo)}. "Estimado" = el índice de algún mes todavía no salió: se repite la última variación hasta que se publique.</p>
   ${revisar ? `<div class="banner">${revisar} contratos vigentes vinieron de SPOT con la periodicidad sin confirmar: a esos no se les carga el aumento solo. Confirmala en la carpeta del contrato.</div>` : ""}
@@ -336,6 +336,66 @@ async function mostrarImagenAumento(c, x) {
   S.aumImg = { cv, tel: pi.telefono, texto: textoAumento(datos), nombre: "Aumento " + c.direccion };
   abrirModal(modalImagenHtml("Aumento de " + esc(c.direccion)));
   const box = $("#aum-cv"); cv.style.cssText = "width:100%;height:auto;display:block"; box.appendChild(cv);
+}
+/* ================= aumento por grupo (cocheras: moto, auto, camioneta) ================= */
+const CATS = [["moto", "Moto"], ["auto", "Auto"], ["camioneta", "Camioneta"]];
+function categoriaPorPrecio(precio, tipico) {
+  if (!(tipico > 0)) return "auto";
+  return precio < tipico * 0.6 ? "moto" : precio > tipico * 1.08 ? "camioneta" : "auto";
+}
+function grupoContratos(pid, calle) {
+  const q = String(calle || "").trim().toLowerCase();
+  const cs = [...S.contratos.values()].filter((c) => contratoActivo(c) && c.propietario_id === pid && (!q || c.direccion.toLowerCase().includes(q)))
+    .sort((a, b) => a.direccion.localeCompare(b.direccion, "es", { numeric: true }));
+  const precios = cs.map((c) => montoHoy(c)), cuenta = {};
+  for (const x of precios) cuenta[x] = (cuenta[x] || 0) + 1;
+  const tipico = +Object.entries(cuenta).sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]?.[0] || 0;   // el precio más repetido = auto
+  return cs.map((c) => ({ c, actual: montoHoy(c), cat: ["moto", "auto", "camioneta"].includes(c.categoria) ? c.categoria : categoriaPorPrecio(montoHoy(c), tipico) }));
+}
+function modalGrupo() {
+  const g = S.grupo || {};
+  abrirModal(`<div class="mh"><div><h2>Aumento por grupo</h2><div class="muted">Por ejemplo, todas las cocheras de un mismo dueño: el sistema separa moto, auto y camioneta según el precio</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
+  <form class="form" id="f-grupo-buscar">
+    <label>Propietario<input type="text" name="propietario" list="dl-gprop" value="${esc(g.propTxt || "")}" required placeholder="Ej.: Goldbaum" autocomplete="off"><datalist id="dl-gprop">${opcionesPersonas("propietario")}</datalist></label>
+    <label>Dirección que contenga (opcional)<input type="text" name="calle" value="${esc(g.calle || "")}" placeholder="Ej.: Fresco"></label>
+    <div class="full row"><button class="btn primary" type="submit">Buscar contratos</button></div>
+  </form><div id="grupo-res"></div>`, true);
+  if (g.pid) pintarGrupo();
+}
+function pintarGrupo() {
+  const g = S.grupo, el = $("#grupo-res"); if (!el) return;
+  if (!g.filas.length) { el.innerHTML = `<div class="empty">No hay contratos vigentes de ese propietario${g.calle ? ` en "${esc(g.calle)}"` : ""}.</div>`; return; }
+  const resumen = CATS.map(([k, l]) => { const fs = g.filas.filter((f) => f.cat === k); const pr = [...new Set(fs.map((f) => f.actual))];
+    return `<div class="kpi"><span class="lbl">${l} · ${fs.length}</span><b>${fs.length ? pr.map((x) => money(x)).join(" / ") : "—"}</b>
+      <label class="row" style="gap:6px;align-items:center;margin-top:6px"><span class="muted">Nuevo precio</span><input type="number" step="1" min="0" data-gnuevo="${k}" value="${esc(g.nuevo?.[k] || "")}" style="max-width:150px" ${fs.length ? "" : "disabled"}></label>
+      <label class="row" style="gap:6px;align-items:center"><span class="muted">o aumento %</span><input type="number" step="0.01" data-gpct="${k}" value="${esc(g.pct?.[k] || "")}" style="max-width:100px" ${fs.length ? "" : "disabled"}></label></div>`; }).join("");
+  el.innerHTML = `<div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:14px">${resumen}</div>
+  <div class="form" style="margin-top:10px"><label>Rige desde<input type="month" id="g-desde" value="${esc(g.desde || ymSumar(ymHoy(), 1))}"></label>
+    <div class="muted" style="align-self:end">Si algún contrato está mal clasificado, cambiale la categoría en la lista. Lo que elijas queda guardado para la próxima vez.</div></div>
+  <div class="tw" style="margin-top:10px"><table><thead><tr><th>Dirección</th><th>Inquilino</th><th>Categoría</th><th class="num">Actual</th><th class="num">Nuevo</th></tr></thead><tbody>
+  ${g.filas.map((f, i) => { const n = nuevoGrupo(f); return `<tr><td>${esc(f.c.direccion)}</td><td>${esc(inq(f.c))}</td><td><select data-gcat="${i}" style="width:auto">${CATS.map(([k, l]) => `<option value="${k}" ${f.cat === k ? "selected" : ""}>${l}</option>`).join("")}</select></td>
+    <td class="num">${money(f.actual, f.c)}</td><td class="num">${n ? `<b>${money(n, f.c)}</b> <span class="chip ${n >= f.actual ? "ok" : "warn"}">${n >= f.actual ? "+" : ""}${String(Math.round((n / f.actual - 1) * 10000) / 100).replace(".", ",")}%</span>` : '<span class="muted">sin cambio</span>'}</td></tr>`; }).join("")}
+  </tbody></table></div>
+  <div class="row" style="margin-top:12px"><button class="btn primary" data-gaplicar>Aplicar a ${g.filas.filter((f) => nuevoGrupo(f)).length} contratos</button><span class="muted">Se carga un ajuste en cada contrato desde el mes elegido (se puede anular desde la ficha).</span></div>`;
+}
+function nuevoGrupo(f) {
+  const g = S.grupo, nv = +(g.nuevo?.[f.cat] || 0), pc = g.pct?.[f.cat];
+  const n = nv > 0 ? nv : pc !== undefined && pc !== "" && !isNaN(+pc) ? Math.round(f.actual * (1 + +pc / 100)) : 0;
+  return n > 0 && Math.abs(n - f.actual) >= 1 ? n : 0;
+}
+async function aplicarGrupo() {
+  const g = S.grupo, desde = $("#g-desde")?.value || g.desde; if (!/^\d{4}-\d{2}$/.test(desde || "")) { toast("Elegí desde qué mes rige", "bad"); return; }
+  const filas = g.filas.filter((f) => nuevoGrupo(f)); if (!filas.length) { toast("Cargá el nuevo precio o el % de al menos una categoría", "bad"); return; }
+  let n = 0, err = 0;
+  for (const f of filas) {
+    const monto = nuevoGrupo(f), ant = montoEn(f.c, ajDe(f.c), ymSumar(desde, -1));
+    const ya = (S.aj.get(f.c.id) || []).find((a) => a.desde === desde && !a.anulado);
+    const fila = { monto_anterior: r2(ant), monto: r2(monto), pct: Math.round((monto / ant - 1) * 10000) / 100, detalle: "Aumento por grupo (" + f.cat + ")" };
+    const { error } = ya ? await sb.from("ajustes").update(fila).eq("id", ya.id) : await sb.from("ajustes").insert({ contrato_id: f.c.id, desde, ...fila });
+    if (error) err++; else n++;
+  }
+  for (const f of g.filas) if (f.c.categoria !== f.cat) await sb.from("contratos").update({ categoria: f.cat }).eq("id", f.c.id);
+  cerrarModal(); S.grupo = null; await recargar(`Aumento aplicado a ${n} contratos desde ${periodo(desde)}${err ? ` · ${err} con error` : ""}`);
 }
 async function guardarAumento(c, a, monto, auto) {
   const { error } = await sb.from("ajustes").insert({ contrato_id: c.id, desde: a.p, monto_anterior: r2(a.base), monto: r2(monto),
@@ -1588,7 +1648,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171419");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171436");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1640,7 +1700,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171419");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171436");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1772,6 +1832,8 @@ document.addEventListener("click", async (ev) => {
       await recargar(`Aumento aplicado: ${money(a.calc.nuevo, c)} desde ${periodo(a.p)}`); return; }
     if (d.a === "indices") { toast("Actualizando índices…"); await iniciarIndices(true); toast("Índices actualizados"); return; }
     if (d.a === "exportar-aumentos") { exportarAumentos(el); return; }
+    if (d.a === "aumento-grupo") { modalGrupo(); return; }
+    if (d.gaplicar !== undefined) { await aplicarGrupo(); return; }
     if (d.a === "calc-aumentos") { if (!S.indices) { toast("Todavía se están bajando los índices, probá en unos segundos", "bad"); return; } abrirModal(calculadoraHtml(S.calcAum || {})); return; }
     if (d.redondeo) { const { error } = await sb.from("config").update({ redondeo: d.redondeo }).eq("id", 1); if (error) throw error; S.cfg.redondeo = d.redondeo; render(); toast(d.redondeo === "exacto" ? "Aumentos sin redondear" : `Aumentos redondeados para ${d.redondeo} de a ${money(+S.cfg.redondeo_paso || 5000)}`); return; }
     if (d.redmonto) { const f = $("#f-ajuste"); if (!f) return; const [modo, paso] = d.redmonto.split("|"); const v0 = +f.monto.value || 0; if (!v0) return; f.monto.value = redondear(v0, modo, +paso); const ant = +f.dataset.ant; if (ant) f.pct.value = Math.round((+f.monto.value / ant - 1) * 10000) / 100; return; }
@@ -1852,6 +1914,16 @@ document.addEventListener("input", (ev) => {
     if (t.classList.contains("ct-pct")) { ctDesdePct(t); return; }
     if (t.classList.contains("ct-monto")) { ctPorcentajes(); return; }
   }
+  if (S.grupo && t.dataset && (t.dataset.gnuevo || t.dataset.gpct || t.dataset.gcat !== undefined || t.id === "g-desde")) {
+    const g = S.grupo;
+    if (t.dataset.gnuevo) { g.nuevo[t.dataset.gnuevo] = t.value; if (t.value) g.pct[t.dataset.gnuevo] = ""; }
+    if (t.dataset.gpct) { g.pct[t.dataset.gpct] = t.value; if (t.value) g.nuevo[t.dataset.gpct] = ""; }
+    if (t.dataset.gcat !== undefined) g.filas[+t.dataset.gcat].cat = t.value;
+    if (t.id === "g-desde") { g.desde = t.value; return; }
+    const foco = t.dataset.gnuevo ? `[data-gnuevo="${t.dataset.gnuevo}"]` : t.dataset.gpct ? `[data-gpct="${t.dataset.gpct}"]` : null, pos = t.selectionStart;
+    pintarGrupo(); if (foco) { const n = document.querySelector(foco); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch {} } }
+    return;
+  }
   if (["nc-calle", "nc-numero", "nc-depto"].includes(t.id)) { const f = $("#f-nuevo"), el = $("#nc-vista"); if (f && el) el.innerHTML = `Se va a ver así: <b>${esc(componerDireccion({ calle: f.calle.value, numero: f.numero.value, depto: f.depto.value }) || "—")}</b>`; }
   if (t.closest("#f-nuevo")) { nuevoResumen(); return; }
   if (t.closest("#f-liqprop")) { liqPropTotal(); return; }
@@ -1884,6 +1956,8 @@ document.addEventListener("submit", async (ev) => {
   bloquear(true);
   try {
     if (f.id === "f-login") return await login(v);
+    if (f.id === "f-grupo-buscar") { const pid = idPersonaDesdeTexto(v.propietario, "propietario"); if (!pid) { toast("Elegí el propietario de la lista", "bad"); return; }
+      S.grupo = { pid, propTxt: v.propietario, calle: v.calle, filas: grupoContratos(pid, v.calle), nuevo: {}, pct: {}, desde: ymSumar(ymHoy(), 1) }; pintarGrupo(); return; }
     if (f.id === "f-calcaum") { S.calcAum = v; const filas = progresion(S.indices, { monto: +v.monto, inicio: v.inicio, meses: +v.meses, indice: v.indice }, S.cfg); S.calcRes = { v, filas };
       $("#calcaum-res").innerHTML = resultadoHtml(filas, (n) => money(n)); return; }
     if (f.id === "f-nuevo") return await guardarNuevo(f, ev.submitter?.dataset.modo || "ver");
