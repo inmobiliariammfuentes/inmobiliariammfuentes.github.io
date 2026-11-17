@@ -2,8 +2,8 @@
 // · Redondeo de los aumentos calculados (exacto, para arriba o para abajo, de a $ 5.000 u otro paso)
 // · Imagen del aumento para mandarle al inquilino (copiar / compartir / WhatsApp)
 // · Calculadora libre: alquiler inicial + fecha + cada cuántos meses + índice → progresión completa
-import { LOGO_URL } from "./comun.js?v=202611171356";
-import { calcularAumento, FUENTES, masMeses, hoyISO } from "./indices.js?v=202611171356";
+import { LOGO_URL } from "./comun.js?v=202611171827";
+import { calcularAumento, FUENTES, masMeses, hoyISO } from "./indices.js?v=202611171827";
 
 const BORDO = "#6e1b2a", BORDO2 = "#8c2a3b";
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];

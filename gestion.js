@@ -2,18 +2,19 @@
 import {
   sb, money, r2, pad5, esc, isoHoy, ymHoy, ymDe, ymSumar, ymDif, periodo, fecha, diasEntre, MEDIOS,
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
-  toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
+  toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611171612";
-import { iniciarChat } from "./chat.js?v=202611171612";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611171612";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611171612";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611171612";
-import { iniciarCalculadora } from "./calculadora.js?v=202611171612";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171612";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171612";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171612";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171612";
+} from "./comun.js?v=202611171827";
+import { iniciarChat } from "./chat.js?v=202611171827";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611171827";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611171827";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611171827";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611171827";
+import { iniciarCalculadora } from "./calculadora.js?v=202611171827";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171827";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171827";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171827";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171827";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -555,7 +556,19 @@ function modalServMasivo() {
     <div class="full row"><button class="btn primary" type="submit">Pedir</button><button class="btn" type="button" data-cerrar>Cancelar</button></div></form>`);
 }
 
+function ayudaCel(t) {
+  const n = normCel(t); if (n.vacio) return "Con código de área, sin 0 ni 15. Ej.: 11 2345-6789";
+  if (!n.ok) return "⚠ No parece un celular válido";
+  return n.varios ? `⚠ Hay más de un número: se usa ${fmtCel(n.cel)}` : n.supuesto ? `⚠ Falta el código de área: ¿es ${fmtCel(n.cel)}?` : `✓ Se guarda como ${fmtCel(n.cel)}`;
+}
+function calidadActual() { return revisarDatos({ personas: S.personas, contratos: S.contratos.values(), activo: contratoActivo, cfg: S.cfg }); }
+function vCalidad() {
+  S.cal ||= { filtro: "todos", rol: "ambos" };
+  return `<div class="head"><div><h1>Control de calidad de los datos</h1><p>Revisa a los inquilinos y propietarios con contrato vigente. Para conectar el WhatsApp del sistema, cada persona tiene que tener su propio celular bien escrito: así el sistema la reconoce cuando escribe.</p></div><div class="row"><button class="btn" data-a="calidad">Volver a la lista</button></div></div>
+  ${vistaCalidad(calidadActual(), { ...S.cal, limite: S.limite })}`;
+}
 function vPersonas() {
+  if (S.calidad) return vCalidad();
   const q = S.q.trim().toLowerCase();
   const cuenta = new Map(); for (const c of S.contratos.values()) if (contratoActivo(c)) for (const id of [c.inquilino_id, c.propietario_id]) cuenta.set(id, (cuenta.get(id) || 0) + 1);
   const falta = (p) => [!(p.dni || "").trim() && "DNI", !(p.telefono || "").trim() && "celular", !(p.email || "").trim() && "email", p.tipo === "propietario" && !(p.cbu || "").trim() && !(p.alias || "").trim() && "CBU/alias",
@@ -566,7 +579,7 @@ function vPersonas() {
   const t = (k, l) => `<button data-tipo="${k}" aria-pressed="${S.tipoPersona === k}">${l}</button>`;
   const conAcceso = list.filter((p) => p.user_id).length;
   return `<div class="head"><div><h1>Inquilinos y propietarios</h1><p>Cargá DNI, email y datos bancarios, y creá el acceso al portal. ${conAcceso} de ${list.length} con acceso.</p></div><div class="row"><button class="btn" data-a="leer-comprobantes" title="Elegí varias capturas de transferencias y se completan CBU y alias de los propietarios">Leer comprobantes</button><button class="btn primary" data-a="nueva-persona">Nueva persona</button></div></div>
-  <div class="row"><input type="search" id="q" class="search" placeholder="Nombre, DNI, celular o email" value="${esc(S.q)}"><div class="seg">${t("inquilino", "Inquilinos")}${t("propietario", "Propietarios")}</div><div class="seg"><button data-a="solo-faltan" aria-pressed="${!!S.soloFaltan}">Vigentes con datos faltantes</button></div></div>
+  <div class="row"><input type="search" id="q" class="search" placeholder="Nombre, DNI, celular o email" value="${esc(S.q)}"><div class="seg">${t("inquilino", "Inquilinos")}${t("propietario", "Propietarios")}</div><div class="seg"><button data-a="solo-faltan" aria-pressed="${!!S.soloFaltan}">Vigentes con datos faltantes</button><button data-a="calidad" aria-pressed="${!!S.calidad}">Control de calidad</button></div></div>
   ${S.soloFaltan ? `<p class="muted" style="margin:0">${list.length} ${S.tipoPersona === "propietario" ? "propietarios" : "inquilinos"} con contrato vigente a los que les falta algún dato o hay que revisar la cuenta. Abrí cada uno y completalo${S.tipoPersona === "propietario" ? "; el CBU y el alias se pueden leer pegando la captura de una transferencia" : ""}.</p>` : ""}
   <div class="tw"><table><thead><tr><th>Nombre</th><th>DNI</th><th>Celular</th><th>Email</th>${S.tipoPersona === "propietario" ? "<th>CBU / alias</th>" : ""}<th class="num">Contratos vigentes</th><th>${S.soloFaltan ? "Falta" : "Portal"}</th></tr></thead><tbody>
   ${list.slice(0, S.limite).map((p) => `<tr class="click" data-persona="${p.id}"><td>${esc(p.nombre)}</td><td class="mono">${esc(p.dni || "—")}</td><td class="mono">${esc(p.telefono || "—")}</td><td>${esc(p.email || "—")}</td>${S.tipoPersona === "propietario" ? `<td class="mono">${esc(p.alias || p.cbu || "—")}</td>` : ""}<td class="num">${cuenta.get(p.id) || 0}</td><td>${S.soloFaltan ? falta(p).map((x) => x === "revisar cuenta" ? `<span class="chip bad" title="El titular de la cuenta (${esc(p.titular)}) no se parece al nombre del propietario: puede ser la cuenta del inquilino">Revisar cuenta</span>` : `<span class="chip warn">Falta ${x}</span>`).join(" ") + ` ${(() => { const x = S.pedidos?.get(p.id); return !x ? "" : x.completado_en ? `<span class="chip ok" title="Completó el formulario">Completó ${fecha(String(x.completado_en).slice(0, 10))}</span>` : `<span class="chip" title="Ya se le generó el link">Link pedido ${fecha(String(x.created_at).slice(0, 10))}</span>`; })()} <button class="btn small" data-pedirdatos="${p.id}" title="Mandarle el link para que complete sus datos">${S.pedidos?.get(p.id) ? "Volver a pedir" : "Pedir por WhatsApp"}</button>` : p.user_id ? `<span class="chip ok">Con acceso</span>` : p.dni ? `<span class="chip">Sin acceso</span>` : `<span class="chip warn">Falta DNI</span>`}</td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">Sin resultados.</div></td></tr>`}
@@ -1564,7 +1577,7 @@ function modalPersona(id) {
     ${id ? "" : `<label>Tipo<select id="pe-tipo" name="tipo"><option value="inquilino" ${p.tipo === "inquilino" ? "selected" : ""}>Inquilino</option><option value="propietario" ${p.tipo === "propietario" ? "selected" : ""}>Propietario</option></select></label>`}
     <label class="${id ? "full" : ""}">Nombre (Apellido, Nombre)<input type="text" id="pe-nombre" name="nombre" value="${esc(p.nombre || "")}" required></label>
     <label>DNI (es el usuario del portal)<input type="text" inputmode="numeric" id="pe-dni" name="dni" value="${esc(p.dni || "")}"></label>
-    <label>Celular<input type="tel" id="pe-tel" name="telefono" value="${esc(p.telefono || "")}"></label>
+    <label>Celular<input type="tel" id="pe-tel" name="telefono" value="${esc(p.telefono || "")}"><span class="muted pe-tel-ayuda" id="pe-tel-ayuda">${ayudaCel(p.telefono)}</span></label>
     <label class="full">Email (para recibos y avisos)<input type="email" id="pe-email" name="email" value="${esc(p.email || "")}"></label>
     ${p.tipo === "propietario" ? `<div class="full ocr-zona" id="pe-ocr-zona"><div><b>Completar con un comprobante</b><div class="muted">Pegá acá (Ctrl+V), arrastrá o elegí la captura de una transferencia hecha a este propietario (por ejemplo, la que manda el inquilino por WhatsApp). Se completan CBU, alias, titular y banco. La imagen no se guarda.</div></div>
       <label class="btn small">Elegir imagen<input type="file" id="pe-ocr" accept="image/*" hidden></label><div class="full" id="pe-ocr-res" aria-live="polite"></div></div>
@@ -1651,7 +1664,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171612");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171827");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1703,7 +1716,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171612");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171827");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1760,6 +1773,28 @@ document.addEventListener("click", async (ev) => {
     if (d.a === "leer-comprobantes") { modalLeerComprobantes(); return; }
     if (d.a === "lc-guardar") { el.disabled = true; await guardarComprobantesLeidos(); return; }
     if (d.pedirdatos) { await pedirDatos(d.pedirdatos); return; }
+    if (d.a === "calidad") { S.calidad = !S.calidad; S.soloFaltan = false; S.limite = 150; render(); scrollTo(0, 0); return; }
+    if (d.calrol) { S.cal.rol = d.calrol; S.limite = 150; render(); return; }
+    if (d.calfiltro) { S.cal.filtro = d.calfiltro; S.limite = 150; render(); return; }
+    if (d.calfix) {
+      const { error } = await sb.from("personas").update({ telefono: d.v }).eq("id", +d.calfix); if (error) throw error;
+      const p = S.personas.get(+d.calfix); if (p) p.telefono = d.v; render(); toast(`Celular guardado: ${fmtCel(d.v)}`); return;
+    }
+    if (d.a === "cal-fix-todos") {
+      const xs = corregiblesFormato(calidadActual()); if (!xs.length) return;
+      abrirModal(`<div class="mh"><div><h2>Corregir el formato de ${xs.length} celulares</h2><div class="muted">Son los mismos números, solo se escriben igual para todos: código de área y número, sin 0, sin 15, sin espacios ni guiones.</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
+        <div class="tw"><table><thead><tr><th>Persona</th><th>Antes</th><th>Queda</th></tr></thead><tbody>${xs.slice(0, 12).map((x) => `<tr><td>${esc(x.nombre)}</td><td class="mono">${esc(x.antes)}</td><td class="mono">${esc(fmtCel(x.cel))}</td></tr>`).join("")}</tbody></table></div>
+        ${xs.length > 12 ? `<p class="muted">… y ${xs.length - 12} más.</p>` : ""}<div class="row"><button class="btn primary" data-a="cal-fix-ok">Corregir los ${xs.length}</button><button class="btn" data-cerrar>Cancelar</button></div>`); return;
+    }
+    if (d.a === "cal-fix-ok") {
+      const xs = corregiblesFormato(calidadActual()); el.disabled = true; let n = 0;
+      for (const x of xs) { el.textContent = `Guardando ${++n} de ${xs.length}…`; const { error } = await sb.from("personas").update({ telefono: x.cel }).eq("id", x.id); if (error) throw error; const p = S.personas.get(x.id); if (p) p.telefono = x.cel; }
+      cerrarModal(); render(); toast(`Listo: ${xs.length} celulares con el formato correcto`); return;
+    }
+    if (d.a === "cal-csv") {
+      const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csvCalidad(calidadActual())], { type: "text/csv;charset=utf-8" }));
+      a.download = `control-de-datos-${isoHoy()}.csv`; document.body.appendChild(a); a.click(); a.remove(); return;
+    }
     if (d.a === "solo-faltan") { S.soloFaltan = !S.soloFaltan; S.limite = 150; render(); return; }
     if (d.tipo) { S.tipoPersona = d.tipo; S.limite = 150; render(); return; }
     if (d.a === "mas") { S.limite += 150; render(); return; }
@@ -1910,6 +1945,7 @@ document.addEventListener("click", async (ev) => {
   } catch (e) { toast(mensajeError(e), "bad"); }
 });
 
+document.addEventListener("input", (e) => { if (e.target.id === "pe-tel") { const h = $("#pe-tel-ayuda"); if (h) h.textContent = ayudaCel(e.target.value); } });
 document.addEventListener("input", (ev) => {
   const t = ev.target;
   if (t.id === "q") { S.q = t.value; S.limite = 150; const pos = t.selectionStart; render(); const n = $("#q"); if (n) { n.focus(); n.setSelectionRange(pos, pos); } return; }
@@ -2049,7 +2085,7 @@ document.addEventListener("submit", async (ev) => {
       return;
     }
     if (f.id === "f-persona") {
-      const data = { nombre: v.nombre.trim(), dni: (v.dni || "").replace(/\D/g, "") || null, telefono: (v.telefono || "").trim() || null, email: (v.email || "").trim() || null, notas: (v.notas || "").trim() || null };
+      const data = { nombre: v.nombre.trim(), dni: (v.dni || "").replace(/\D/g, "") || null, telefono: ((n) => n.ok && !n.varios && !n.supuesto ? n.cel : (v.telefono || "").trim() || null)(normCel(v.telefono)), email: (v.email || "").trim() || null, notas: (v.notas || "").trim() || null };
       for (const k of ["banco", "titular", "cbu", "alias"]) if (k in v) data[k] = v[k].trim() || null;
       let id = f.dataset.id;
       if (id) { const { error } = await sb.from("personas").update(data).eq("id", +id); if (error) throw error; }

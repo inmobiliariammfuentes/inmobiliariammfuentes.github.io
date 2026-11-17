@@ -1,6 +1,6 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202610232049";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611171827";
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, storageKey: "cobranza-fuentes" },
@@ -185,7 +185,35 @@ export function mensajeError(e) {
   if (/Failed to fetch|NetworkError/i.test(m)) return "Sin conexión. Revisá internet y probá de nuevo.";
   return m;
 }
-export function wa(tel) { const d = String(tel || "").replace(/\D/g, ""); return d ? "https://wa.me/549" + d.replace(/^(54)?9?0?/, "") : null; }
+/* ---------- celulares (Argentina) ---------- */
+// Formato guardado: 10 dígitos sin 0 ni 15 (código de área + número), p. ej. 1123456789.
+const AREAS3 = new Set("220 221 223 230 236 237 249 260 261 263 264 266 280 291 294 297 298 299 336 341 342 343 345 348 351 353 358 362 364 370 376 379 380 381 383 385 387 388".split(" "));
+const largoArea = (d) => d.startsWith("11") ? 2 : AREAS3.has(d.slice(0, 3)) ? 3 : 4;
+/** Normaliza un celular argentino. Devuelve { ok, cel, varios, supuesto } (cel = 10 dígitos) o { ok:false }. */
+export function normCel(txt) {
+  const crudo = String(txt || "").trim(); if (!crudo) return { ok: false, vacio: true };
+  const partes = crudo.split(/\s*(?:\/|,|;|\by\b|\bo\b|\|)\s*/i).map((x) => x.replace(/\D/g, "")).filter((x) => x.length >= 6);
+  const varios = partes.length > 1;
+  for (const p0 of partes.length ? partes : [crudo.replace(/\D/g, "")]) {
+    let d = p0, supuesto = false;
+    if (/^\+/.test(crudo.trim()) && !d.startsWith("54") && d.length >= 10 && d.length <= 15) return { ok: true, cel: "+" + d, varios, exterior: true };
+    if (d.startsWith("549") && d.length >= 12) d = d.slice(3); else if (d.startsWith("54") && d.length >= 11) d = d.slice(2);
+    else if (d.length === 11 && d.startsWith("9")) d = d.slice(1);
+    else if (d.length >= 11 && d.length <= 13 && /^(1|3[34459]|39|44|49|5[1-9]|59[1-9])/.test(d) && !d.startsWith("0") && !d.startsWith("15")) return { ok: true, cel: "+" + d, varios, exterior: true };
+    if (d.startsWith("0")) d = d.slice(1);
+    if (d.length === 12) { const a = largoArea(d); if (d.slice(a, a + 2) === "15") d = d.slice(0, a) + d.slice(a + 2); }
+    if (d.length === 10 && d.startsWith("15")) { d = "11" + d.slice(2); supuesto = true; }
+    if (d.length === 8 && /^[2-9]/.test(d)) { d = "11" + d; supuesto = true; }
+    if (d.length === 10 && /^[1-3]/.test(d) && !/^(\d)\1+$/.test(d)) return { ok: true, cel: d, varios, supuesto };
+  }
+  return { ok: false, varios };
+}
+/** 1123456789 → "11 2345-6789" */
+export function fmtCel(c) {
+  const d = String(c || ""); if (d.startsWith("+")) return d; if (d.length !== 10) return d; const a = largoArea(d), r = d.slice(a);
+  return `${d.slice(0, a)} ${r.slice(0, r.length - 4)}-${r.slice(-4)}`;
+}
+export function wa(tel) { const n = normCel(tel); if (n.ok) return "https://wa.me/" + (n.exterior ? n.cel.slice(1) : "549" + n.cel); const d = String(tel || "").replace(/\D/g, ""); return d ? "https://wa.me/549" + d.replace(/^(54)?9?0?/, "") : null; }
 
 /* ---------- archivos ---------- */
 export function rutaArchivo(contratoId, carpeta, nombre) {

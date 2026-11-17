@@ -838,3 +838,17 @@ kbd{font-family:var(--f-body);font-size:12px;border:1px solid var(--line);border
 .ic-fila .ic-punto{top:9px;right:9px;margin-top:0;width:8px;height:8px}
 .ic-fila .ic-txt{padding-right:6px;overflow:hidden}.ic-fila .ic-txt > *{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ic-fila .ic-abrir{gap:7px;padding-inline:11px}.ic-fila .ic-txt{font-size:13.5px}
+
+/* control de calidad de datos */
+.cal-res{display:flex;flex-direction:column;gap:14px}
+.cal-barra{display:flex;flex-direction:column;gap:8px}
+.cal-barra .bar-bg{height:10px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.cal-barra .bar{height:100%;border-radius:999px;background:#2e9e5b}
+.cal-fmt{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.cal-filtros{align-items:center;flex-wrap:wrap}
+.cal-filtros .seg .n{font-size:11.5px;font-weight:700;opacity:.7;margin-left:2px}
+.cal-tabla td{vertical-align:top}
+.cal-tabla .chip{margin:0 4px 4px 0}
+.cal-sug{color:#2e9e5b;font-weight:600;font-family:var(--f-body);margin-top:2px}
+.cal-tabla .acciones{white-space:nowrap}.cal-tabla .acciones .btn{margin-left:4px}
+.pe-tel-ayuda{font-size:12.5px;margin-top:2px}
