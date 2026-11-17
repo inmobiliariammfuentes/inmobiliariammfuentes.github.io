@@ -625,3 +625,79 @@ nav [data-vista="documentos"]{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://
 .doc-canvas canvas{display:block;width:100%;height:auto;border-radius:6px;box-shadow:0 2px 12px rgba(0,0,0,.12);background:#fff}
 .doc-renglon{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.8fr) minmax(0,1.4fr) auto;gap:8px;margin-bottom:8px}
 .doc-renglon input{min-width:0}
+
+/* =====================================================================
+   PULIDO 2026-11 · sistema del equipo (body.gestion) · solo apariencia
+   Tablas más legibles, ritmo y jerarquía más claros, detalles finos.
+   ===================================================================== */
+body.gestion{--zebra:#fcf9f9;--row-hover:#f8eef0;--line-soft:#f1e9ea}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) body.gestion{--zebra:#1e191b;--row-hover:#2a2124;--line-soft:#2c2427}}
+:root[data-theme="dark"] body.gestion{--zebra:#1e191b;--row-hover:#2a2124;--line-soft:#2c2427}
+
+/* encabezado de cada pantalla */
+body.gestion main > .head{margin-bottom:6px;padding-bottom:18px;border-bottom:1px solid var(--line-soft);align-items:flex-end}
+body.gestion .head h1{font-size:34px}
+body.gestion .head p{color:var(--muted);margin-top:6px;max-width:80ch;line-height:1.5}
+
+/* buscador: más sobrio, se destaca al usarlo */
+body.gestion .buscador input[type=search]{font-size:18px;padding:14px 18px 14px 52px;border:1.5px solid var(--input-line);border-radius:14px;box-shadow:var(--sh-1);transition:border-color .15s,box-shadow .15s}
+body.gestion .buscador svg{left:18px;width:21px;height:21px}
+body.gestion .buscador input[type=search]:hover{border-color:color-mix(in srgb,var(--accent-ink) 35%,var(--input-line))}
+body.gestion .buscador input[type=search]:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft),var(--sh-1)}
+
+/* ---------- tablas ---------- */
+body.gestion .tw{border-radius:16px}
+body.gestion table{font-size:14.5px;line-height:1.4}
+body.gestion th{padding:11px 14px;font-size:11px;letter-spacing:.08em;border-bottom:1px solid var(--line)}
+body.gestion th.num{text-align:right}
+body.gestion td{padding:11px 14px;vertical-align:middle;border-bottom:1px solid var(--line-soft);text-wrap:pretty}
+body.gestion tbody tr:last-child > td{border-bottom:none}
+body.gestion .tw tbody tr:nth-child(even) > td{background:var(--zebra)}
+body.gestion .tw tbody tr{transition:background .12s}
+body.gestion .tw tbody tr:hover > td{background:var(--row-hover)}
+body.gestion .tw tbody tr:has(td[colspan]):hover > td,body.gestion .tw tbody tr:has(td[colspan]) > td{background:transparent}
+body.gestion tr.click{cursor:pointer}
+/* nombres: sin subrayado permanente, se subrayan al pasar el mouse */
+body.gestion td .link,body.gestion .tw .link{text-decoration:none;font-weight:500;color:var(--fg);border-radius:4px}
+body.gestion td .link:hover,body.gestion .tw .link:hover{color:var(--accent-ink);text-decoration:underline;text-underline-offset:3px}
+body.gestion td .link:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px}
+/* importes */
+body.gestion td.num{font-weight:600;color:var(--fg)}
+body.gestion td.saldo-venc{font-weight:800}
+body.gestion td .muted,body.gestion td.muted{font-size:13px}
+/* carpeta: número claro y liviano */
+body.gestion .carpeta{min-width:44px;padding:4px 9px;font-size:13px;border-radius:999px;background:transparent;box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--accent-ink) 30%,transparent)}
+body.gestion .carpeta:hover{background:var(--accent);color:#fff;box-shadow:none}
+/* botones dentro de tablas: discretos hasta pasar el mouse */
+body.gestion td .btn.small:not(.primary):not(.danger){background:transparent;box-shadow:none;border-color:var(--line)}
+body.gestion tr:hover td .btn.small:not(.primary):not(.danger){background:var(--surface);border-color:var(--input-line);box-shadow:var(--sh-1)}
+body.gestion td .btn.small{padding:6px 12px}
+/* tablas anchas en pantallas chicas: se nota que se deslizan */
+body.gestion .tw{background-image:linear-gradient(to right,var(--surface) 30%,transparent),linear-gradient(to left,var(--surface) 30%,transparent),linear-gradient(to right,rgba(60,20,28,.10),transparent),linear-gradient(to left,rgba(60,20,28,.10),transparent);background-position:left center,right center,left center,right center;background-repeat:no-repeat;background-size:40px 100%,40px 100%,14px 100%,14px 100%;background-attachment:local,local,scroll,scroll;background-color:var(--surface)}
+
+/* ---------- tarjetas y paneles ---------- */
+body.gestion .panel{border-radius:16px}
+body.gestion .panel > h2,body.gestion .panel .ph h2{color:var(--muted)}
+body.gestion .kpi{padding:18px 20px}
+body.gestion .kpi:hover{transform:translateY(-1px);box-shadow:var(--sh-2)}
+body.gestion .empty{padding:36px 20px;font-size:14.5px}
+
+/* filtros */
+body.gestion .seg{gap:8px}
+body.gestion .seg button{padding:7px 15px}
+body.gestion .seg button:focus-visible,body.gestion .btn:focus-visible{outline:2px solid var(--accent-ink);outline-offset:2px}
+
+/* pestañas */
+body.gestion .tabs{gap:4px;border-bottom:1px solid var(--line)}
+body.gestion .tabs button{border-radius:10px 10px 0 0;transition:color .15s,background .15s}
+body.gestion .tabs button:hover{background:var(--surface-2)}
+
+/* formularios */
+body.gestion input:not([type=checkbox]):not([type=radio]):not([type=file]),body.gestion select,body.gestion textarea{transition:border-color .15s,box-shadow .15s}
+body.gestion input:not([type=checkbox]):not([type=radio]):not([type=file]):focus,body.gestion select:focus,body.gestion textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);outline:none}
+body.gestion input[type=checkbox]{accent-color:var(--accent)}
+
+/* ventanas (modales) */
+body.gestion #modal .modal{border-radius:18px}
+
+body.gestion .panel .tw{background-image:none}
