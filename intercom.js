@@ -2,8 +2,9 @@
 // Voz directa entre los navegadores (WebRTC). Supabase Realtime solo se usa para saber quién está conectado
 // y para pasar los avisos de la llamada; el audio no pasa por ningún servidor.
 // Canal privado "intercom": solo lo pueden usar usuarios del equipo (ver supabase/32_intercomunicador.sql).
-import { esc, toast } from "./comun.js?v=202611171532";
-import { perso, actualizarPerso } from "./personalizar.js?v=202611171532";
+import { esc, toast } from "./comun.js?v=202611171612";
+import { perso, actualizarPerso } from "./personalizar.js?v=202611171612";
+import { iniciarWalkie, recibirWalkie, botonHablar, pintarBotones, elegirDestino, destinoWalkie } from "./walkie.js?v=202611171612";
 
 const ICE = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }];
 const SID = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
@@ -43,6 +44,8 @@ export function iniciarIntercom(cliente, staff) {
       if (estado === "CHANNEL_ERROR" || estado === "TIMED_OUT") { document.getElementById("ic-abrir")?.classList.add("ic-error"); }
     });
   addEventListener("beforeunload", () => { if (llamada) enviar({ t: "salir", id: llamada.id }); });
+  iniciarWalkie({ enviar, conectados: () => conectados, cfg, tono, nombreDe });
+  botonHablar(document.getElementById("wk-hablar"));
   pintarBoton();
 }
 const anunciar = () => canal?.track({ sid: SID, uid: yo.uid, nombre: yo.nombre, ocupado: !!llamada, ts: Date.now() });
@@ -53,11 +56,13 @@ function leerPresencia() {
     const prev = porUsuario.get(m.uid); if (!prev || m.ts > prev.ts) porUsuario.set(m.uid, m);
   }
   conectados = [...porUsuario.values()].sort((a, b) => a.nombre.localeCompare(b.nombre));
-  pintarBoton();
+  pintarBoton(); pintarBotones();
+  document.getElementById("wk-hablar")?.toggleAttribute("disabled", !conectados.length);
 }
 
 async function recibir(p) {
   if (p.para && !p.para.includes?.(SID) && p.para !== SID) return;
+  if (p.t?.startsWith("w-")) return recibirWalkie(p);
   const enEsta = llamada && p.id === llamada.id;
   switch (p.t) {
     case "invitar":
@@ -219,17 +224,25 @@ function pintar() {
       <div class="ic-acc"><button type="button" class="btn ${llamada.mute ? "primary" : ""}" data-ic="mute">${llamada.mute ? "Prender micrófono" : "Silenciar"}</button><button type="button" class="btn ic-colgar" data-ic="colgar">Cortar</button></div>
       ${libres.length ? `<div class="ic-sumar"><span class="muted">Sumar a:</span>${libres.map((x) => `<button type="button" class="link" data-ic-llamar="${x.sid}">${esc(x.nombre)}</button>`).join("")}</div>` : ""}</div>`;
   } else {
+    const dest = conectados.some((x) => x.sid === destinoWalkie()) ? destinoWalkie() : "todos";
+    h += conectados.length ? `<div class="wk-sec"><div class="wk-tit"><b>Walkie-talkie</b><span class="muted">mantené apretado, hablá y soltá</span></div>
+      <div class="wk-fila"><select data-wk-dest aria-label="A quién le hablás"><option value="todos">A todos</option>${conectados.map((x) => `<option value="${x.sid}" ${dest === x.sid ? "selected" : ""}>A ${esc(x.nombre)}</option>`).join("")}</select>
+      <button type="button" class="wk-btn" data-wk-boton><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg><span class="wk-lbl">Mantener para hablar</span></button></div>
+      ${cfg().f2 !== false ? `<div class="muted wk-ayuda">También podés mantener apretada la tecla <kbd>F2</kbd> mientras el sistema está en pantalla.</div>` : ""}</div>` : "";
     h += conectados.length
-      ? `<ul class="ic-lista">${conectados.map((x) => `<li><span class="ic-av">${esc(x.nombre.slice(0, 1))}</span><span class="ic-nom">${esc(x.nombre)}<small>${x.ocupado ? "en otra llamada" : "conectado"}</small></span><button type="button" class="btn small primary" data-ic-llamar="${x.sid}" ${x.ocupado ? "disabled" : ""}>Hablar</button></li>`).join("")}</ul>
-        ${conectados.length > 1 ? `<button type="button" class="btn" data-ic="todos">Hablar con todos</button>` : ""}`
+      ? `<div class="wk-tit ic-llam-tit"><b>Llamada</b><span class="muted">para charlar un rato</span></div><ul class="ic-lista">${conectados.map((x) => `<li><span class="ic-av">${esc(x.nombre.slice(0, 1))}</span><span class="ic-nom">${esc(x.nombre)}<small>${x.ocupado ? "en otra llamada" : "conectado"}</small></span><button type="button" class="btn small wk-mini" data-wk-boton data-wk-para="${x.sid}" title="Walkie-talkie: mantené apretado para decirle algo a ${esc(x.nombre)}" aria-label="Walkie-talkie a ${esc(x.nombre)}: mantener apretado para hablar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v4"/></svg><span class="wk-lbl sr">Mantener</span></button><button type="button" class="btn small primary" data-ic-llamar="${x.sid}" ${x.ocupado ? "disabled" : ""}>Llamar</button></li>`).join("")}</ul>
+        ${conectados.length > 1 ? `<button type="button" class="btn" data-ic="todos">Llamar a todos</button>` : ""}`
       : `<p class="muted ic-vacio">No hay nadie más del equipo con el sistema abierto ahora. Cuando alguien lo abra, aparece acá.</p>`;
     h += `<details class="ic-conf"><summary>Auriculares y opciones</summary>
       <label>Micrófono<select data-ic-mic><option value="">El predeterminado de la compu</option></select></label>
       <label>Escuchar por<select data-ic-out><option value="">El predeterminado de la compu</option></select></label>
       <label class="ic-sw"><input type="checkbox" data-ic-auto ${c.auto ? "checked" : ""}> Atender solo (modo intercomunicador): cuando me llaman, se conecta sin tocar nada</label>
+      <label class="ic-sw"><input type="checkbox" data-ic-walkie ${c.walkie !== false ? "checked" : ""}> Escuchar los mensajes de walkie-talkie</label>
+      <label class="ic-sw"><input type="checkbox" data-ic-f2 ${c.f2 !== false ? "checked" : ""}> Hablar manteniendo apretada la tecla F2</label>
       <button type="button" class="link" data-ic="probar">Probar sonido</button></details>`;
   }
   panel.innerHTML = h;
+  panel.querySelectorAll("[data-wk-boton]").forEach((b) => botonHablar(b, !!b.dataset.wkPara)); pintarBotones();
   if (!llamada && !entrante) opcionesDisp();
   clearInterval(reloj); reloj = llamada ? setInterval(() => { const d = panel?.querySelector(".ic-dur"); if (d) d.textContent = dur(); }, 1000) : null;
 }
@@ -251,6 +264,9 @@ function eventos() {
     if (t.matches("[data-ic-mic]")) actualizarPerso({ ic: { ...c, mic: t.value } });
     if (t.matches("[data-ic-out]")) actualizarPerso({ ic: { ...c, out: t.value } });
     if (t.matches("[data-ic-auto]")) actualizarPerso({ ic: { ...c, auto: t.checked } });
+    if (t.matches("[data-ic-walkie]")) actualizarPerso({ ic: { ...c, walkie: t.checked } });
+    if (t.matches("[data-ic-f2]")) { actualizarPerso({ ic: { ...c, f2: t.checked } }); pintar(); }
+    if (t.matches("[data-wk-dest]")) elegirDestino(t.value);
   });
 }
 /** Para revisar: bytes de audio recibidos por cada conexión. */

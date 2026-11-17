@@ -4,16 +4,16 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611171532";
-import { iniciarChat } from "./chat.js?v=202611171532";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611171532";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611171532";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611171532";
-import { iniciarCalculadora } from "./calculadora.js?v=202611171532";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171532";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171532";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171532";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171532";
+} from "./comun.js?v=202611171612";
+import { iniciarChat } from "./chat.js?v=202611171612";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611171612";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611171612";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611171612";
+import { iniciarCalculadora } from "./calculadora.js?v=202611171612";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171612";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171612";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171612";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171612";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -1651,7 +1651,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171532");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171612");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1703,7 +1703,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171532");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171612");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
