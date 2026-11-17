@@ -1,8 +1,8 @@
 // Cobranza Fuentes · Web flotante: una ventanita que queda arriba del sistema (YouTube, Spotify, otras páginas)
 // YouTube y Spotify se muestran con su reproductor para insertar (link de un video, lista, tema o álbum).
 // Disney+, Netflix y similares no permiten verse dentro de otra página: se abren en una ventanita aparte.
-import { esc, toast } from "./comun.js?v=202611171516";
-import { perso, actualizarPerso } from "./personalizar.js?v=202611171516";
+import { esc, toast } from "./comun.js?v=202611171523";
+import { perso, actualizarPerso } from "./personalizar.js?v=202611171523";
 
 const ATAJOS = [
   { k: "youtube", n: "YouTube", c: "#ff0000", url: "https://www.youtube.com/", ayuda: "Buscá el video o la lista en YouTube, copiá el link y pegalo acá arriba." },
@@ -35,7 +35,7 @@ export function convertirLink(txt) {
   return { src: u.href, tipo: "web" };
 }
 
-const LS = "flotante-v1";
+const LS = "flotante-v2";
 let st = { abierto: false, min: false, src: "", url: "", titulo: "", x: null, y: null, w: 440, h: 300 };
 try { st = { ...st, ...JSON.parse(localStorage.getItem(LS) || "{}") }; } catch {}
 const guardar = () => { try { localStorage.setItem(LS, JSON.stringify(st)); } catch {} };
@@ -60,11 +60,12 @@ function inicio(msg) {
 function pintar(msg) {
   if (!caja) {
     caja = document.createElement("div"); caja.className = "flotante"; caja.setAttribute("role", "dialog"); caja.setAttribute("aria-label", "Web flotante");
-    document.body.appendChild(caja); eventos();
+    document.documentElement.appendChild(caja); eventos(); // fuera del body: así el tamaño de letra elegido no corre su posición
   }
   caja.classList.toggle("min", !!st.min);
   const x = st.x ?? Math.max(16, innerWidth - st.w - 24), y = st.y ?? Math.max(16, innerHeight - st.h - 90);
-  Object.assign(caja.style, { left: Math.min(x, innerWidth - 120) + "px", top: Math.min(Math.max(0, y), innerHeight - 40) + "px", width: st.w + "px", height: st.min ? "" : st.h + "px" });
+  st.w = Math.min(st.w, innerWidth - 16); st.h = Math.min(st.h, innerHeight - 16);
+  Object.assign(caja.style, { left: Math.max(0, Math.min(x, innerWidth - st.w - 8)) + "px", top: Math.max(0, Math.min(y, innerHeight - (st.min ? 44 : st.h) - 8)) + "px", width: st.w + "px", height: st.min ? "" : st.h + "px" });
   const enPip = !!pip;
   caja.innerHTML = `<div class="fl-bar"><span class="fl-tit">${esc(st.src ? st.titulo || "Web" : "Web flotante")}</span>
     ${st.src ? `<button type="button" data-fl="fav" title="Guardar en favoritos" aria-label="Guardar en favoritos">☆</button><button type="button" data-fl="cambiar" title="Abrir otra" aria-label="Abrir otra página">⌂</button>` : ""}
@@ -95,7 +96,7 @@ function eventos() {
     if (d.ffav !== undefined) { const f = (perso().favs || [])[+d.ffav]; if (f) abrirLink(f.u, f.n); return; }
     if (d.fborrar !== undefined) { const fv = [...(perso().favs || [])]; fv.splice(+d.fborrar, 1); actualizarPerso({ favs: fv }); pintar(); return; }
     const a = d.fl; if (!a) return;
-    if (a === "cerrar") { cerrarPip(); st.abierto = false; st.src = ""; guardar(); caja.remove(); caja = null; return; }
+    if (a === "cerrar") { cerrarPip(); st.abierto = false; st.src = ""; st.url = ""; guardar(); caja.remove(); caja = null; return; }
     if (a === "min") { st.min = !st.min; guardar(); pintar(); return; }
     if (a === "cambiar") { cerrarPip(); st.src = ""; st.url = ""; guardar(); pintar(); return; }
     if (a === "aparte") { abrirAparte(st.url || st.src); return; }
