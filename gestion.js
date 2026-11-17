@@ -4,13 +4,13 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611171436";
-import { iniciarChat } from "./chat.js?v=202611171436";
-import { iniciarCalculadora } from "./calculadora.js?v=202611171436";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171436";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171436";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171436";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171436";
+} from "./comun.js?v=202611171448";
+import { iniciarChat } from "./chat.js?v=202611171448";
+import { iniciarCalculadora } from "./calculadora.js?v=202611171448";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171448";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171448";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171448";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171448";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -367,8 +367,8 @@ function pintarGrupo() {
   if (!g.filas.length) { el.innerHTML = `<div class="empty">No hay contratos vigentes de ese propietario${g.calle ? ` en "${esc(g.calle)}"` : ""}.</div>`; return; }
   const resumen = CATS.map(([k, l]) => { const fs = g.filas.filter((f) => f.cat === k); const pr = [...new Set(fs.map((f) => f.actual))];
     return `<div class="kpi"><span class="lbl">${l} · ${fs.length}</span><b>${fs.length ? pr.map((x) => money(x)).join(" / ") : "—"}</b>
-      <label class="row" style="gap:6px;align-items:center;margin-top:6px"><span class="muted">Nuevo precio</span><input type="number" step="1" min="0" data-gnuevo="${k}" value="${esc(g.nuevo?.[k] || "")}" style="max-width:150px" ${fs.length ? "" : "disabled"}></label>
-      <label class="row" style="gap:6px;align-items:center"><span class="muted">o aumento %</span><input type="number" step="0.01" data-gpct="${k}" value="${esc(g.pct?.[k] || "")}" style="max-width:100px" ${fs.length ? "" : "disabled"}></label></div>`; }).join("");
+      <label class="row" style="gap:6px;align-items:center;margin-top:6px"><span class="muted">Nuevo precio</span><input type="text" inputmode="decimal" autocomplete="off" data-gnuevo="${k}" value="${esc(g.nuevo?.[k] || "")}" style="max-width:150px" ${fs.length ? "" : "disabled"}></label>
+      <label class="row" style="gap:6px;align-items:center"><span class="muted">o aumento %</span><input type="text" inputmode="decimal" autocomplete="off" data-gpct="${k}" value="${esc(g.pct?.[k] || "")}" style="max-width:100px" ${fs.length ? "" : "disabled"}></label></div>`; }).join("");
   el.innerHTML = `<div class="kpis" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-top:14px">${resumen}</div>
   <div class="form" style="margin-top:10px"><label>Rige desde<input type="month" id="g-desde" value="${esc(g.desde || ymSumar(ymHoy(), 1))}"></label>
     <div class="muted" style="align-self:end">Si algún contrato está mal clasificado, cambiale la categoría en la lista. Lo que elijas queda guardado para la próxima vez.</div></div>
@@ -379,8 +379,8 @@ function pintarGrupo() {
   <div class="row" style="margin-top:12px"><button class="btn primary" data-gaplicar>Aplicar a ${g.filas.filter((f) => nuevoGrupo(f)).length} contratos</button><span class="muted">Se carga un ajuste en cada contrato desde el mes elegido (se puede anular desde la ficha).</span></div>`;
 }
 function nuevoGrupo(f) {
-  const g = S.grupo, nv = +(g.nuevo?.[f.cat] || 0), pc = g.pct?.[f.cat];
-  const n = nv > 0 ? nv : pc !== undefined && pc !== "" && !isNaN(+pc) ? Math.round(f.actual * (1 + +pc / 100)) : 0;
+  const g = S.grupo, nv = Math.round(+String(g.nuevo?.[f.cat] || "0").replace(/[$\s.]/g, "").replace(",", ".") || 0), pc = String(g.pct?.[f.cat] ?? "").replace("%", "").replace(",", ".").trim();
+  const n = nv > 0 ? nv : pc !== "" && !isNaN(+pc) ? Math.round(f.actual * (1 + +pc / 100)) : 0;
   return n > 0 && Math.abs(n - f.actual) >= 1 ? n : 0;
 }
 async function aplicarGrupo() {
@@ -1648,7 +1648,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171436");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171448");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1700,7 +1700,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171436");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171448");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
