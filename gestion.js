@@ -4,17 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611171951";
-import { iniciarChat } from "./chat.js?v=202611171951";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611171951";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611171951";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611171951";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611171951";
-import { iniciarCalculadora } from "./calculadora.js?v=202611171951";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171951";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171951";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171951";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171951";
+} from "./comun.js?v=202611172025";
+import { iniciarChat } from "./chat.js?v=202611172025";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611172025";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611172025";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611172025";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611172025";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611172025";
+import { iniciarCalculadora } from "./calculadora.js?v=202611172025";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611172025";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611172025";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611172025";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611172025";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -158,11 +159,27 @@ function renderNav() {
   $("#nav").innerHTML = vistasVisibles(VISTAS).map(([k, l]) => `<button data-vista="${k}" ${actual === k ? 'aria-current="page"' : ""}><span>${l}</span>${n[k] ? `<span class="n">${n[k]}</span>` : ""}</button>`).join("");
   $("#quien").textContent = S.yo ? S.yo.nombre : "";
   const bt = $("#tema"); if (bt) bt.innerHTML = botonTema();
+  const bm = $("#b-vmovil"); if (bm) bm.hidden = !(esCelularReal() && !S.movil);
+  if (S.movil) {
+    const actualM = S.view === "planilla" ? "cobrar" : S.view === "liqprop" ? "liquidaciones" : S.view;
+    $("#mtabs").innerHTML = barraMovil(actualM, 0);
+    const mq = $("#mquien"); if (mq) mq.textContent = S.yo ? S.yo.nombre : "";
+  }
+}
+/* versión para el celular */
+function ultimosRecibos(n) {
+  const xs = []; for (const lst of S.pg.values()) for (const p of lst) if (!p.anulado) xs.push(p);
+  return xs.sort((a, b) => b.recibo_nro - a.recibo_nro).slice(0, n).map((p) => ({ p, c: S.contratos.get(p.contrato_id) }));
+}
+function vMBuscar() {
+  const cs = [...S.contratos.values()].filter((c) => contratoActivo(c) || deudaDe(c).length).sort((a, b) => a.direccion.localeCompare(b.direccion, "es", { numeric: true }));
+  return vistaBuscar({ S, q: S.q, contratos: cs, inq, prop, deuda: deudaDe, money, periodo, fecha, pad5, ultimosRecibos });
 }
 function render() {
+  if (S.movil && !VISTAS_MOVIL.has(S.view)) S.view = "m-buscar";
   renderNav();
   if (!S.cargado) { $("#main").innerHTML = `<div class="cargando">Cargando contratos…</div>`; return; }
-  const v = { inicio: vInicio, revisar: vRevisar, contratos: vContratos, cobrar: vCobrar, morosos: vMorosos, ajustes: vAjustes,
+  const v = { "m-buscar": vMBuscar, inicio: vInicio, revisar: vRevisar, contratos: vContratos, cobrar: vCobrar, morosos: vMorosos, ajustes: vAjustes,
     liquidaciones: vLiquidaciones, servicios: vServicios, caja: vCaja, personas: vPersonas, config: vConfig, planilla: vPlanilla, liqprop: vLiqProp, nuevo: vNuevo, contrato: vContrato, documentos: vDocumentos }[S.view] || vInicio;
   $("#main").innerHTML = v();
   if (S.view === "planilla" && S.plTab === "planilla") planillaTotal();
@@ -1680,7 +1697,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171951");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611172025");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1732,7 +1749,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171951");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611172025");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1866,6 +1883,9 @@ document.addEventListener("click", async (ev) => {
     if (d.servicios) { if (await rpc("revisar_servicios", { p_envio: +d.servicios }, "Revisado. Le avisamos al propietario.")) await recargar(); return; }
     if (d.archivo) { await verArchivo(d.archivo); return; }
     if (d.recibo) { modalRecibo(d.recibo); return; }
+    if (d.mrecibos) { const c = S.contratos.get(+d.mrecibos); if (c) abrirModal(htmlRecibos(c, pgDe(c).slice().sort((a, b) => b.recibo_nro - a.recibo_nro), { money: (n) => money(n, c), fecha, periodo, pad5 })); return; }
+    if (d.a === "version-completa") { elegirVersion("completa"); return; }
+    if (d.a === "version-movil") { elegirVersion("movil"); return; }
     if (d.recibopdf) { const { p, c } = buscarPago(d.recibopdf); const r = pdfRecibo(S.cfg, { direccion: c.direccion, inquilino: inq(c), carpeta: c.carpeta, propietario: P(c.propietario_id).nombre, propietario_doc: P(c.propietario_id).dni, moneda: c.moneda }, p); r.doc.save(r.nombre); return; }
     if (d.recibotxt) { const { p, c } = buscarPago(d.recibotxt); copiar(msgRecibo(p, c)); return; }
     if (d.copiarlink) { copiar(d.copiarlink); return; }
@@ -2212,6 +2232,8 @@ function iniciarDolar() {
   };
   cargar(); setInterval(cargar, 10 * 60e3);
 }
+S.movil = modoMovil(); if (S.movil) document.body.classList.add("movil");
+if ("serviceWorker" in navigator) navigator.serviceWorker.register(new URL(location.pathname.includes("/gestion/") ? "../sw.js" : "sw.js", location.href)).catch(() => {});
 async function iniciar() {
   vigilarVersion(); iniciarDolar(); iniciarCalculadora();
   const { data: { session } } = await sb.auth.getSession();
@@ -2221,11 +2243,13 @@ async function iniciar() {
   S.yo = yo;
   await cargarPerso(sb, { sb, userId: session.user.id });
   if (VISTAS.some(([k]) => k === perso().inicio)) S.view = perso().inicio;
+  if (S.movil) S.view = "m-buscar";
   render();
   try { await cargarTodo(); } catch (e) { $("#main").innerHTML = `<div class="panel"><h1>No se pudieron cargar los datos</h1><p>${esc(mensajeError(e))}</p></div>`; return; }
   render();
   iniciarChat(S.yo);
   iniciarFlotante();
+  if (S.movil) setTimeout(mostrarInstalarGestion, 1500);
   iniciarIntercom(sb, S.yo);
   iniciarIndices(false);
   avisosRespaldo().catch(() => {});

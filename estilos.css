@@ -871,3 +871,73 @@ kbd{font-family:var(--f-body);font-size:12px;border:1px solid var(--line);border
 .ins-ic{width:18px;height:18px;vertical-align:-3px;color:#0a84ff}
 .ins-acc{display:flex;gap:8px;width:100%;justify-content:flex-end}
 .ins-acc .btn{flex:0 0 auto}
+
+/* =====================================================================
+   VERSIÓN CELULAR del sistema del equipo (body.gestion.movil)
+   ===================================================================== */
+.mbar,.mtabs{display:none}
+body.movil .app{display:block;min-height:100vh}
+body.movil .side,body.movil .chat-fab,body.movil .chat,body.movil .ic-panel,body.movil .wk-burbuja,body.movil .flotante,body.movil .calc{display:none!important}
+body.movil .mbar{display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:30;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;background:var(--side-flujo,var(--accent));background-size:100% 320%;color:#fff;box-shadow:0 4px 14px rgba(60,12,22,.2)}
+body.movil .mbar .logo{width:40px;height:auto;background:#fff;border-radius:10px;padding:4px}
+.mbar-t{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.15}
+.mbar-t b{font-family:var(--f-display);font-size:18px}.mbar-t span{font-size:12.5px;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.movil .mbar .btn.ghost{color:#fff;padding:6px 8px;font-size:13px;box-shadow:none}
+body.movil main{padding:16px 14px calc(96px + env(safe-area-inset-bottom,0px))!important;max-width:none}
+body.movil .mtabs{display:grid;grid-template-columns:repeat(3,1fr);position:fixed;left:0;right:0;bottom:0;z-index:35;background:var(--surface);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 20px rgba(0,0,0,.08)}
+.mtabs button{all:unset;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px;border-radius:12px;font-size:13px;font-weight:600;color:var(--muted);position:relative}
+.mtabs button svg{width:24px;height:24px}
+.mtabs button[aria-current="page"]{color:var(--accent-ink);background:var(--accent-soft)}
+.mtabs .mt-n{position:absolute;top:4px;right:22%;font-style:normal;font-size:11px;background:var(--accent);color:#fff;border-radius:999px;padding:1px 6px}
+.m-buscar{display:flex;flex-direction:column;gap:12px}
+.m-buscar h1{font-size:26px;margin:0}
+.m-q{width:100%;font-size:17px!important;padding:14px 16px!important;border-radius:14px!important;border:1.5px solid var(--input-line)!important}
+.m-sub{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:8px 0 0}
+.m-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:var(--sh-1)}
+.m-card-h{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.m-card-h b{display:block;font-size:17px}.m-card-h span{color:var(--muted);font-size:14.5px}
+.m-carp{font-weight:700;font-size:13px;background:var(--accent-soft);color:var(--accent-ink)!important;border-radius:8px;padding:3px 9px;flex:none}
+.m-card-d{font-size:14.5px}
+.m-acc{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:2px}
+.m-acc .btn{justify-content:center;padding:11px 8px;font-size:15px}
+.m-rec{all:unset;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:14px;font-size:14.5px}
+.m-rec > span:first-child{grid-column:1}.m-rec > .muted{grid-column:1;font-size:13px}
+.m-rec-m{grid-column:2;grid-row:1/span 2;align-self:center;font-variant-numeric:tabular-nums}
+.m-rec:active{background:var(--surface-2)}
+.m-recs{display:flex;flex-direction:column;gap:8px;max-height:60vh;overflow:auto}
+body.movil #modal .overlay{padding:0;align-items:flex-end}
+body.movil #modal .modal{border-radius:20px 20px 0 0;max-height:92vh;overflow:auto;padding:20px 16px calc(20px + env(safe-area-inset-bottom,0px))}
+body.movil .head{flex-direction:column;align-items:stretch;gap:10px}
+body.movil .head h1{font-size:26px!important}
+body.movil .tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+/* celular: renglones de cobro y de liquidación como tarjetas */
+body.movil #f-planilla .tw,body.movil #f-liqprop .tw{overflow:visible}
+body.movil #f-planilla table,body.movil #f-liqprop table{display:block;min-width:0!important;width:100%}
+body.movil #f-planilla thead,body.movil #f-liqprop thead{display:none}
+body.movil #f-planilla tbody,body.movil #f-liqprop tbody{display:flex;flex-direction:column;gap:10px}
+body.movil #f-planilla tr[data-cargo],body.movil #f-liqprop tr[data-item],body.movil #f-liqprop tr[data-dif],body.movil #f-liqprop tr[data-adel]{display:grid;grid-template-columns:30px minmax(0,1fr) minmax(0,1fr);grid-template-areas:"chk desc desc" "chk fecha saldo" ". cob pun" ". adm tot";gap:8px 10px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+body.movil #f-planilla tr[data-cargo] td,body.movil #f-liqprop tr td{display:block;padding:0!important;border:none!important;text-align:left!important;min-width:0}
+body.movil #f-planilla tr[data-cargo] td:nth-child(1){grid-area:chk;align-self:start}
+body.movil #f-planilla tr[data-cargo] td:nth-child(2){grid-area:fecha;font-size:13px;color:var(--muted)}
+body.movil #f-planilla tr[data-cargo] td:nth-child(3){grid-area:desc;font-weight:600}
+body.movil #f-planilla tr[data-cargo] td:nth-child(4){grid-area:saldo;text-align:right!important;font-size:13px}
+body.movil #f-planilla tr[data-cargo] td:nth-child(4)::before{content:"Saldo ";color:var(--muted)}
+body.movil #f-planilla tr[data-cargo] td:nth-child(5){grid-area:cob}
+body.movil #f-planilla tr[data-cargo] td:nth-child(6){grid-area:pun}
+body.movil #f-planilla tr[data-cargo] td:nth-child(5)::before{content:"A cobrar";display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+body.movil #f-planilla tr[data-cargo] td:nth-child(6)::before{content:"Punitorio";display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+body.movil #f-planilla tr[data-cargo] td input[type=number]{width:100%;font-size:16px}
+body.movil #f-planilla tr[data-cargo] td:nth-child(7){grid-area:adm;text-align:left!important;font-size:13px}
+body.movil #f-planilla tr[data-cargo] td:nth-child(7)::after{content:" Administración";color:var(--muted)}
+body.movil #f-planilla tr[data-cargo] td:nth-child(8){grid-area:tot;text-align:right!important;font-weight:700;font-size:16px}
+body.movil #f-liqprop tr td:nth-child(1){grid-area:chk;align-self:start}
+body.movil #f-liqprop tr td:nth-child(2),body.movil #f-liqprop tr td:nth-child(5),body.movil #f-liqprop tr td:nth-child(6){display:none}
+body.movil #f-liqprop tr td:nth-child(3){grid-area:fecha;font-size:13px;color:var(--muted)}
+body.movil #f-liqprop tr td:nth-child(4){grid-area:desc;font-size:14px}
+body.movil #f-liqprop tr td:nth-child(7){grid-area:adm;font-size:13px}
+body.movil #f-liqprop tr td:nth-child(7)::before{content:"Administración ";color:var(--muted)}
+body.movil #f-liqprop tr td:nth-child(8){grid-area:saldo;text-align:right!important;font-weight:700;font-size:16px}
+body.movil #f-liqprop tr[data-item],body.movil #f-liqprop tr[data-dif],body.movil #f-liqprop tr[data-adel]{grid-template-areas:"chk desc desc" "chk fecha saldo" ". adm adm"}
+body.movil #f-planilla .form,body.movil #f-liqprop .form{grid-template-columns:minmax(0,1fr)!important}
+body.movil .tabs{overflow-x:auto;flex-wrap:nowrap;white-space:nowrap}
+body.movil #f-planilla tr td,body.movil #f-liqprop tr td{background:transparent!important}
