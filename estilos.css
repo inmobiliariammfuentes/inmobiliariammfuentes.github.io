@@ -852,3 +852,12 @@ kbd{font-family:var(--f-body);font-size:12px;border:1px solid var(--line);border
 .cal-sug{color:#2e9e5b;font-weight:600;font-family:var(--f-body);margin-top:2px}
 .cal-tabla .acciones{white-space:nowrap}.cal-tabla .acciones .btn{margin-left:4px}
 .pe-tel-ayuda{font-size:12.5px;margin-top:2px}
+
+/* campaña de registro al portal (página del recibo / liquidación) */
+.cp-registro{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;background:var(--accent-soft);border:1.5px solid var(--accent);margin-bottom:14px}
+.cp-registro > div{flex:1;min-width:240px}
+.cp-registro b{font-size:17px;color:var(--accent-ink)}
+.cp-registro p{margin:6px 0 0;line-height:1.45}
+.cp-registro .btn{white-space:normal;text-align:center}
+.cp-registro.suave{background:var(--surface);border-color:var(--line)}
+.cp-registro.suave b{color:var(--fg)}

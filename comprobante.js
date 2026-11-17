@@ -1,5 +1,5 @@
 // Cobranza Fuentes · Página pública de un comprobante (se abre con el link que manda la inmobiliaria)
-import { sb, money, esc, fecha, periodo, pdfRecibo, pdfLiquidacion, LOGO_URL } from "./comun.js?v=202611171827";
+import { sb, money, esc, fecha, periodo, pdfRecibo, pdfLiquidacion, LOGO_URL } from "./comun.js?v=202611171928";
 
 const $ = (s) => document.querySelector(s);
 const token = new URLSearchParams(location.search).get("c") || "";
@@ -58,13 +58,25 @@ function vistaLiq(d) {
   </section>`;
 }
 
+// Campaña de registro: link personal para crear el usuario del portal y completar o corregir los datos
+function avisoRegistro(d) {
+  const r = d.registro; if (!r || !r.token) return "";
+  const link = new URL("datos.html?t=" + encodeURIComponent(r.token), location.href).href;
+  const falta = (r.falta || []).join(", ").replace(/, ([^,]*)$/, " y $1");
+  if (!r.tiene_acceso) return `<section class="panel cp-registro"><div><b>Creá tu usuario del portal de clientes</b>
+    <p>En el portal vas a tener ${d.tipo === "recibo" ? "tu cuenta, tus recibos y la opción de avisarnos tus pagos" : "tus liquidaciones, los pagos de tus inquilinos y los comprobantes de transferencia"}, todo en un solo lugar. Tarda un minuto: revisás que tus datos estén bien${falta ? ` (nos falta${(r.falta || []).length > 1 ? "n" : ""} ${esc(falta)})` : ""} y elegís tu clave.</p></div>
+    <a class="btn primary" href="${esc(link)}">Crear mi usuario y revisar mis datos</a></section>`;
+  return `<section class="panel cp-registro ${falta ? "" : "suave"}"><div><b>${falta ? "Nos faltan algunos datos tuyos" : "¿Tus datos están bien?"}</b>
+    <p>${falta ? `Para tenerte al día nos falta${(r.falta || []).length > 1 ? "n" : ""}: ${esc(falta)}. Podés cargarlo vos mismo en un minuto.` : "Si cambiaste de celular o de email, podés corregirlo vos mismo acá."}</p></div>
+    <a class="btn ${falta ? "primary" : ""}" href="${esc(link)}">${falta ? "Completar mis datos" : "Revisar mis datos"}</a></section>`;
+}
 async function iniciar() {
   if (token.length < 20) { $("#app").innerHTML = `<div class="panel cp-doc"><h1>Link incompleto</h1><p>Revisá que el link esté copiado completo o pedile uno nuevo a la inmobiliaria.</p></div>`; return; }
   const { data, error } = await sb.rpc("ver_comprobante", { p_token: token });
   if (error || !data) { $("#app").innerHTML = `<div class="panel cp-doc"><h1>No encontramos el comprobante</h1><p>El link puede estar incompleto. Pedile uno nuevo a la inmobiliaria.</p></div>`; return; }
   const cfg = data.cfg || {};
   document.title = (data.tipo === "recibo" ? "Recibo " + data.pago.recibo_nro : "Liquidación " + data.liq.nro) + " · " + (cfg.nombre || "M.M. Fuentes");
-  $("#app").innerHTML = marco(cfg, data.tipo === "recibo" ? vistaRecibo(data) : vistaLiq(data));
+  $("#app").innerHTML = marco(cfg, avisoRegistro(data) + (data.tipo === "recibo" ? vistaRecibo(data) : vistaLiq(data)));
   const generar = () => data.tipo === "recibo" ? pdfRecibo(cfg, data.info, data.pago) : pdfLiquidacion(cfg, data.liq, data.prop || {});
   $("#cp-pdf").addEventListener("click", () => { const r = generar(); r.doc.save(r.nombre); });
   $("#cp-ver").addEventListener("click", () => { const r = generar(); window.open(r.doc.output("bloburl"), "_blank"); });

@@ -4,17 +4,17 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611171827";
-import { iniciarChat } from "./chat.js?v=202611171827";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611171827";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611171827";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611171827";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611171827";
-import { iniciarCalculadora } from "./calculadora.js?v=202611171827";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171827";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171827";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171827";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171827";
+} from "./comun.js?v=202611171928";
+import { iniciarChat } from "./chat.js?v=202611171928";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611171928";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611171928";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611171928";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611171928";
+import { iniciarCalculadora } from "./calculadora.js?v=202611171928";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611171928";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611171928";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611171928";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611171928";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -33,13 +33,19 @@ const dosMon = (t) => (t.usd && !t.ars ? money(t.usd, "USD") : money(t.ars) + (t
 const FORMA = { inmobiliaria: "Paga en la inmobiliaria", dividida: "Transferencia dividida", propietario: "Le paga todo al propietario" };
 const formaDe = (c) => FORMA[c.forma_pago] || FORMA.inmobiliaria;
 const chipUSD = (c) => (esUSD(c) ? ' <span class="chip acc">US$</span>' : "");
+function campanaRegistro() { const h = isoHoy(); return !!(S.cfg.registro_desde && S.cfg.registro_hasta && h >= S.cfg.registro_desde && h <= S.cfg.registro_hasta); }
+function lineaRegistro(pid) {
+  if (!campanaRegistro()) return ""; const p = P(pid);
+  return p.user_id ? "\nEn ese mismo link podés revisar que tus datos estén bien y corregirlos si hace falta."
+    : "\nEn ese mismo link también podés crear tu usuario del portal de clientes y completar o corregir tus datos. ¡Tarda un minuto!";
+}
 function msgRecibo(p, c) {
   const n = primerNombre(inq(c));
-  return `Hola${n ? " " + n : ""}! Te enviamos el recibo N° ${p.recibo_nro} de ${S.cfg.nombre} por ${money(p.total, c)} (${c.direccion}).\nLo podés ver y descargar cuando quieras en este link:\n${linkComprobante(p.token)}`;
+  return `Hola${n ? " " + n : ""}! Te enviamos el recibo N° ${p.recibo_nro} de ${S.cfg.nombre} por ${money(p.total, c)} (${c.direccion}).\nLo podés ver y descargar cuando quieras en este link:\n${linkComprobante(p.token)}${lineaRegistro(c.inquilino_id)}`;
 }
 function msgLiq(l) {
   const n = primerNombre(P(l.propietario_id).nombre);
-  return `Hola${n ? " " + n : ""}! Te enviamos la liquidación N° ${l.nro} de ${S.cfg.nombre} por ${money(l.neto, l)}.\nLa podés ver y descargar cuando quieras en este link:\n${linkComprobante(l.token)}`;
+  return `Hola${n ? " " + n : ""}! Te enviamos la liquidación N° ${l.nro} de ${S.cfg.nombre} por ${money(l.neto, l)}.\nLa podés ver y descargar cuando quieras en este link:\n${linkComprobante(l.token)}${lineaRegistro(l.propietario_id)}`;
 }
 function botonesLinkLiq(l) {
   if (!l.token) return "";
@@ -600,6 +606,9 @@ function vConfig() {
     ${campo("dias_gracia", "Días de tolerancia sin punitorio", "number", 'min="0" max="31"')}${campo("interes_diario", "Punitorio diario (%) desde el día siguiente al vencimiento", "number", 'step="0.01"')}
     <label class="full">Controlar cobros desde el período<input type="month" id="cfg-inicio" name="inicio_cobranza" value="${esc(c.inicio_cobranza)}" ${dis}><span class="muted">Los meses anteriores no se cuentan como deuda.</span></label>
     ${campo("servicios_plazo", "Boletas de servicios: días del mes siguiente para presentarlas antes de figurar adeudadas", "number", 'min="1" max="28"')}
+    <h2 class="full">Campaña de registro al portal</h2>
+    <p class="full muted" style="margin:0">Entre estas fechas, el link de cada recibo y de cada liquidación le muestra al inquilino o propietario su link personal para crear el usuario del portal y completar o corregir sus datos. El mensaje de WhatsApp también lo avisa.${campanaRegistro() ? ' <span class="chip ok">Activa ahora</span>' : ""}</p>
+    ${campo("registro_desde", "Desde", "date")}${campo("registro_hasta", "Hasta", "date")}
     ${puedeAdmin() ? `<div class="full row"><button class="btn primary" type="submit">Guardar configuración</button></div>` : ""}
   </form>
   <section class="panel" id="respaldo"><div class="ph"><h2>Copias de seguridad y espacio</h2><button class="btn small primary" data-a="descargar-copia">Descargar copia de seguridad (Excel)</button></div>
@@ -1664,7 +1673,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171827");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171928");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1716,7 +1725,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171827");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611171928");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -2101,7 +2110,7 @@ document.addEventListener("submit", async (ev) => {
     if (f.id === "f-mov") { const { error } = await sb.from("caja_movimientos").insert({ tipo: v.tipo, fecha: v.fecha, concepto: v.concepto.trim(), monto: r2(v.monto), medio: v.medio }); if (error) throw error; cerrarModal(); S.cajaDia = v.fecha; S.cajaMes = ymDe(v.fecha); await cargarCaja(); render(); toast("Movimiento guardado"); return; }
     if (f.id === "f-config") {
       const num = ["comision", "dia_vto", "dias_gracia", "interes_diario", "servicios_plazo"]; const data = {};
-      for (const [k, val] of Object.entries(v)) data[k] = num.includes(k) ? +val || 0 : String(val).trim();
+      for (const [k, val] of Object.entries(v)) data[k] = num.includes(k) ? +val || 0 : k.startsWith("registro_") ? String(val).trim() || null : String(val).trim();
       const { error } = await sb.from("config").update(data).eq("id", 1); if (error) throw error; await recargar("Configuración guardada"); return;
     }
     if (f.id === "f-num") { if (await rpc("fijar_numeracion", { p_proximo_recibo: +v.rec, p_proxima_liquidacion: +v.liq }, "Numeración actualizada")) { cerrarModal(); mostrarNumeracion(); } return; }
