@@ -1,6 +1,6 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611181424";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611181443";
 
 // El sistema del equipo y el portal guardan la sesión por separado: entrar al portal con un DNI
 // en la compu de la oficina no cierra la sesión del sistema de gestión.
@@ -155,7 +155,13 @@ export function proximoAjuste(c, aj, cfg) {
   while (cand <= ymSumar(cur, 1) && hechos.includes(cand)) cand = ymSumar(cand, paso);
   const prev = ymSumar(cand, -paso);
   if (prev > inicio && prev >= cfg.inicio_cobranza && !hechos.includes(prev)) cand = prev;
-  return cand > ymDe(c.fin) ? null : cand;
+  return cand > ultimoPeriodo(c) ? null : cand;
+}
+/** Último período (mes de inicio de la última cuota) del contrato. Si el contrato arranca el día 9 y termina el
+ *  8 de diciembre, la última cuota es la de noviembre: diciembre ya no tiene cuota ni aumento. */
+export function ultimoPeriodo(c) {
+  const fin = ymDe(c.fin), di = +String(c.inicio || "").slice(8, 10) || 1, df = +String(c.fin || "").slice(8, 10) || 31;
+  return di > 1 && df < di ? ymSumar(fin, -1) : fin;
 }
 
 /* ---------- interfaz ---------- */

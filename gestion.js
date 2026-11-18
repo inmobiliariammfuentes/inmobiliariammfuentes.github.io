@@ -1,21 +1,21 @@
 // Cobranza Fuentes · Sistema de gestión de la inmobiliaria
 import {
   sb, money, r2, pad5, esc, isoHoy, ymHoy, ymDe, ymSumar, ymDif, periodo, fecha, diasEntre, MEDIOS,
-  estadoContrato, ESTADOS, contratoActivo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
+  estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611181424";
-import { iniciarChat } from "./chat.js?v=202611181424";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611181424";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611181424";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611181424";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611181424";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611181424";
-import { iniciarCalculadora } from "./calculadora.js?v=202611181424";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611181424";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611181424";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611181424";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611181424";
+} from "./comun.js?v=202611181443";
+import { iniciarChat } from "./chat.js?v=202611181443";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611181443";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611181443";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611181443";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611181443";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611181443";
+import { iniciarCalculadora } from "./calculadora.js?v=202611181443";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611181443";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611181443";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611181443";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611181443";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -406,7 +406,7 @@ function pintarGrupo() {
     <div class="muted" style="align-self:end">Si algún contrato está mal clasificado, cambiale la categoría en la lista. Lo que elijas queda guardado para la próxima vez.</div></div>
   <div class="tw" style="margin-top:10px"><table><thead><tr><th>Dirección</th><th>Inquilino</th><th>Categoría</th><th class="num">Actual</th><th class="num">Nuevo</th></tr></thead><tbody>
   ${g.filas.map((f, i) => { const n = nuevoGrupo(f); return `<tr><td>${esc(f.c.direccion)}</td><td>${esc(inq(f.c))}</td><td><select data-gcat="${i}" style="width:auto">${CATS.map(([k, l]) => `<option value="${k}" ${f.cat === k ? "selected" : ""}>${l}</option>`).join("")}</select></td>
-    <td class="num">${money(f.actual, f.c)}</td><td class="num">${n ? `<b>${money(n, f.c)}</b> <span class="chip ${n >= f.actual ? "ok" : "warn"}">${n >= f.actual ? "+" : ""}${String(Math.round((n / f.actual - 1) * 10000) / 100).replace(".", ",")}%</span>` : '<span class="muted">sin cambio</span>'}</td></tr>`; }).join("")}
+    <td class="num">${money(f.actual, f.c)}</td><td class="num">${ultimoPeriodo(f.c) < (g.desde || ymSumar(ymHoy(), 1)) ? `<span class="chip">Termina antes: no lleva aumento</span>` : n ? `<b>${money(n, f.c)}</b> <span class="chip ${n >= f.actual ? "ok" : "warn"}">${n >= f.actual ? "+" : ""}${String(Math.round((n / f.actual - 1) * 10000) / 100).replace(".", ",")}%</span>` : '<span class="muted">sin cambio</span>'}</td></tr>`; }).join("")}
   </tbody></table></div>
   <div class="row" style="margin-top:12px"><button class="btn primary" data-gaplicar>Aplicar a ${g.filas.filter((f) => nuevoGrupo(f)).length} contratos</button><span class="muted">Se carga un ajuste en cada contrato desde el mes elegido (se puede anular desde la ficha).</span></div>`;
 }
@@ -417,7 +417,8 @@ function nuevoGrupo(f) {
 }
 async function aplicarGrupo() {
   const g = S.grupo, desde = $("#g-desde")?.value || g.desde; if (!/^\d{4}-\d{2}$/.test(desde || "")) { toast("Elegí desde qué mes rige", "bad"); return; }
-  const filas = g.filas.filter((f) => nuevoGrupo(f)); if (!filas.length) { toast("Cargá el nuevo precio o el % de al menos una categoría", "bad"); return; }
+  const terminan = g.filas.filter((f) => nuevoGrupo(f) && ultimoPeriodo(f.c) < desde);
+  const filas = g.filas.filter((f) => nuevoGrupo(f) && ultimoPeriodo(f.c) >= desde); if (!filas.length) { toast(terminan.length ? `Esos contratos terminan antes de ${periodo(desde)}: no llevan aumento` : "Cargá el nuevo precio o el % de al menos una categoría", "bad"); return; }
   let n = 0, err = 0;
   for (const f of filas) {
     const monto = nuevoGrupo(f), ant = montoEn(f.c, ajDe(f.c), ymSumar(desde, -1));
@@ -427,7 +428,7 @@ async function aplicarGrupo() {
     if (error) err++; else n++;
   }
   for (const f of g.filas) if (f.c.categoria !== f.cat) await sb.from("contratos").update({ categoria: f.cat }).eq("id", f.c.id);
-  cerrarModal(); S.grupo = null; await recargar(`Aumento aplicado a ${n} contratos desde ${periodo(desde)}${err ? ` · ${err} con error` : ""}`);
+  cerrarModal(); S.grupo = null; await recargar(`Aumento aplicado a ${n} contratos desde ${periodo(desde)}${terminan.length ? ` · ${terminan.length} no lo llevan porque el contrato termina antes` : ""}${err ? ` · ${err} con error` : ""}`);
 }
 async function guardarAumento(c, a, monto, auto) {
   const { error } = await sb.from("ajustes").insert({ contrato_id: c.id, desde: a.p, monto_anterior: r2(a.base), monto: r2(monto),
@@ -1712,7 +1713,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611181424");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611181443");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1764,7 +1765,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611181424");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611181443");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
