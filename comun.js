@@ -1,6 +1,6 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611172025";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611181424";
 
 // El sistema del equipo y el portal guardan la sesión por separado: entrar al portal con un DNI
 // en la compu de la oficina no cierra la sesión del sistema de gestión.
@@ -398,6 +398,58 @@ function encabezadoMedio(doc, cfg, y, titulo, filas, copia) {
 }
 
 /* Liquidación al propietario: media hoja A4; original en la página 1 y copia en la página 2. */
+/** Aumentos del mes en UNA hoja A4: la letra y el alto de los renglones se achican según cuántos sean.
+ *  filas: [{ carp, dir, inq, ind, base, nuevo, pct, est, manual, usd }] */
+export function pdfAumentos(cfg, titulo, subtitulo, filas, notas = []) {
+  const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+  const W = 210, H = 297, M = 10, ANCHO = W - 2 * M;
+  const BORDO = [122, 31, 46], GRIS = [108, 94, 97], LINEA = [217, 203, 205], ZEBRA = [248, 242, 243];
+  const num = (n, usd) => (usd ? "U$S " : "$ ") + Math.round(+n || 0).toLocaleString("es-AR");
+  // encabezado
+  const lh = 13, lw = Math.min(lh * LOGO_PROP, 18); doc.addImage(LOGO, "PNG", M, M, lw, lw / LOGO_PROP);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(15); doc.setTextColor(...BORDO); doc.text(titulo, M + lw + 4, M + 6);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(...GRIS); doc.text(subtitulo, M + lw + 4, M + 11.5);
+  let y = M + lw / LOGO_PROP + 4;
+  const pieAlto = 7, notasAlto = notas.length ? notas.length * 3.6 + 2 : 0;
+  const disponible = H - M - pieAlto - notasAlto - y;
+  const n = Math.max(filas.length, 1), cabAlto = 7.5;
+  const fila = Math.min(8, (disponible - cabAlto) / n), letra = Math.max(4.5, Math.min(9, fila / 0.45));
+  const cols = [[" Carp.", 10, "center"], ["Dirección", 52, "left"], ["Inquilino", 40, "left"], ["Índice", 16, "center"], ["Venía pagando", 22, "right"], ["Con aumento", 22, "right"], ["Aum. %", 12, "center"], ["Valor final", 16, "right"]];
+  const corto = (t, w) => { t = String(t ?? ""); if (doc.getTextWidth(t) <= w) return t; while (t.length > 1 && doc.getTextWidth(t + "…") > w) t = t.slice(0, -1); return t + "…"; };
+  // cabecera de la tabla
+  // cabecera de la tabla (si un título no entra, va en dos renglones)
+  const lc = Math.min(letra, 7.5); doc.setFont("helvetica", "bold"); doc.setFontSize(lc); doc.setTextColor(255, 255, 255);
+  doc.setFillColor(...BORDO); doc.rect(M, y, ANCHO, cabAlto, "F");
+  { let x = M; for (const [t, w, al] of cols) { const ls = doc.splitTextToSize(t.trim(), w - 2), tx = al === "right" ? x + w - 1.2 : al === "center" ? x + w / 2 : x + 1.2;
+      const alto = ls.length * lc * 0.3528 * 1.1; ls.forEach((l, i) => doc.text(l, tx, y + (cabAlto - alto) / 2 + lc * 0.3528 * (i + 0.85) * 1.1, { align: al })); x += w; } }
+  y += cabAlto;
+  filas.forEach((f, k) => {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(letra); doc.setTextColor(36, 26, 28);
+    if (k % 2) { doc.setFillColor(...ZEBRA); doc.rect(M, y, ANCHO, fila, "F"); }
+    const nuevo = f.manual ? "A mano" : num(f.nuevo, f.usd), pct = f.manual ? "" : (f.pct >= 0 ? "+" : "") + (+f.pct).toFixed(1).replace(".", ",") + "%";
+    let x = M; const vals = [f.carp || "", f.dir, f.inq, f.ind, num(f.base, f.usd), nuevo, pct, ""];
+    cols.forEach(([, w, al], i) => {
+      if (i === 7) { doc.setDrawColor(...BORDO); doc.setLineWidth(0.2); doc.rect(x + 0.6, y + 0.45, w - 1.2, fila - 0.9, "S"); }
+      const v = vals[i];
+      if (v !== "") {
+        doc.setFont("helvetica", i === 5 && !f.est && !f.manual ? "bold" : f.est && (i === 5 || i === 6) ? "italic" : "normal");
+        doc.setTextColor(...(f.est && (i === 5 || i === 6) ? GRIS : [36, 26, 28]));
+        const tx = al === "right" ? x + w - 1.2 : al === "center" ? x + w / 2 : x + 1.2;
+        doc.text(corto(v, w - 2.4), tx, y + fila / 2 + letra * 0.1235, { align: al });
+      }
+      x += w;
+    });
+    doc.setDrawColor(...LINEA); doc.setLineWidth(0.1); doc.line(M, y + fila, M + ANCHO, y + fila);
+    y += fila;
+  });
+  if (!filas.length) { doc.setFont("helvetica", "italic"); doc.setFontSize(9); doc.setTextColor(...GRIS); doc.text("No hay aumentos para este mes.", M + 2, y + 6); y += 10; }
+  // notas y pie
+  y += 2; doc.setFont("helvetica", "italic"); doc.setFontSize(7.5); doc.setTextColor(...GRIS);
+  for (const t of notas) { doc.text(t, M, y + 2.5); y += 3.6; }
+  doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...GRIS);
+  doc.text(cfg?.nombre || "", M, H - M + 2); doc.text("Impreso el " + new Date().toLocaleDateString("es-AR"), W - M, H - M + 2, { align: "right" });
+  return doc;
+}
 export function pdfLiquidacion(cfg, l, prop) {
   const pr = typeof prop === "object" && prop ? prop : { nombre: prop };
   MON = l.moneda || "ARS";
