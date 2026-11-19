@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611191540";
-import { iniciarChat } from "./chat.js?v=202611191540";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191540";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191540";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191540";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191540";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191540";
-import { iniciarCalculadora } from "./calculadora.js?v=202611191540";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191540";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191540";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191540";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191540";
+} from "./comun.js?v=202611191546";
+import { iniciarChat } from "./chat.js?v=202611191546";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191546";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191546";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191546";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191546";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191546";
+import { iniciarCalculadora } from "./calculadora.js?v=202611191546";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191546";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191546";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191546";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191546";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -147,7 +147,7 @@ async function rpc(fn, args, ok) {
 }
 
 /* ================= navegación ================= */
-const VISTAS = [["contratos", "Contratos"], ["inicio", "Resumen del mes"], ["revisar", "Pagos a revisar"], ["cobrar", "Cobrar en oficina"], ["morosos", "Morosos"],
+const VISTAS = [["contratos", "Contratos"], ["inicio", "Resumen del mes"], ["revisar", "Pagos a revisar"], ["morosos", "Morosos"],
   ["caja", "Caja"], ["documentos", "Reservas y renovaciones"], ["config", "Configuración"]];
 function renderNav() {
   const cs = [...S.contratos.values()];
@@ -155,7 +155,7 @@ function renderNav() {
     morosos: S.cargado ? cs.filter((c) => deudaDe(c).some((d) => d.vencido && !d.enTolerancia)).length : 0,
     ajustes: S.cargado ? cs.filter((c) => contratoActivo(c) && proximoAjuste(c, ajDe(c), S.cfg) === ymSumar(ymHoy(), 1)).length : 0,
     servicios: S.cargado && S.cs ? controlServicios().filter((x) => x.faltan.length).length : 0 };
-  const actual = S.view === "planilla" ? "cobrar" : S.view === "liqprop" ? (S.lpVolver || "contratos") : ["nuevo", "contrato", "ajustes", "personas", "servicios"].includes(S.view) ? "contratos" : S.view;
+  const actual = S.view === "planilla" ? (S.pl?.volver && S.pl.volver !== "cobrar" ? S.pl.volver : "contratos") : S.view === "liqprop" ? (S.lpVolver || "contratos") : ["nuevo", "contrato", "ajustes", "personas", "servicios"].includes(S.view) ? "contratos" : S.view;
   $("#nav").innerHTML = vistasVisibles(VISTAS).map(([k, l]) => `<button data-vista="${k}" ${actual === k ? 'aria-current="page"' : ""}><span>${l}</span>${n[k] ? `<span class="n">${n[k]}</span>` : ""}</button>`).join("");
   $("#quien").textContent = S.yo ? S.yo.nombre : "";
   const bt = $("#tema"); if (bt) bt.innerHTML = botonTema();
@@ -208,7 +208,7 @@ function vInicio() {
   const liq = pendientesLiquidar().filter((g) => g.neto > 0); const liqTot = sumaMon(liq, (g) => g.neto, (g) => g.moneda);
   const fila = (html) => `<div class="tw"><table><tbody>${html}</tbody></table></div>`;
   return `<div class="head"><div><h1>${periodo(cur)}</h1><p>${act.length} contratos vigentes · ${cs.length} en la base</p></div>
-  <div class="row"><button class="btn primary" data-vista="cobrar">Cobrar en oficina</button></div></div>
+  <div class="row"><button class="btn primary" data-vista="contratos">Ir a contratos</button></div></div>
   ${cur < S.cfg.inicio_cobranza ? `<div class="banner">El control de cobros empieza en ${periodo(S.cfg.inicio_cobranza)}. Los meses anteriores se gestionaron en SPOT.</div>` : ""}
   <div class="kpis">
     <div class="kpi ${rev.length ? "alert" : ""}"><span class="l">Pagos a revisar</span><span class="v">${rev.length}</span><span class="s">enviados desde el portal</span></div>
@@ -1782,7 +1782,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191540");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191546");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1834,7 +1834,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191540");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191546");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1948,7 +1948,7 @@ document.addEventListener("click", async (ev) => {
     if (d.planilla) { abrirPlanilla(d.planilla); return; }
     if (d.liqprop) { abrirLiqProp(d.liqprop, d.liqmon); return; }
     if (d.lpmon) { S.lpMon = d.lpmon; render(); return; }
-    if (d.volver !== undefined) { S.view = (S.view === "planilla" && S.pl?.volver && S.pl.volver !== "planilla") ? S.pl.volver : S.view === "liqprop" ? (S.lpVolver || (S.movil ? "m-buscar" : "contratos")) : "cobrar"; render(); return; }
+    if (d.volver !== undefined) { S.view = (S.view === "planilla" && S.pl?.volver && S.pl.volver !== "planilla") ? S.pl.volver : S.view === "liqprop" ? (S.lpVolver || (S.movil ? "m-buscar" : "contratos")) : S.movil ? "cobrar" : "contratos"; render(); return; }
     if (d.pltab) { S.plTab = d.pltab; render(); return; }
     if (d.dtab) { tabDocumentos(d.dtab); render(); return; }
     if (d.docren) { docRenovacion(ctxDocs(), S.contratos.get(+d.docren)); S.view = "documentos"; cerrarModal(); render(); scrollTo(0, 0); return; }
