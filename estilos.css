@@ -945,3 +945,13 @@ body.movil #f-planilla tr td,body.movil #f-liqprop tr td{background:transparent!
 .pl-edit{all:unset;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--accent-ink);padding:2px 8px;margin-left:4px;border-radius:999px;border:1px solid var(--line);background:var(--surface);white-space:nowrap}
 .pl-edit:hover{background:var(--accent-soft);border-color:var(--accent-ink)}
 .pl-edit:focus-visible{outline:2px solid var(--accent-ink);outline-offset:1px}
+/* botones de historial (recibos / liquidaciones) al lado de los nombres */
+.con-hist{display:inline-flex;align-items:center;gap:4px;flex-wrap:nowrap}
+.hist-btn{all:unset;cursor:pointer;display:inline-grid;place-items:center;width:24px;height:24px;border-radius:7px;color:var(--muted);flex:none;vertical-align:middle}
+.hist-btn svg{width:16px;height:16px}
+.hist-btn:hover{background:var(--accent-soft);color:var(--accent-ink)}
+.hist-btn:focus-visible{outline:2px solid var(--accent-ink)}
+.hist-tw{max-height:62vh;overflow:auto}
+.hist-tw tr.anulada td{color:var(--muted);text-decoration:line-through}
+.hist-tw tr.anulada td:last-child{text-decoration:none}
+.hist-tw .acciones{white-space:nowrap}.hist-tw .acciones .btn{margin-left:4px}

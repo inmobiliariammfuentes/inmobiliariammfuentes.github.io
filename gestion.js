@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611191333";
-import { iniciarChat } from "./chat.js?v=202611191333";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191333";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191333";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191333";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191333";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191333";
-import { iniciarCalculadora } from "./calculadora.js?v=202611191333";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191333";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191333";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191333";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191333";
+} from "./comun.js?v=202611191344";
+import { iniciarChat } from "./chat.js?v=202611191344";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191344";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191344";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191344";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191344";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191344";
+import { iniciarCalculadora } from "./calculadora.js?v=202611191344";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191344";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191344";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191344";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191344";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -297,7 +297,7 @@ function vContratos() {
   <div class="tw"><table><thead><tr><th>Carpeta</th><th>Vence</th><th>Dirección</th><th>Cobranza</th><th>Liquidación</th><th class="num">Saldo pendiente</th><th>Estado</th><th></th></tr></thead><tbody>
   ${shown.map((c) => { const dd = deudaDe(c), sal = dd.reduce((s, x) => s + x.saldo, 0), venc = dd.some((x) => x.vencido && !x.enTolerancia);
     return `<tr><td class="mono"><button class="carpeta" data-contrato="${c.id}" title="Ver y editar el contrato">${c.carpeta || "—"}</button></td><td class="num">${fecha(c.fin)}</td><td>${esc(c.direccion)}${chipUSD(c)}${c.forma_pago === "dividida" ? ' <span class="chip acc">Dividida</span>' : c.forma_pago === "propietario" ? ' <span class="chip acc">Al propietario</span>' : ""}</td>
-    <td><button class="link" data-planilla="${c.id}">${esc(inq(c))}</button></td><td><button class="link" data-liqprop="${c.propietario_id}">${esc(prop(c))}</button></td>
+    <td><span class="con-hist"><button class="link" data-planilla="${c.id}">${esc(inq(c))}</button><button class="hist-btn" data-recibosinq="${c.inquilino_id}" title="Recibos anteriores del inquilino" aria-label="Recibos anteriores de ${esc(inq(c))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg></button></span></td><td><span class="con-hist"><button class="link" data-liqprop="${c.propietario_id}">${esc(prop(c))}</button><button class="hist-btn" data-liqsprop="${c.propietario_id}" title="Liquidaciones anteriores del propietario" aria-label="Liquidaciones anteriores de ${esc(prop(c))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></button></span></td>
     <td class="num ${venc ? "saldo-venc" : ""}" ${venc ? 'title="Tiene períodos vencidos"' : ""}>${sal ? money(sal, c) : "—"}</td><td>${chipEstado(c)}</td><td class="num"><button class="btn small" data-contrato="${c.id}">Contrato</button></td></tr>`; }).join("") || `<tr><td colspan="8"><div class="empty">No hay contratos con ese filtro.</div></td></tr>`}
   </tbody></table></div>${list.length > shown.length ? `<div class="row"><button class="btn" data-a="mas">Mostrar más</button></div>` : ""}`;
 }
@@ -1251,8 +1251,8 @@ async function abrirFicha(id) {
   } else cuerpo = formContrato(c);
   abrirModal(`<div class="mh"><div><h2>${esc(c.direccion)}</h2><div class="row muted">${c.carpeta ? `Carpeta ${c.carpeta} ·` : ""} ${fecha(c.inicio)} al ${fecha(c.fin)} ${chipEstado(c)}</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
   <dl class="dl">
-    <div><dt>Inquilino</dt><dd><button class="link" data-persona="${pi.id}">${esc(pi.nombre)}</button> ${pi.user_id ? `<span class="chip ok">Portal</span>` : ""}</dd></div><div><dt>Celular</dt><dd class="mono">${esc(pi.telefono || "—")}</dd></div><div><dt>Alquiler ${periodo(ymHoy())}</dt><dd class="mono">${money(montoHoy(c), c)}</dd></div>
-    <div><dt>Propietario</dt><dd><button class="link" data-persona="${pp.id}">${esc(pp.nombre)}</button> ${pp.user_id ? `<span class="chip ok">Portal</span>` : ""}</dd></div><div><dt>Celular</dt><dd class="mono">${esc(pp.telefono || "—")}</dd></div><div><dt>Depósito</dt><dd class="mono">${money(c.deposito, c)}</dd></div>
+    <div><dt>Inquilino</dt><dd><button class="link" data-persona="${pi.id}">${esc(pi.nombre)}</button> <button class="hist-btn" data-recibosinq="${pi.id}" title="Recibos anteriores" aria-label="Recibos anteriores"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg></button> ${pi.user_id ? `<span class="chip ok">Portal</span>` : ""}</dd></div><div><dt>Celular</dt><dd class="mono">${esc(pi.telefono || "—")}</dd></div><div><dt>Alquiler ${periodo(ymHoy())}</dt><dd class="mono">${money(montoHoy(c), c)}</dd></div>
+    <div><dt>Propietario</dt><dd><button class="link" data-persona="${pp.id}">${esc(pp.nombre)}</button> <button class="hist-btn" data-liqsprop="${pp.id}" title="Liquidaciones anteriores" aria-label="Liquidaciones anteriores"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></button> ${pp.user_id ? `<span class="chip ok">Portal</span>` : ""}</dd></div><div><dt>Celular</dt><dd class="mono">${esc(pp.telefono || "—")}</dd></div><div><dt>Depósito</dt><dd class="mono">${money(c.deposito, c)}</dd></div>
     <div><dt>Forma de pago</dt><dd>${formaDe(c)}</dd></div><div><dt>Honorarios</dt><dd>${comisionDe(c, S.cfg)}%</dd></div><div><dt>Índice</dt><dd>${esc(c.indice)} cada ${c.ajuste_meses} meses</dd></div>
   </dl>
   <div class="row"><button class="btn primary" data-cobrar="${c.id}">Cobrar en oficina</button>${wa(pi.telefono) ? `<a class="btn" href="${wa(pi.telefono)}" target="_blank" rel="noopener">WhatsApp inquilino</a>` : ""}${wa(pp.telefono) ? `<a class="btn" href="${wa(pp.telefono)}" target="_blank" rel="noopener">WhatsApp propietario</a>` : ""}</div>
@@ -1549,6 +1549,30 @@ function modalRechazar(eid) {
   <div class="full row"><button class="btn danger" type="submit">Rechazar y avisar</button><button class="btn" type="button" data-cerrar>Cancelar</button></div></form>`);
 }
 
+/* historial: todos los recibos de un inquilino y todas las liquidaciones de un propietario */
+function modalRecibosInquilino(pid) {
+  const per = P(pid), cs = [...S.contratos.values()].filter((c) => c.inquilino_id === pid);
+  const pagos = cs.flatMap((c) => pgDe(c).map((p) => ({ p, c }))).sort((a, b) => b.p.recibo_nro - a.p.recibo_nro);
+  const total = pagos.filter((x) => !x.p.anulado).length;
+  abrirModal(`<div class="mh"><div><h2>Recibos de ${esc(per.nombre)}</h2><div class="muted">${total} recibo${total === 1 ? "" : "s"}${cs.length > 1 ? ` · ${cs.length} contratos` : cs[0] ? " · " + esc(cs[0].direccion) : ""}</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
+    ${pagos.length ? `<div class="tw hist-tw"><table><thead><tr><th>Recibo</th><th>Fecha</th><th>Período</th>${cs.length > 1 ? "<th>Propiedad</th>" : ""}<th>Forma</th><th class="num">Total</th><th></th></tr></thead><tbody>
+      ${pagos.map(({ p, c }) => `<tr class="${p.anulado ? "anulada" : ""}"><td class="mono">${pad5(p.recibo_nro)}</td><td class="num">${fecha(p.fecha)}</td><td>${periodo(p.periodo)}</td>${cs.length > 1 ? `<td>${esc(c.direccion)}</td>` : ""}
+        <td>${p.modalidad === "dividida" ? "Dividida" : p.modalidad === "propietario" ? "Al propietario" : esc(p.medio || "")}</td><td class="num">${money(p.total, c)}</td>
+        <td class="num acciones">${p.anulado ? `<span class="chip bad">Eliminado</span>` : `${p.liquidacion_id ? `<span class="chip ok">Liquidado</span> ` : ""}<button class="btn small" data-recibo="${p.id}">Ver</button><button class="btn small" data-recibopdf="${p.id}">PDF</button><button class="btn small danger" data-borrarrecibo="${p.id}" data-pid="${pid}" title="Anula el recibo: la deuda vuelve a quedar pendiente y el número queda como eliminado">Eliminar</button>`}</td></tr>`).join("")}
+    </tbody></table></div><p class="muted" style="margin:0;font-size:13px">Al eliminar un recibo, lo que pagó vuelve a figurar como deuda y el número queda registrado como eliminado (no se reutiliza). Si ya se liquidó al propietario, primero hay que eliminar esa liquidación.</p>`
+    : `<div class="empty">Este inquilino todavía no tiene recibos en el sistema nuevo.</div>`}`, true);
+}
+function modalLiqsPropietario(pid) {
+  const per = P(pid), ls = S.liqs.filter((l) => l.propietario_id === pid).sort((a, b) => b.nro - a.nro);
+  const total = ls.filter((l) => !l.anulada).length;
+  abrirModal(`<div class="mh"><div><h2>Liquidaciones de ${esc(per.nombre)}</h2><div class="muted">${total} liquidaci${total === 1 ? "ón" : "ones"}</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
+    ${ls.length ? `<div class="tw hist-tw"><table><thead><tr><th>N°</th><th>Fecha</th><th>Tipo</th><th class="num">Cobrado</th><th class="num">Honorarios</th><th class="num">Neto</th><th></th></tr></thead><tbody>
+      ${ls.map((l) => `<tr class="${l.anulada ? "anulada" : ""}"><td class="mono">${pad5(l.nro)}</td><td class="num">${fecha(l.fecha)}</td><td>${l.modalidad === "directa" ? "Transferencia directa" : l.medio === "Liquidado en SPOT" ? "SPOT" : "Oficina"}</td>
+        <td class="num">${money(l.bruto, l)}</td><td class="num">${money(l.comision, l)}</td><td class="num"><b>${money(l.neto, l)}</b></td>
+        <td class="num acciones">${l.anulada ? `<span class="chip bad">Eliminada</span>` : `${l.token ? `<button class="btn small" data-liqlink="${l.id}">Link</button>` : ""}<button class="btn small" data-liqpdf="${l.id}">PDF</button>${l.modalidad === "directa" ? `<span class="muted" title="Para eliminarla, eliminá el recibo del inquilino">Se elimina con el recibo</span>` : `<button class="btn small danger" data-borrarliq="${l.id}" data-pid="${pid}" title="Anula la liquidación: los cobros vuelven a quedar pendientes de liquidar">Eliminar</button>`}`}</td></tr>`).join("")}
+    </tbody></table></div><p class="muted" style="margin:0;font-size:13px">Al eliminar una liquidación, los cobros que incluía vuelven a quedar pendientes de liquidar y el número queda registrado como eliminado.</p>`
+    : `<div class="empty">Este propietario todavía no tiene liquidaciones en el sistema nuevo.</div>`}`, true);
+}
 function modalEditarCargo(id) {
   let g = null; for (const lst of S.cg.values()) { g = lst.find((x) => x.id === id); if (g) break; } if (!g) return;
   const c = S.contratos.get(g.contrato_id), k = g.concepto_id ? (S.cf.get(g.contrato_id) || []).find((x) => x.id === g.concepto_id) : null;
@@ -1726,7 +1750,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191333");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191344");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1778,7 +1802,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191333");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191344");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1913,6 +1937,12 @@ document.addEventListener("click", async (ev) => {
     if (d.archivo) { await verArchivo(d.archivo); return; }
     if (d.recibo) { modalRecibo(d.recibo); return; }
     if (d.editcargo) { modalEditarCargo(+d.editcargo); return; }
+    if (d.recibosinq) { modalRecibosInquilino(+d.recibosinq); return; }
+    if (d.liqsprop) { modalLiqsPropietario(+d.liqsprop); return; }
+    if (d.borrarrecibo) { if (!confirmar("¿Seguro? Tocá de nuevo")) return; const pg = S.pagosById.get(+d.borrarrecibo);
+      if (await rpc("anular_pago", { p_pago: +d.borrarrecibo }, `Recibo N° ${pad5(pg?.recibo_nro)} eliminado`)) { await cargarTodo(); render(); modalRecibosInquilino(+d.pid); } return; }
+    if (d.borrarliq) { if (!confirmar("¿Seguro? Tocá de nuevo")) return; const l = S.liqs.find((x) => x.id === +d.borrarliq);
+      if (await rpc("anular_liquidacion", { p_liq: +d.borrarliq }, `Liquidación N° ${pad5(l?.nro)} eliminada`)) { await cargarTodo(); render(); modalLiqsPropietario(+d.pid); } return; }
     if (d.mrecibos) { const c = S.contratos.get(+d.mrecibos); if (c) abrirModal(htmlRecibos(c, pgDe(c).slice().sort((a, b) => b.recibo_nro - a.recibo_nro), { money: (n) => money(n, c), fecha, periodo, pad5 })); return; }
     if (d.a === "version-completa") { elegirVersion("completa"); return; }
     if (d.a === "version-movil") { elegirVersion("movil"); return; }

@@ -1,8 +1,8 @@
 // Cobranza Fuentes · Web flotante: una ventanita que queda arriba del sistema (YouTube, Spotify, otras páginas)
 // YouTube y Spotify se muestran con su reproductor para insertar (link de un video, lista, tema o álbum).
 // Disney+, Netflix y similares no permiten verse dentro de otra página: se abren en una ventanita aparte.
-import { esc, toast } from "./comun.js?v=202611191333";
-import { perso, actualizarPerso } from "./personalizar.js?v=202611191333";
+import { esc, toast } from "./comun.js?v=202611191344";
+import { perso, actualizarPerso } from "./personalizar.js?v=202611191344";
 
 const ATAJOS = [
   { k: "youtube", n: "YouTube", c: "#ff0000", url: "https://www.youtube.com/", ayuda: "Buscá el video o la lista en YouTube, copiá el link y pegalo acá arriba." },
