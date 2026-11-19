@@ -1,7 +1,7 @@
 // Cobranza Fuentes · Versión para el celular del sistema del equipo
 // En el teléfono el sistema se abre en una versión básica: buscar un contrato, ver y mandar recibos,
 // cobrar (generar el recibo) y liquidar. Se puede instalar como app y siempre se puede pasar a la versión completa.
-import { esc, toast, LOGO_URL } from "./comun.js?v=202611191412";
+import { esc, toast, LOGO_URL } from "./comun.js?v=202611191519";
 
 const UA = navigator.userAgent;
 export const esCelularReal = () => /Android|iPhone|iPod|Mobile/i.test(UA) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1 && innerWidth < 900);
@@ -13,7 +13,7 @@ export function modoMovil() {
 }
 export function elegirVersion(v) { try { localStorage.setItem("gestion-version", v); } catch {} location.reload(); }
 
-export const VISTAS_MOVIL = new Set(["m-buscar", "cobrar", "planilla", "liquidaciones", "liqprop"]);
+export const VISTAS_MOVIL = new Set(["m-buscar", "cobrar", "planilla", "liqprop"]);
 
 /** Barra inferior con las 3 secciones. */
 export function barraMovil(actual, nPend) {
@@ -23,7 +23,7 @@ export function barraMovil(actual, nPend) {
     cobrar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 12h.01M18 12h.01"/></svg>',
     liquidar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>',
   };
-  return b("m-buscar", "Buscar", ICON.buscar) + b("cobrar", "Cobrar", ICON.cobrar) + b("liquidaciones", "Liquidar", ICON.liquidar, nPend);
+  return b("m-buscar", "Buscar", ICON.buscar) + b("cobrar", "Cobrar", ICON.cobrar);
 }
 
 /** Pantalla principal en el celular: buscador de contratos con accesos directos. */
