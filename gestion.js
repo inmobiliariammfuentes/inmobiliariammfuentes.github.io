@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611191527";
-import { iniciarChat } from "./chat.js?v=202611191527";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191527";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191527";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191527";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191527";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191527";
-import { iniciarCalculadora } from "./calculadora.js?v=202611191527";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191527";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191527";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191527";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191527";
+} from "./comun.js?v=202611191535";
+import { iniciarChat } from "./chat.js?v=202611191535";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191535";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191535";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191535";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191535";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191535";
+import { iniciarCalculadora } from "./calculadora.js?v=202611191535";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191535";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191535";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191535";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191535";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -634,6 +634,8 @@ function vConfig() {
   const c = S.cfg, dis = puedeAdmin() ? "" : "disabled";
   const campo = (k, l, tipo = "text", extra = "") => `<label>${l}<input type="${tipo}" id="cfg-${k}" name="${k}" value="${esc(c[k])}" ${extra} ${dis}></label>`;
   return `<div class="head"><div><h1>Configuración</h1><p>${puedeAdmin() ? "Datos que aparecen en recibos, liquidaciones y en el portal." : "Solo un administrador puede cambiar la configuración."}</p></div></div>
+  <section class="panel cfg-mio"><div><h2>Mi usuario${S.yo ? " · " + esc(S.yo.nombre) : ""}</h2><p class="muted">Solo para vos: cómo ves el sistema y tu clave de ingreso.</p></div>
+    <div class="row"><button type="button" class="btn primary" data-a="personalizar">Personalizar</button><button type="button" class="btn" data-a="mi-clave">Cambiar mi clave</button></div></section>
   <form class="panel form" id="f-config">
     <label class="full">Nombre de la inmobiliaria<input type="text" id="cfg-nombre" name="nombre" value="${esc(c.nombre)}" ${dis}></label>
     ${campo("domicilio", "Domicilio")}${campo("telefono", "Teléfono")}${campo("whatsapp", "WhatsApp")}${campo("cuit", "CUIT")}${campo("email", "Email de contacto", "email")}
@@ -1779,7 +1781,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191527");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191535");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1831,7 +1833,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191527");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191535");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];

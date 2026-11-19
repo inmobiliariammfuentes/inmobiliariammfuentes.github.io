@@ -2,7 +2,7 @@
 // Cada persona del equipo elige su color, modo claro/oscuro, tamaño de letra, qué ve en el menú lateral y en qué orden.
 // Se guarda en la base (tabla preferencias_staff, una fila por usuario) y una copia en el navegador para que
 // al abrir el sistema se vea enseguida con su personalización.
-import { esc, toast, abrirModal } from "./comun.js?v=202611191527";
+import { esc, toast, abrirModal } from "./comun.js?v=202611191535";
 
 export const COLORES = [
   ["#7a1f2e", "Bordó (original)"], ["#a3355f", "Frambuesa"], ["#a14a1f", "Terracota"], ["#8a6a12", "Mostaza"],
@@ -81,7 +81,8 @@ export function vistasOrdenadas(vistas, p = P) {
   const orden = [...(p.orden || []).filter((x) => k.includes(x)), ...k.filter((x) => !(p.orden || []).includes(x))];
   return orden.map((x) => vistas.find((v) => v[0] === x));
 }
-export const vistasVisibles = (vistas, p = P) => vistasOrdenadas(vistas, p).filter(([k]) => !(p.ocultos || []).includes(k));
+// "Configuración" no se puede ocultar: ahí están Personalizar y Cambiar mi clave
+export const vistasVisibles = (vistas, p = P) => vistasOrdenadas(vistas, p).filter(([k]) => k === "config" || !(p.ocultos || []).includes(k));
 
 /* ---------------- ventana de personalización ---------------- */
 function html(vistas) {
@@ -89,7 +90,7 @@ function html(vistas) {
   const seg = (nombre, ops, val) => `<div class="seg" role="group">${ops.map(([v, l]) => `<button type="button" data-pseg="${nombre}" data-v="${v}" aria-pressed="${String(val) === v}">${l}</button>`).join("")}</div>`;
   const sw = (k, l, d) => `<label class="pp-sw"><input type="checkbox" data-pchk="${k}" ${p[k] ? "checked" : ""}><span><b>${l}</b>${d ? `<small class="muted">${d}</small>` : ""}</span></label>`;
   const ord = vistasOrdenadas(vistas, p), n = ord.length;
-  const visibles = ord.filter(([k]) => !p.ocultos.includes(k));
+  const visibles = ord.filter(([k]) => k === "config" || !p.ocultos.includes(k));
   return `<div class="mh"><div><h2>Personalizar mi sistema</h2><div class="muted">Solo cambia cómo lo ves vos. Los demás del equipo, los inquilinos, los propietarios y los recibos no cambian.</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
   <div class="pp">
     <section><h3>Color</h3>
@@ -99,7 +100,7 @@ function html(vistas) {
     <section><h3>Tamaño de letra</h3>${seg("zoom", TAMANOS, p.zoom)}</section>
     <section><h3>Menú lateral</h3>
       <p class="muted">Destildá lo que no usás y ordená con las flechas. Lo que ocultes se puede volver a mostrar cuando quieras.</p>
-      <div class="pp-menu">${ord.map(([k, l], i) => `<div class="pp-it ${p.ocultos.includes(k) ? "off" : ""}"><label><input type="checkbox" data-pver="${k}" ${p.ocultos.includes(k) ? "" : "checked"}> ${esc(l)}</label>
+      <div class="pp-menu">${ord.map(([k, l], i) => `<div class="pp-it ${p.ocultos.includes(k) ? "off" : ""}"><label><input type="checkbox" data-pver="${k}" ${p.ocultos.includes(k) && k !== "config" ? "" : "checked"} ${k === "config" ? 'disabled title="Siempre visible: ahí está Personalizar"' : ""}> ${esc(l)}</label>
         <span class="pp-fl"><button type="button" class="btn small ghost" data-pmov="${k}" data-d="-1" ${i === 0 ? "disabled" : ""} aria-label="Subir ${esc(l)}">↑</button><button type="button" class="btn small ghost" data-pmov="${k}" data-d="1" ${i === n - 1 ? "disabled" : ""} aria-label="Bajar ${esc(l)}">↓</button></span></div>`).join("")}</div>
       <div class="pp-sws">${sw("dolar", "Mostrar dólar blue")}${sw("calc", "Mostrar botón de la calculadora")}${sw("web", "Mostrar botón de la web flotante")}${sw("intercom", "Mostrar intercomunicador")}${sw("quieto", "Fondo del menú sin movimiento")}</div></section>
     <section><h3>Al entrar al sistema abrir</h3>
