@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611191546";
-import { iniciarChat } from "./chat.js?v=202611191546";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191546";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191546";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191546";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191546";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191546";
-import { iniciarCalculadora } from "./calculadora.js?v=202611191546";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191546";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191546";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191546";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191546";
+} from "./comun.js?v=202611191553";
+import { iniciarChat } from "./chat.js?v=202611191553";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191553";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191553";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191553";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191553";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191553";
+import { iniciarCalculadora } from "./calculadora.js?v=202611191553";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191553";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191553";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191553";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191553";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -131,6 +131,8 @@ async function recargar(msg) {
 /* ================= helpers de dominio ================= */
 const P = (id) => S.personas.get(id) || { nombre: "(sin nombre)" };
 const ajDe = (c) => S.aj.get(c.id) || [];
+// contratos que solo redactamos: no se cobran ni se liquidan mes a mes por el sistema
+const seCobra = (c) => contratoActivo(c) && c.administrado !== false;
 const pgDe = (c) => S.pg.get(c.id) || [];
 const ovDe = (c) => S.ov.get(c.id) || {};
 const deudaDe = (c) => deudaCargos(c, S.cg.get(c.id) || [], S.cfg, ovDe(c));
@@ -153,7 +155,7 @@ function renderNav() {
   const cs = [...S.contratos.values()];
   const n = { revisar: pendientesRevisar().length,
     morosos: S.cargado ? cs.filter((c) => deudaDe(c).some((d) => d.vencido && !d.enTolerancia)).length : 0,
-    ajustes: S.cargado ? cs.filter((c) => contratoActivo(c) && proximoAjuste(c, ajDe(c), S.cfg) === ymSumar(ymHoy(), 1)).length : 0,
+    ajustes: S.cargado ? cs.filter((c) => seCobra(c) && proximoAjuste(c, ajDe(c), S.cfg) === ymSumar(ymHoy(), 1)).length : 0,
     servicios: S.cargado && S.cs ? controlServicios().filter((x) => x.faltan.length).length : 0 };
   const actual = S.view === "planilla" ? (S.pl?.volver && S.pl.volver !== "cobrar" ? S.pl.volver : "contratos") : S.view === "liqprop" ? (S.lpVolver || "contratos") : ["nuevo", "contrato", "ajustes", "personas", "servicios"].includes(S.view) ? "contratos" : S.view;
   $("#nav").innerHTML = vistasVisibles(VISTAS).map(([k, l]) => `<button data-vista="${k}" ${actual === k ? 'aria-current="page"' : ""}><span>${l}</span>${n[k] ? `<span class="n">${n[k]}</span>` : ""}</button>`).join("");
@@ -195,7 +197,7 @@ function render() {
 /* ================= vistas ================= */
 function vInicio() {
   const cur = ymHoy(), hoy = isoHoy(), cs = [...S.contratos.values()];
-  const act = cs.filter((c) => contratoActivo(c) && c.inicio <= hoy);
+  const act = cs.filter((c) => seCobra(c) && c.inicio <= hoy);
   const aCobrar = sumaMon(act, (c) => montoEn(c, ajDe(c), cur), (c) => c);
   const pagos = []; for (const lst of S.pg.values()) for (const p of lst) if (!p.anulado) pagos.push(p);
   const pc = (p) => S.contratos.get(p.contrato_id);
@@ -284,7 +286,7 @@ function filtrarContratos() {
 }
 function vContratos() {
   const list = filtrarContratos(), shown = list.slice(0, S.limite);
-  const prox = ymSumar(ymHoy(), 1), proxAj = (c) => contratoActivo(c) ? proximoAjuste(c, ajDe(c), S.cfg) : null;
+  const prox = ymSumar(ymHoy(), 1), proxAj = (c) => seCobra(c) ? proximoAjuste(c, ajDe(c), S.cfg) : null;
   const nServ = S.cs ? controlServicios().filter((x) => x.faltan.length).length : 0;
   const nAum = [...S.contratos.values()].filter((c) => proxAj(c) === prox).length;
   const aLiq = new Map(); for (const g of pendientesLiquidar()) if (g.items.length || g.neto) aLiq.set(g.pid, (aLiq.get(g.pid) || []).concat(g));
@@ -300,7 +302,7 @@ function vContratos() {
   <div class="row"><span class="muted">Ordenar por</span><div class="seg">${o("direccion", "Dirección (A–Z)")}${o("vencimiento", "Vencimiento (más próximo primero)")}${o("reciente", "Más recientes")}</div></div>
   <div class="tw"><table><thead><tr><th>Carpeta</th><th>Vence</th><th>Dirección</th><th>Cobranza</th><th>Liquidación</th><th class="num">Saldo pendiente</th><th>Estado</th><th></th></tr></thead><tbody>
   ${shown.map((c) => { const dd = deudaDe(c), sal = dd.reduce((s, x) => s + x.saldo, 0), venc = dd.some((x) => x.vencido && !x.enTolerancia);
-    return `<tr><td class="mono"><button class="carpeta" data-contrato="${c.id}" title="Ver y editar el contrato y sus aumentos">${c.carpeta || "—"}</button>${(() => { const pa = proxAj(c); return pa && pa <= prox && pa >= ymHoy() ? `<span class="chip ${pa < prox ? "bad" : "warn"} aum-chip" title="${pa < prox ? "Aumenta este mes y todavía no está cargado" : "Aumenta el mes que viene"}">↑ ${mesCorto(pa)}</span>` : ""; })()}</td><td class="num">${fecha(c.fin)}</td><td>${esc(c.direccion)}${chipUSD(c)}${c.forma_pago === "dividida" ? ' <span class="chip acc">Dividida</span>' : c.forma_pago === "propietario" ? ' <span class="chip acc">Al propietario</span>' : ""}</td>
+    return `<tr><td class="mono"><button class="carpeta" data-contrato="${c.id}" title="Ver y editar el contrato y sus aumentos">${c.carpeta || "—"}</button>${(() => { const pa = proxAj(c); return pa && pa <= prox && pa >= ymHoy() ? `<span class="chip ${pa < prox ? "bad" : "warn"} aum-chip" title="${pa < prox ? "Aumenta este mes y todavía no está cargado" : "Aumenta el mes que viene"}">↑ ${mesCorto(pa)}</span>` : ""; })()}</td><td class="num">${fecha(c.fin)}</td><td>${esc(c.direccion)}${chipUSD(c)}${c.administrado === false ? ' <span class="chip" title="Solo hicimos el contrato: no lo cobramos todos los meses">Solo contrato</span>' : ""}${c.forma_pago === "dividida" ? ' <span class="chip acc">Dividida</span>' : c.forma_pago === "propietario" ? ' <span class="chip acc">Al propietario</span>' : ""}</td>
     <td><span class="con-hist"><button class="hist-btn" data-persona="${c.inquilino_id}" title="Ver y modificar los datos del inquilino" aria-label="Datos de ${esc(inq(c))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="7" r="4"/><path d="M3 21v-1a6 6 0 0 1 9-5.2"/><path d="M16.5 13.5l4 4L16 22h-4v-4z"/></svg></button><button class="link" data-planilla="${c.id}">${esc(inq(c))}</button><button class="hist-btn" data-recibosinq="${c.inquilino_id}" title="Recibos anteriores del inquilino" aria-label="Recibos anteriores de ${esc(inq(c))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg></button></span></td><td><span class="con-hist"><button class="hist-btn" data-persona="${c.propietario_id}" title="Ver y modificar los datos del propietario" aria-label="Datos de ${esc(prop(c))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="7" r="4"/><path d="M3 21v-1a6 6 0 0 1 9-5.2"/><path d="M16.5 13.5l4 4L16 22h-4v-4z"/></svg></button><button class="link" data-liqprop="${c.propietario_id}" title="Liquidar al propietario">${esc(prop(c))}</button>${aLiq.has(c.propietario_id) ? `<span class="chip warn lq-pend" title="Tiene cobros sin liquidar: ${aLiq.get(c.propietario_id).map((g) => money(g.neto, g)).join(" + ")}">A liquidar</span>` : ""}<button class="hist-btn" data-liqsprop="${c.propietario_id}" title="Liquidaciones anteriores del propietario" aria-label="Liquidaciones anteriores de ${esc(prop(c))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></button></span></td>
     <td class="num ${venc ? "saldo-venc" : ""}" ${venc ? 'title="Tiene períodos vencidos"' : ""}>${sal ? money(sal, c) : "—"}</td><td>${chipEstado(c)}</td><td class="num"><button class="btn small" data-contrato="${c.id}">Contrato</button></td></tr>`; }).join("") || `<tr><td colspan="8"><div class="empty">No hay contratos con ese filtro.</div></td></tr>`}
   </tbody></table></div>${list.length > shown.length ? `<div class="row"><button class="btn" data-a="mas">Mostrar más</button></div>` : ""}`;
@@ -330,8 +332,8 @@ function vMorosos() {
 
 function vAjustes() {
   const cur = ymHoy();
-  const act = [...S.contratos.values()].filter(contratoActivo).map((c) => ({ c, a: aumentoDe(c) })).filter((x) => x.a).sort((x, y) => (x.a.p < y.a.p ? -1 : x.a.p > y.a.p ? 1 : 0));
-  const revisar = [...S.contratos.values()].filter((c) => contratoActivo(c) && c.ajuste_revisar).length;
+  const act = [...S.contratos.values()].filter(seCobra).map((c) => ({ c, a: aumentoDe(c) })).filter((x) => x.a).sort((x, y) => (x.a.p < y.a.p ? -1 : x.a.p > y.a.p ? 1 : 0));
+  const revisar = [...S.contratos.values()].filter((c) => seCobra(c) && c.ajuste_revisar).length;
   const prox = ymSumar(cur, 1), delMes = act.filter((x) => x.a.p === prox);
   const listos = delMes.filter((x) => !x.c.ajuste_revisar && x.a.calc && !x.a.calc.error && !x.a.calc.estimado);
   const autos = [...S.aj.values()].flat().filter((a) => a.automatico && !a.anulado && a.desde >= ymSumar(cur, -1)).sort((a, b) => (a.desde < b.desde ? 1 : -1));
@@ -407,7 +409,7 @@ function categoriaPorPrecio(precio, tipico) {
 }
 function grupoContratos(pid, calle) {
   const q = String(calle || "").trim().toLowerCase();
-  const cs = [...S.contratos.values()].filter((c) => contratoActivo(c) && c.propietario_id === pid && (!q || c.direccion.toLowerCase().includes(q)))
+  const cs = [...S.contratos.values()].filter((c) => seCobra(c) && c.propietario_id === pid && (!q || c.direccion.toLowerCase().includes(q)))
     .sort((a, b) => a.direccion.localeCompare(b.direccion, "es", { numeric: true }));
   const precios = cs.map((c) => montoHoy(c)), cuenta = {};
   for (const x of precios) cuenta[x] = (cuenta[x] || 0) + 1;
@@ -473,7 +475,7 @@ async function autoAplicarAumentos() {
   if (autoHecho || !S.indices) return; autoHecho = true;
   const cur = ymHoy(); let n = 0;
   for (const c of S.contratos.values()) {
-    if (!contratoActivo(c) || c.ajuste_revisar || !indiceAutomatico(c.indice)) continue;
+    if (!seCobra(c) || c.ajuste_revisar || !indiceAutomatico(c.indice)) continue;
     const a = aumentoDe(c);
     if (!a || a.p > cur || !a.calc || a.calc.error || a.calc.estimado) continue;
     try { if (await guardarAumento(c, a, a.calc.nuevo, true)) n++; } catch {}
@@ -539,7 +541,7 @@ const servDe = (c) => serviciosControl(S.cs.get(c.id) || [], S.sm, S.boletas.get
 const tieneServicios = (c) => (S.cs.get(c.id) || []).some((s) => s.activo);
 const conPortal = (c) => !!P(c.inquilino_id).user_id;
 function controlServicios() {
-  return [...S.contratos.values()].filter((c) => contratoActivo(c) && tieneServicios(c)).map((c) => {
+  return [...S.contratos.values()].filter((c) => seCobra(c) && tieneServicios(c)).map((c) => {
     const ctrl = servDe(c);
     return { c, ctrl, faltan: ctrl.flatMap((x) => x.faltan.map((i) => ({ ...i, s: x.s }))), pend: ctrl.flatMap((x) => x.pendientes.map((i) => ({ ...i, s: x.s }))) };
   });
@@ -549,7 +551,7 @@ function vServicios() {
   const todos = controlServicios(), f = S.servFiltro || "deben";
   const lista = (f === "deben" ? todos.filter((x) => x.faltan.length) : todos).sort((a, b) => b.faltan.length - a.faltan.length || a.c.direccion.localeCompare(b.c.direccion, "es", { numeric: true }));
   const q = S.q.trim(), vis = q ? lista.filter((x) => coincide(x.c, q)) : lista;
-  const sinConfig = [...S.contratos.values()].filter((c) => contratoActivo(c) && !tieneServicios(c)).length;
+  const sinConfig = [...S.contratos.values()].filter((c) => seCobra(c) && !tieneServicios(c)).length;
   const b = (k, l) => `<button data-servfiltro="${k}" aria-pressed="${f === k}">${l}</button>`;
   return `<div class="head"><div><h1>Boletas de servicios</h1><p>Los inquilinos suben al portal las boletas pagadas que les pedimos. Si un mes no la suben, a los ${S.cfg.servicios_plazo || 10} días del mes siguiente figura como adeudada y el portal se lo recuerda (una vez por semana).</p></div><div class="row"><button class="btn" data-vista="contratos">Volver a contratos</button></div>
     <button class="btn primary" data-a="serv-masivo">Pedir boletas a varios contratos</button></div>
@@ -587,7 +589,7 @@ function avisoServicios(c) {
   return `Hola ${inq(c).split(",").pop().trim()}, te escribimos de ${S.cfg.nombre}. Nos falta la boleta pagada de: ${f.join(", ")} de ${c.direccion}. La podés subir desde el portal (${PORTAL_URL}) en «Enviar boletas de servicios». ¡Gracias!`;
 }
 function modalServMasivo() {
-  const vig = [...S.contratos.values()].filter(contratoActivo);
+  const vig = [...S.contratos.values()].filter(seCobra);
   abrirModal(`<div class="mh"><h2>Pedir boletas a varios contratos</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
   <form class="form" id="f-servmasivo">
     <fieldset class="full"><legend>Servicios</legend><div class="row">${SERVICIOS_SUG.map((x) => `<label class="check"><input type="checkbox" name="sv" value="${esc(x)}"> ${esc(x)}</label>`).join("")}</div>
@@ -689,7 +691,7 @@ function cargarExcelJS() {
 }
 function datosAumentos() {
   const prox = ymSumar(ymHoy(), 1);
-  const filas = [...S.contratos.values()].filter(contratoActivo).map((c) => ({ c, a: aumentoDe(c) })).filter((x) => x.a && x.a.p === prox)
+  const filas = [...S.contratos.values()].filter(seCobra).map((c) => ({ c, a: aumentoDe(c) })).filter((x) => x.a && x.a.p === prox)
     .sort((x, y) => x.c.direccion.localeCompare(y.c.direccion, "es", { numeric: true }));
   let hayEst = false, hayManual = false;
   const rows = filas.map(({ c, a }) => {
@@ -1364,7 +1366,8 @@ function filaPeriodo(x) {
     <td>${!x.monto && x.k > 1 && x.estado !== "pasado" ? `<button type="button" class="btn small" data-calcper="${x.k}">Calcular</button> ` : ""}${falta ? `<span class="chip bad">Falta cargar</span>` : !x.monto ? `<span class="chip">A calcular</span>` : x.estado === "pasado" ? `<span class="chip ok">Cumplido</span>` : x.estado === "futuro" ? `<span class="chip">Cargado</span>` : ""}</td></tr>`;
 }
 function panelAumento(c) {
-  const a = contratoActivo(c) ? aumentoDe(c) : null, cur = ymHoy();
+  if (c.administrado === false) return `<p class="muted">No lo administramos: los aumentos los maneja el propietario con el inquilino.</p>`;
+  const a = seCobra(c) ? aumentoDe(c) : null, cur = ymHoy();
   const hechos = (S.aj.get(c.id) || []).filter((x) => !x.anulado).sort((x, y) => (x.desde < y.desde ? 1 : -1)).slice(0, 3);
   const prox = a ? `<div class="ct-aum ${a.p <= cur ? "atrasado" : ""}"><div><span class="muted">Próximo aumento</span> <span class="chip ${a.p <= cur ? "warn" : "acc"}">${periodo(a.p)}</span>${a.p <= cur ? ' <span class="muted">· corresponde y todavía no está cargado</span>' : ""}
       <div>Alquiler actual <b class="mono">${money(a.base, c)}</b> → ${celdaCalculo(a, c)}</div></div>
@@ -1381,9 +1384,10 @@ function vContrato() {
   const sal = deudaDe(c).reduce((s, x) => s + x.saldo, 0);
   return `<form id="f-ct" data-id="${c.id}" class="ct">
   <div class="head"><div><h1>${c.carpeta ? `<span class="muted">Carpeta ${c.carpeta} ·</span> ` : ""}${esc(c.direccion)}${chipUSD(c)}</h1>
-    <p>${chipEstado(c)} ${c.renovacion_de ? '<span class="chip">Renovación</span>' : ""} Alquiler actual <b class="mono">${money(montoHoy(c), c)}</b> · Saldo pendiente <b class="mono">${money(sal, c)}</b></p></div>
+    <p>${chipEstado(c)} ${c.administrado === false ? '<span class="chip acc">Solo contrato</span> ' : ""}${c.renovacion_de ? '<span class="chip">Renovación</span>' : ""} Alquiler actual <b class="mono">${money(montoHoy(c), c)}</b> · Saldo pendiente <b class="mono">${money(sal, c)}</b></p></div>
     <div class="muted">Fecha de alta ${fecha(String(c.created_at || "").slice(0, 10))}</div></div>
 
+  ${c.administrado === false ? `<div class="banner ct-noadm"><span><b>Solo hicimos el contrato, no lo administramos.</b> Lo cobramos hasta ${periodo(c.administrado_hasta)}; desde ahí el inquilino le paga al propietario: no genera deuda, morosos, aumentos ni boletas.</span><button type="button" class="btn small" data-administrar="${c.id}|1">Volver a administrarlo</button></div>` : ""}
   <section class="panel"><div class="form">
     ${camposDireccion("ct", c)}
     <label>Carpeta<input type="number" name="carpeta" value="${esc(c.carpeta || "")}"></label>
@@ -1431,6 +1435,7 @@ function vContrato() {
     <button type="button" class="btn" data-ficha="${c.id}">Estado de cuenta</button>
     <button type="button" class="btn" data-renovar="${c.id}">Renovación</button>
     <button type="button" class="btn" data-docren="${c.id}">Imagen de renovación</button>
+    ${c.administrado === false ? "" : `<button type="button" class="btn" data-administrar="${c.id}|0" title="Para contratos que solo redactamos: deja de cobrarse mes a mes">No lo administramos</button>`}
     ${c.rescindido ? `<button type="button" class="btn" data-reactivar="${c.id}">Quitar rescisión</button>` : `<button type="button" class="btn danger" data-rescindir="${c.id}">Rescindir</button>`}
   </div></form>`;
 }
@@ -1782,7 +1787,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191546");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191553");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1834,7 +1839,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191546");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191553");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1944,6 +1949,12 @@ document.addEventListener("click", async (ev) => {
     if (d.ficha) { fichaTab = "cuenta"; await abrirFicha(d.ficha); return; }
     if (d.fichatab) { fichaTab = d.fichatab; await abrirFicha(d.id); return; }
     if (d.persona) { modalPersona(d.persona); return; }
+    if (d.administrar) { const [cid, si] = d.administrar.split("|"), c = S.contratos.get(+cid);
+      if (si === "0") { const gs = (S.cg.get(c.id) || []).filter((g) => !g.anulado), hasta = gs.filter((g) => +g.saldo < +g.monto).map((g) => g.periodo).sort().pop() || ymDe(c.inicio);
+        const pend = [...new Set(gs.filter((g) => g.periodo > hasta && +g.saldo === +g.monto).map((g) => g.periodo))].sort().map((p) => ({ p }));
+        if (!confirm(`¿Dejar de administrar ${c.direccion}?\n\nSe deja de cobrar mes a mes: no figura en deudas, morosos, aumentos ni boletas.${pend.length ? `\nSe borran los períodos sin cobrar (${pend.map((x) => periodo(x.p)).join(", ")}).` : ""}\nLos recibos ya hechos quedan igual.`)) return; }
+      if (await rpc("marcar_administrado", { p_contrato: +cid, p_administrado: si === "1" }, si === "1" ? "Listo: el contrato se vuelve a cobrar todos los meses" : "Listo: el contrato quedó como «solo contrato»")) { await cargarTodo(); render(); }
+      return; }
     if (d.cobrar) { abrirPlanilla(d.cobrar); return; }
     if (d.planilla) { abrirPlanilla(d.planilla); return; }
     if (d.liqprop) { abrirLiqProp(d.liqprop, d.liqmon); return; }
@@ -2029,7 +2040,7 @@ document.addEventListener("click", async (ev) => {
         box.insertAdjacentHTML("beforebegin", `<div class="row" style="flex-wrap:wrap;margin-top:10px"><button class="btn primary" data-aumacc="compartir">Compartir / WhatsApp</button><button class="btn" data-aumacc="copiar">Copiar imagen</button><button class="btn" data-aumacc="descargar">Descargar imagen</button></div>`); el.remove(); }
       return; }
     if (d.a === "aplicar-listos") { const cur = ymHoy(); let n = 0;
-      for (const c of S.contratos.values()) { if (!contratoActivo(c) || c.ajuste_revisar) continue; const a = aumentoDe(c);
+      for (const c of S.contratos.values()) { if (!seCobra(c) || c.ajuste_revisar) continue; const a = aumentoDe(c);
         if (a && a.p === ymSumar(cur, 1) && a.calc && !a.calc.error && !a.calc.estimado && await guardarAumento(c, a, a.calc.nuevo, false)) n++; }
       await recargar(`Se aplicaron ${n} aumentos`); return; }
     if (d.anularajuste) { if (!confirmar()) return; const { error } = await sb.from("ajustes").update({ anulado: true }).eq("id", +d.anularajuste); if (error) throw error; toast("Ajuste anulado"); cerrarModal(); await recargar(); return; }
@@ -2176,7 +2187,7 @@ document.addEventListener("submit", async (ev) => {
     if (f.id === "f-servmasivo") {
       const servs = [...f.querySelectorAll('[name="sv"]:checked')].map((x) => x.value).concat((v.otro || "").trim() ? [v.otro.trim()] : []);
       if (!servs.length) { toast("Elegí al menos un servicio", "bad"); return; }
-      const cs = [...S.contratos.values()].filter((c) => contratoActivo(c) && (v.alcance === "todos" || conPortal(c)));
+      const cs = [...S.contratos.values()].filter((c) => seCobra(c) && (v.alcance === "todos" || conPortal(c)));
       const filas = []; for (const c of cs) for (const serv of servs) if (!(S.cs.get(c.id) || []).some((s) => s.servicio.toLowerCase() === serv.toLowerCase()))
         filas.push({ contrato_id: c.id, servicio: serv, frecuencia: +v.frecuencia, desde: v.desde });
       for (let i = 0; i < filas.length; i += 500) { const { error } = await sb.from("contrato_servicios").upsert(filas.slice(i, i + 500), { onConflict: "contrato_id,servicio", ignoreDuplicates: true }); if (error) throw error; }

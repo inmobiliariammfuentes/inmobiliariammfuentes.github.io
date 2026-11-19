@@ -967,3 +967,4 @@ section.panel.cfg-mio{flex-direction:row;align-items:center;justify-content:spac
 .cfg-mio{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;text-align:left}
 .cfg-mio>div:first-child{flex:1 1 280px}.cfg-mio .row{margin:0}
 .cfg-mio h2{margin:0 0 4px}.cfg-mio p{margin:0}
+.ct-noadm{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
