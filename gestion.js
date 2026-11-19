@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611191519";
-import { iniciarChat } from "./chat.js?v=202611191519";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191519";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191519";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191519";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191519";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191519";
-import { iniciarCalculadora } from "./calculadora.js?v=202611191519";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191519";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191519";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191519";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191519";
+} from "./comun.js?v=202611191527";
+import { iniciarChat } from "./chat.js?v=202611191527";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191527";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191527";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191527";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191527";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191527";
+import { iniciarCalculadora } from "./calculadora.js?v=202611191527";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191527";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191527";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191527";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191527";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -148,14 +148,14 @@ async function rpc(fn, args, ok) {
 
 /* ================= navegación ================= */
 const VISTAS = [["contratos", "Contratos"], ["inicio", "Resumen del mes"], ["revisar", "Pagos a revisar"], ["cobrar", "Cobrar en oficina"], ["morosos", "Morosos"],
-  ["ajustes", "Ajustes de precio"], ["servicios", "Boletas de servicios"], ["caja", "Caja"], ["personas", "Inquilinos y propietarios"], ["documentos", "Reservas y renovaciones"], ["config", "Configuración"]];
+  ["servicios", "Boletas de servicios"], ["caja", "Caja"], ["documentos", "Reservas y renovaciones"], ["config", "Configuración"]];
 function renderNav() {
   const cs = [...S.contratos.values()];
   const n = { revisar: pendientesRevisar().length,
     morosos: S.cargado ? cs.filter((c) => deudaDe(c).some((d) => d.vencido && !d.enTolerancia)).length : 0,
     ajustes: S.cargado ? cs.filter((c) => contratoActivo(c) && proximoAjuste(c, ajDe(c), S.cfg) === ymSumar(ymHoy(), 1)).length : 0,
     servicios: S.cargado && S.cs ? controlServicios().filter((x) => x.faltan.length).length : 0 };
-  const actual = S.view === "planilla" ? "cobrar" : S.view === "liqprop" ? (S.lpVolver || "contratos") : S.view === "nuevo" || S.view === "contrato" ? "contratos" : S.view;
+  const actual = S.view === "planilla" ? "cobrar" : S.view === "liqprop" ? (S.lpVolver || "contratos") : ["nuevo", "contrato", "ajustes", "personas"].includes(S.view) ? "contratos" : S.view;
   $("#nav").innerHTML = vistasVisibles(VISTAS).map(([k, l]) => `<button data-vista="${k}" ${actual === k ? 'aria-current="page"' : ""}><span>${l}</span>${n[k] ? `<span class="n">${n[k]}</span>` : ""}</button>`).join("");
   $("#quien").textContent = S.yo ? S.yo.nombre : "";
   const bt = $("#tema"); if (bt) bt.innerHTML = botonTema();
@@ -284,12 +284,14 @@ function filtrarContratos() {
 }
 function vContratos() {
   const list = filtrarContratos(), shown = list.slice(0, S.limite);
+  const prox = ymSumar(ymHoy(), 1), proxAj = (c) => contratoActivo(c) ? proximoAjuste(c, ajDe(c), S.cfg) : null;
+  const nAum = [...S.contratos.values()].filter((c) => proxAj(c) === prox).length;
   const aLiq = new Map(); for (const g of pendientesLiquidar()) if (g.items.length || g.neto) aLiq.set(g.pid, (aLiq.get(g.pid) || []).concat(g));
   const f = (k, l) => `<button data-filtro="${k}" aria-pressed="${S.filtro === k}">${l}</button>`;
   const o = (k, l) => `<button data-orden="${k}" aria-pressed="${S.orden === k}">${l}</button>`;
   const titulo = { vigentes: "Contratos vigentes", porvencer: "Contratos por vencer", vencidos: "Contratos vencidos y rescindidos", todos: "Todos los contratos" }[S.filtro] || "Contratos";
   const fuera = S.q.trim() && S.filtro !== "todos" ? [...S.contratos.values()].filter((c) => !pasaFiltro(c, S.filtro) && coincide(c, S.q.trim())).length : 0;
-  return `<div class="head"><div><h1>${titulo}</h1><p>${list.length} ${list.length === 1 ? "contrato" : "contratos"}${S.q.trim() ? " encontrados" : ""}</p></div><button class="btn primary" data-a="nuevo-contrato">Nuevo contrato</button></div>
+  return `<div class="head"><div><h1>${titulo}</h1><p>${list.length} ${list.length === 1 ? "contrato" : "contratos"}${S.q.trim() ? " encontrados" : ""}</p></div><div class="row"><button class="btn" data-vista="ajustes" title="Aumentos del mes, aumento por grupo, calculadora y exportar">Aumentos del mes${nAum ? ` <span class="n-btn">${nAum}</span>` : ""}</button><button class="btn" data-vista="personas" title="Lista de inquilinos y propietarios, datos faltantes, control de calidad y nueva persona">Inquilinos y propietarios</button><button class="btn primary" data-a="nuevo-contrato">Nuevo contrato</button></div></div>
   <label class="buscador"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
   <input type="search" id="q" placeholder="Buscar contrato por dirección, inquilino, propietario, DNI o carpeta" value="${esc(S.q)}" aria-label="Buscar contratos" autocomplete="off"></label>
   ${fuera ? `<div class="buscador-ayuda">También hay ${fuera} ${fuera === 1 ? "coincidencia" : "coincidencias"} en otros estados · <button class="link" data-filtro="todos">Ver todos</button></div>` : ""}
@@ -297,8 +299,8 @@ function vContratos() {
   <div class="row"><span class="muted">Ordenar por</span><div class="seg">${o("direccion", "Dirección (A–Z)")}${o("vencimiento", "Vencimiento (más próximo primero)")}${o("reciente", "Más recientes")}</div></div>
   <div class="tw"><table><thead><tr><th>Carpeta</th><th>Vence</th><th>Dirección</th><th>Cobranza</th><th>Liquidación</th><th class="num">Saldo pendiente</th><th>Estado</th><th></th></tr></thead><tbody>
   ${shown.map((c) => { const dd = deudaDe(c), sal = dd.reduce((s, x) => s + x.saldo, 0), venc = dd.some((x) => x.vencido && !x.enTolerancia);
-    return `<tr><td class="mono"><button class="carpeta" data-contrato="${c.id}" title="Ver y editar el contrato">${c.carpeta || "—"}</button></td><td class="num">${fecha(c.fin)}</td><td>${esc(c.direccion)}${chipUSD(c)}${c.forma_pago === "dividida" ? ' <span class="chip acc">Dividida</span>' : c.forma_pago === "propietario" ? ' <span class="chip acc">Al propietario</span>' : ""}</td>
-    <td><span class="con-hist"><button class="link" data-planilla="${c.id}">${esc(inq(c))}</button><button class="hist-btn" data-recibosinq="${c.inquilino_id}" title="Recibos anteriores del inquilino" aria-label="Recibos anteriores de ${esc(inq(c))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg></button></span></td><td><span class="con-hist"><button class="link" data-liqprop="${c.propietario_id}" title="Liquidar al propietario">${esc(prop(c))}</button>${aLiq.has(c.propietario_id) ? `<span class="chip warn lq-pend" title="Tiene cobros sin liquidar: ${aLiq.get(c.propietario_id).map((g) => money(g.neto, g)).join(" + ")}">A liquidar</span>` : ""}<button class="hist-btn" data-liqsprop="${c.propietario_id}" title="Liquidaciones anteriores del propietario" aria-label="Liquidaciones anteriores de ${esc(prop(c))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></button></span></td>
+    return `<tr><td class="mono"><button class="carpeta" data-contrato="${c.id}" title="Ver y editar el contrato y sus aumentos">${c.carpeta || "—"}</button>${(() => { const pa = proxAj(c); return pa && pa <= prox && pa >= ymHoy() ? `<span class="chip ${pa < prox ? "bad" : "warn"} aum-chip" title="${pa < prox ? "Aumenta este mes y todavía no está cargado" : "Aumenta el mes que viene"}">↑ ${mesCorto(pa)}</span>` : ""; })()}</td><td class="num">${fecha(c.fin)}</td><td>${esc(c.direccion)}${chipUSD(c)}${c.forma_pago === "dividida" ? ' <span class="chip acc">Dividida</span>' : c.forma_pago === "propietario" ? ' <span class="chip acc">Al propietario</span>' : ""}</td>
+    <td><span class="con-hist"><button class="hist-btn" data-persona="${c.inquilino_id}" title="Ver y modificar los datos del inquilino" aria-label="Datos de ${esc(inq(c))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="7" r="4"/><path d="M3 21v-1a6 6 0 0 1 9-5.2"/><path d="M16.5 13.5l4 4L16 22h-4v-4z"/></svg></button><button class="link" data-planilla="${c.id}">${esc(inq(c))}</button><button class="hist-btn" data-recibosinq="${c.inquilino_id}" title="Recibos anteriores del inquilino" aria-label="Recibos anteriores de ${esc(inq(c))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg></button></span></td><td><span class="con-hist"><button class="hist-btn" data-persona="${c.propietario_id}" title="Ver y modificar los datos del propietario" aria-label="Datos de ${esc(prop(c))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="7" r="4"/><path d="M3 21v-1a6 6 0 0 1 9-5.2"/><path d="M16.5 13.5l4 4L16 22h-4v-4z"/></svg></button><button class="link" data-liqprop="${c.propietario_id}" title="Liquidar al propietario">${esc(prop(c))}</button>${aLiq.has(c.propietario_id) ? `<span class="chip warn lq-pend" title="Tiene cobros sin liquidar: ${aLiq.get(c.propietario_id).map((g) => money(g.neto, g)).join(" + ")}">A liquidar</span>` : ""}<button class="hist-btn" data-liqsprop="${c.propietario_id}" title="Liquidaciones anteriores del propietario" aria-label="Liquidaciones anteriores de ${esc(prop(c))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></button></span></td>
     <td class="num ${venc ? "saldo-venc" : ""}" ${venc ? 'title="Tiene períodos vencidos"' : ""}>${sal ? money(sal, c) : "—"}</td><td>${chipEstado(c)}</td><td class="num"><button class="btn small" data-contrato="${c.id}">Contrato</button></td></tr>`; }).join("") || `<tr><td colspan="8"><div class="empty">No hay contratos con ese filtro.</div></td></tr>`}
   </tbody></table></div>${list.length > shown.length ? `<div class="row"><button class="btn" data-a="mas">Mostrar más</button></div>` : ""}`;
 }
@@ -337,8 +339,8 @@ function vAjustes() {
     <td><span class="chip ${a.p <= cur ? "warn" : "acc"}">${periodo(a.p)}</span></td><td class="num">${money(a.base, c)}</td><td>${celdaCalculo(a, c)}</td>
     <td class="num acciones">${c.ajuste_revisar ? `<button class="btn small" data-contrato="${c.id}" title="Revisá cada cuántos meses ajusta y el primer ajuste">Confirmar periodicidad</button>` : `${a.calc && !a.calc.error ? `<button class="btn small primary" data-aplicaraumento="${c.id}">Aplicar</button> <button class="btn small" data-aumimg="${c.id}" title="Imagen del aumento para mandarle al inquilino">Imagen</button> ` : ""}<button class="btn small" data-ajustar="${c.id}">${a.calc && !a.calc.error ? "Modificar" : "Cargar"}</button>`}</td></tr>`).join("") || `<tr><td colspan="7"><div class="empty">No hay aumentos en este período.</div></td></tr>`}</tbody></table></div>`;
   const ultimo = S.indices ? Object.entries(FUENTES).map(([k]) => S.indices[k] ? `${k}: ${S.indices[k].tipo === "diario" ? fecha(S.indices[k].ultima) : periodo(S.indices[k].ultimoMes.slice(0, 7))}` : "").filter(Boolean).join(" · ") : "bajando…";
-  return `<div class="head"><div><h1>Ajustes de precio</h1><p>El sistema calcula cada aumento con los índices oficiales (BCRA e INDEC), con las mismas reglas que la Calculadora de Alquileres. Cuando el índice ya está publicado, el aumento se carga solo el mes que corresponde; siempre se puede modificar.</p></div>
-    <div class="row"><button class="btn" data-a="aumento-grupo">Aumento por grupo</button><button class="btn" data-a="calc-aumentos">Calculadora de aumentos</button><button class="btn" data-a="indices">Actualizar índices</button>${delMes.length ? `<button class="btn" data-a="exportar-aumentos">Exportar a Excel</button><button class="btn" data-a="exportar-aumentos-pdf">Exportar a PDF</button>` : ""}${listos.length ? `<button class="btn primary" data-a="aplicar-listos">Aplicar los ${listos.length} calculados</button>` : ""}</div></div>
+  return `<div class="head"><div><h1>Aumentos del mes</h1><p>El sistema calcula cada aumento con los índices oficiales (BCRA e INDEC), con las mismas reglas que la Calculadora de Alquileres. Cuando el índice ya está publicado, el aumento se carga solo el mes que corresponde; siempre se puede modificar.</p></div>
+    <div class="row"><button class="btn" data-vista="contratos">Volver a contratos</button><button class="btn" data-a="aumento-grupo">Aumento por grupo</button><button class="btn" data-a="calc-aumentos">Calculadora de aumentos</button><button class="btn" data-a="indices">Actualizar índices</button>${delMes.length ? `<button class="btn" data-a="exportar-aumentos">Exportar a Excel</button><button class="btn" data-a="exportar-aumentos-pdf">Exportar a PDF</button>` : ""}${listos.length ? `<button class="btn primary" data-a="aplicar-listos">Aplicar los ${listos.length} calculados</button>` : ""}</div></div>
   ${controlRedondeo(S.cfg)}
   <p class="muted" style="margin:0">Último dato publicado · ${esc(ultimo)}. "Estimado" = el índice de algún mes todavía no salió: se repite la última variación hasta que se publique.</p>
   ${revisar ? `<div class="banner">${revisar} contratos vigentes vinieron de SPOT con la periodicidad sin confirmar: a esos no se les carga el aumento solo. Confirmala en la carpeta del contrato.</div>` : ""}
@@ -475,7 +477,7 @@ async function autoAplicarAumentos() {
     if (!a || a.p > cur || !a.calc || a.calc.error || a.calc.estimado) continue;
     try { if (await guardarAumento(c, a, a.calc.nuevo, true)) n++; } catch {}
   }
-  if (n) { await cargarTodo(); render(); toast(`Se calcularon y cargaron ${n} ${n === 1 ? "aumento" : "aumentos"} con los índices oficiales. Revisalos en Ajustes de precio.`); }
+  if (n) { await cargarTodo(); render(); toast(`Se calcularon y cargaron ${n} ${n === 1 ? "aumento" : "aumentos"} con los índices oficiales. Revisalos en Contratos → Aumentos del mes.`); }
 }
 async function iniciarIndices(forzar) {
   try { S.indices = await cargarIndices(forzar); if (S.indices.errores?.length) toast("No se pudieron actualizar algunos índices: " + S.indices.errores.join(" · "), "bad"); }
@@ -620,7 +622,7 @@ function vPersonas() {
     .sort((a, b) => (cuenta.get(b.id) || 0) - (cuenta.get(a.id) || 0) || a.nombre.localeCompare(b.nombre, "es"));
   const t = (k, l) => `<button data-tipo="${k}" aria-pressed="${S.tipoPersona === k}">${l}</button>`;
   const conAcceso = list.filter((p) => p.user_id).length;
-  return `<div class="head"><div><h1>Inquilinos y propietarios</h1><p>Cargá DNI, email y datos bancarios, y creá el acceso al portal. ${conAcceso} de ${list.length} con acceso.</p></div><div class="row"><button class="btn" data-a="leer-comprobantes" title="Elegí varias capturas de transferencias y se completan CBU y alias de los propietarios">Leer comprobantes</button><button class="btn primary" data-a="nueva-persona">Nueva persona</button></div></div>
+  return `<div class="head"><div><h1>Inquilinos y propietarios</h1><p>Cargá DNI, email y datos bancarios, y creá el acceso al portal. ${conAcceso} de ${list.length} con acceso.</p></div><div class="row"><button class="btn" data-vista="contratos">Volver a contratos</button><button class="btn" data-a="leer-comprobantes" title="Elegí varias capturas de transferencias y se completan CBU y alias de los propietarios">Leer comprobantes</button><button class="btn primary" data-a="nueva-persona">Nueva persona</button></div></div>
   <div class="row"><input type="search" id="q" class="search" placeholder="Nombre, DNI, celular o email" value="${esc(S.q)}"><div class="seg">${t("inquilino", "Inquilinos")}${t("propietario", "Propietarios")}</div><div class="seg"><button data-a="solo-faltan" aria-pressed="${!!S.soloFaltan}">Vigentes con datos faltantes</button><button data-a="calidad" aria-pressed="${!!S.calidad}">Control de calidad</button></div></div>
   ${S.soloFaltan ? `<p class="muted" style="margin:0">${list.length} ${S.tipoPersona === "propietario" ? "propietarios" : "inquilinos"} con contrato vigente a los que les falta algún dato o hay que revisar la cuenta. Abrí cada uno y completalo${S.tipoPersona === "propietario" ? "; el CBU y el alias se pueden leer pegando la captura de una transferencia" : ""}.</p>` : ""}
   <div class="tw"><table><thead><tr><th>Nombre</th><th>DNI</th><th>Celular</th><th>Email</th>${S.tipoPersona === "propietario" ? "<th>CBU / alias</th>" : ""}<th class="num">Contratos vigentes</th><th>${S.soloFaltan ? "Falta" : "Portal"}</th></tr></thead><tbody>
@@ -1358,6 +1360,15 @@ function filaPeriodo(x) {
     <td><input type="number" step="0.01" class="ct-monto" name="monto${x.k}" value="${x.monto ?? ""}" placeholder="${x.k === 1 ? "" : "Sin cargar"}" ${x.k === 1 ? "required" : ""} aria-label="Alquiler del período ${x.k}"></td>
     <td>${!x.monto && x.k > 1 && x.estado !== "pasado" ? `<button type="button" class="btn small" data-calcper="${x.k}">Calcular</button> ` : ""}${falta ? `<span class="chip bad">Falta cargar</span>` : !x.monto ? `<span class="chip">A calcular</span>` : x.estado === "pasado" ? `<span class="chip ok">Cumplido</span>` : x.estado === "futuro" ? `<span class="chip">Cargado</span>` : ""}</td></tr>`;
 }
+function panelAumento(c) {
+  const a = contratoActivo(c) ? aumentoDe(c) : null, cur = ymHoy();
+  const hechos = (S.aj.get(c.id) || []).filter((x) => !x.anulado).sort((x, y) => (x.desde < y.desde ? 1 : -1)).slice(0, 3);
+  const prox = a ? `<div class="ct-aum ${a.p <= cur ? "atrasado" : ""}"><div><span class="muted">Próximo aumento</span> <span class="chip ${a.p <= cur ? "warn" : "acc"}">${periodo(a.p)}</span>${a.p <= cur ? ' <span class="muted">· corresponde y todavía no está cargado</span>' : ""}
+      <div>Alquiler actual <b class="mono">${money(a.base, c)}</b> → ${celdaCalculo(a, c)}</div></div>
+    <div class="row">${c.ajuste_revisar ? `<span class="muted">Confirmá la periodicidad y guardá</span>` : a.calc && !a.calc.error ? `<button type="button" class="btn small primary" data-aplicaraumento="${c.id}">Aplicar</button><button type="button" class="btn small" data-aumimg="${c.id}">Imagen para el inquilino</button>` : ""}<button type="button" class="btn small" data-ajustar="${c.id}">${a.calc && !a.calc.error ? "Modificar" : "Cargar aumento"}</button></div></div>`
+    : `<p class="muted">${contratoActivo(c) ? "No tiene más aumentos antes de terminar el contrato." : "El contrato no está vigente."}</p>`;
+  return prox + (hechos.length ? `<div class="muted ct-aum-h">Últimos aumentos: ${hechos.map((x) => `${periodo(x.desde)} ${money(x.monto, c)}${x.pct != null ? ` (+${String(x.pct).replace(".", ",")}%)` : ""} <button type="button" class="link" data-ajimg="${x.id}">imagen</button>`).join(" · ")}</div>` : "");
+}
 function abrirContrato(id) { S.ct = +id; S.view = "contrato"; cerrarModal(); render(); scrollTo(0, 0); }
 function vContrato() {
   const c = S.contratos.get(S.ct); if (!c) return `<div class="empty">Contrato no encontrado.</div>`;
@@ -1386,6 +1397,7 @@ function vContrato() {
     </div></section>
 
     <section class="panel"><div class="ph"><h2>Montos y períodos de ajuste</h2></div>
+      ${panelAumento(c)}
       <div class="form">
         <label>Índice<select name="indice" id="ct-indice">${INDICES.map(([v, l]) => `<option value="${v}" ${c.indice === v ? "selected" : ""}>${l}</option>`).join("")}${INDICES.some(([v]) => v === c.indice) ? "" : `<option selected>${esc(c.indice)}</option>`}</select></label>
         <label>Ajusta<select name="ajuste_meses" id="ct-meses">${PERIODICIDAD.map(([v, l]) => `<option value="${v}" ${+c.ajuste_meses === v ? "selected" : ""}>${l} (cada ${v} ${v === 1 ? "mes" : "meses"})</option>`).join("")}${PERIODICIDAD.some(([v]) => v === +c.ajuste_meses) ? "" : `<option value="${c.ajuste_meses}" selected>Cada ${c.ajuste_meses} meses</option>`}</select></label>
@@ -1767,7 +1779,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191519");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191527");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1819,7 +1831,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191519");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191527");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];

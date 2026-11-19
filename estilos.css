@@ -957,3 +957,9 @@ body.movil #f-planilla tr td,body.movil #f-liqprop tr td{background:transparent!
 .hist-tw .acciones{white-space:nowrap}.hist-tw .acciones .btn{margin-left:4px}
 .pl-reusar{margin:6px 0 2px;padding:10px 12px;border-radius:10px;background:var(--accent-soft);font-size:14.5px}
 .con-hist .lq-pend{font-size:11px;padding:1px 7px;white-space:nowrap}
+.n-btn{display:inline-block;min-width:20px;padding:0 6px;margin-left:4px;border-radius:10px;background:var(--accent);color:#fff;font-size:12px;line-height:20px;text-align:center}
+.aum-chip{margin-left:6px;font-size:11px;padding:1px 6px;white-space:nowrap}
+.ct-aum{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;margin:4px 0 12px;border:1px solid var(--line, #e5dcdc);border-radius:12px;background:var(--accent-soft)}
+.ct-aum.atrasado{border-color:var(--warn, #c98a00)}
+.ct-aum .aum-det{font-size:12px}
+.ct-aum-h{margin:-4px 0 12px;font-size:13px}
