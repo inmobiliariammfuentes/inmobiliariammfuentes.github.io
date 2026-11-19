@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611191406";
-import { iniciarChat } from "./chat.js?v=202611191406";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191406";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191406";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191406";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191406";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191406";
-import { iniciarCalculadora } from "./calculadora.js?v=202611191406";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191406";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191406";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191406";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191406";
+} from "./comun.js?v=202611191412";
+import { iniciarChat } from "./chat.js?v=202611191412";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191412";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191412";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191412";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191412";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191412";
+import { iniciarCalculadora } from "./calculadora.js?v=202611191412";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191412";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191412";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191412";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191412";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -367,6 +367,32 @@ async function mostrarImagenAumento(c, x) {
   const cv = await imagenAumento(datos, S.cfg);
   S.aumImg = { cv, tel: pi.telefono, texto: textoAumento(datos), nombre: "Aumento " + c.direccion };
   abrirModal(modalImagenHtml("Aumento de " + esc(c.direccion)));
+  const box = $("#aum-cv"); cv.style.cssText = "width:100%;height:auto;display:block"; box.appendChild(cv);
+}
+/* ================= imagen con el detalle a pagar (desde la planilla de cobro) ================= */
+async function mostrarDetalleAPagar() {
+  const f = $("#f-planilla"); if (!f) return; const c = S.contratos.get(+f.dataset.cid); const usd = esUSD(c);
+  const grupos = new Map(); let total = 0, bonif = false, vence = "", vencido = false;
+  const g = (p) => { if (!grupos.has(p)) grupos.set(p, { p, label: periodo(p), filas: [] }); return grupos.get(p); };
+  for (const r of f.querySelectorAll("tr[data-cargo]")) {
+    if (!r.querySelector(".pl-sel").checked) continue;
+    const si = +(r.dataset.inq ?? 1); if (si === 0) continue; // lo que no paga el inquilino no va
+    const m = r2(r.querySelector(".pl-monto").value), pu = r2(r.querySelector(".pl-pun").value), p = r.dataset.per;
+    const desc = (S.cg.get(c.id) || []).find((x) => x.id === +r.dataset.cargo)?.descripcion || "Concepto";
+    const limpio = desc.replace(new RegExp("\\s*[-–·]\\s*" + p + "\\s*$"), "").trim();
+    if (m > 0) { g(p).filas.push({ desc: limpio, monto: m, menos: si === -1 }); total += si * m; }
+    if (pu > 0) { g(p).filas.push({ desc: `Intereses por mora${+r.dataset.dias ? ` (${r.dataset.dias} días)` : ""}`, monto: pu, mora: true }); total += pu; }
+    else if (r.dataset.tipo === "alquiler" && r.hasAttribute("data-bonif")) bonif = true;
+    if (!vence || p >= vence.p) { vence = { p, vto: r.dataset.vto }; vencido = +r.dataset.dias > 0; }
+  }
+  const ult = vence ? vence.p : ymHoy();
+  for (const k of leerConceptos(f)) { if (!k.inquilino) continue; g(ult).filas.push({ desc: k.concepto, monto: k.monto, menos: k.inquilino === -1 }); total += k.inquilino * k.monto; }
+  if (!grupos.size) { toast("Tildá al menos un renglón de la planilla", "bad"); return; }
+  const pi = P(c.inquilino_id), nom = (pi.nombre || "").includes(",") ? pi.nombre.split(",").reverse().map((x) => x.trim()).join(" ") : pi.nombre;
+  const datos = { inquilino: nom, direccion: c.direccion, grupos: [...grupos.values()].sort((a, b) => a.p.localeCompare(b.p)), total: r2(total), usd, vence: vence && !vencido ? vence.vto : "", bonificado: bonif, obs: $("#pl-obs")?.value.trim() || "" };
+  const cv = await imagenDetalle(datos, S.cfg);
+  S.aumImg = { cv, tel: pi.telefono, texto: textoDetalle(datos), nombre: "Detalle a pagar " + c.direccion };
+  abrirModal(modalImagenHtml("Detalle a pagar · " + esc(c.direccion)));
   const box = $("#aum-cv"); cv.style.cssText = "width:100%;height:auto;display:block"; box.appendChild(cv);
 }
 /* ================= aumento por grupo (cocheras: moto, auto, camioneta) ================= */
@@ -819,7 +845,7 @@ function vPlanilla() {
       const pu = !puesto && g.tipo === "alquiler" ? x.punitorio : 0; if (g.tipo === "alquiler") puesto = true;
       const parcial = +g.saldo < +g.monto - 0.009;
       const si = g.inquilino ?? 1;
-      filas.push(`<tr data-cargo="${g.id}" data-prop="${g.propietario}" data-inq="${si}">
+      filas.push(`<tr data-cargo="${g.id}" data-prop="${g.propietario}" data-inq="${si}" data-per="${x.p}" data-vto="${x.vto}" data-dias="${x.vencido && !x.enTolerancia ? x.dias : 0}" data-tipo="${g.tipo}"${x.bonificado ? " data-bonif" : ""}>
         <td><input type="checkbox" class="pl-sel" aria-label="Cobrar este renglón" ${x.p <= hasta ? "checked" : ""}></td>
         <td class="num">${fechaPer(x.p)}</td>
         <td>${parcial ? `<span class="chip warn">Saldo s/</span> ` : ""}${esc(g.descripcion)}${g.tipo !== "alquiler" ? ` <button type="button" class="pl-edit" data-editcargo="${g.id}" title="Cambiar el importe de este concepto" aria-label="Cambiar el importe de ${esc(g.descripcion)}">✎ Editar importe</button>` : ""}${si === -1 ? ' <span class="chip acc">Resta al inquilino</span>' : si === 0 ? ' <span class="chip">No afecta al inquilino</span>' : ""}${g.propietario === 0 ? ' <span class="chip">No va al propietario</span>' : g.propietario === -1 ? ' <span class="chip">Resta al propietario</span>' : ""}${x.vencido && g.tipo === "alquiler" ? (x.enTolerancia ? ' <span class="chip warn">En tolerancia</span>' : ` <span class="chip bad">${x.dias} días</span>`) : ""}</td>
@@ -851,7 +877,7 @@ function vPlanilla() {
       // el recibo eliminado hace poco (y todavía no regenerado) cuyo número se puede volver a usar
       const el = ps.filter((p) => p.anulado && +p.recibo_nro >= 1000 && +p.recibo_nro < 1000000 && p.fecha >= hace30).sort((a, b) => b.recibo_nro - a.recibo_nro)[0];
       return el && !ps.some((p) => !p.anulado && +p.recibo_nro > +el.recibo_nro) ? `<label class="check pl-reusar"><input type="checkbox" name="reusar" value="${el.recibo_nro}" checked> Usar el número <b>N° ${pad5(el.recibo_nro)}</b> del recibo eliminado (${fecha(el.fecha)} · ${money(el.total, c)})</label>` : ""; })()}
-    <div class="row"><button class="btn primary" type="submit" id="pl-ok">${e ? "Aprobar y enviar recibo" : "Confirmar pago"}</button><button class="btn" type="button" data-volver>Cancelar</button></div>
+    <div class="row"><button class="btn primary" type="submit" id="pl-ok">${e ? "Aprobar y enviar recibo" : "Confirmar pago"}</button><button class="btn" type="button" data-volver>Cancelar</button><button class="btn pl-detimg" type="button" data-a="detalle-img" title="Imagen con todo lo que tiene que pagar, para mandar por WhatsApp">Imagen del detalle a pagar</button></div>
   </form>`;
 }
 function leerPlanilla() {
@@ -962,7 +988,7 @@ function vLiqProp() {
       <label class="full">Comprobante de la transferencia (opcional)<input type="file" id="lp-comp" accept="${ARCHIVOS_OK}"></label>
     </div>
     <div class="resumen" id="lp-resumen"></div>
-    <div class="row"><button class="btn primary" type="submit" id="lp-ok">Confirmar liquidación</button><button class="btn" type="button" data-volver>Cancelar</button></div>
+    <div class="row"><button class="btn primary" type="submit" id="lp-ok">Confirmar liquidación</button><button class="btn" type="button" data-volver>Cancelar</button><button class="btn pl-detimg" type="button" data-a="detalle-img" title="Imagen con todo lo que tiene que pagar, para mandar por WhatsApp">Imagen del detalle a pagar</button></div>
   </form>`;
 }
 function filaParticular() {
@@ -1754,7 +1780,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191406");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191412");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1806,7 +1832,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191406");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191412");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1973,6 +1999,7 @@ document.addEventListener("click", async (ev) => {
       await recargar(`Aumento aplicado: ${money(a.calc.nuevo, c)} desde ${periodo(a.p)}`); return; }
     if (d.a === "indices") { toast("Actualizando índices…"); await iniciarIndices(true); toast("Índices actualizados"); return; }
     if (d.a === "exportar-aumentos") { exportarAumentos(el); return; }
+    if (d.a === "detalle-img") { await mostrarDetalleAPagar(); return; }
     if (d.a === "exportar-aumentos-pdf") { exportarAumentos(el, "pdf"); return; }
     if (d.a === "aumento-grupo") { modalGrupo(); return; }
     if (d.gaplicar !== undefined) { await aplicarGrupo(); return; }

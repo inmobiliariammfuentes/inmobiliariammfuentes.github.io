@@ -2,8 +2,8 @@
 // · Redondeo de los aumentos calculados (exacto, para arriba o para abajo, de a $ 5.000 u otro paso)
 // · Imagen del aumento para mandarle al inquilino (copiar / compartir / WhatsApp)
 // · Calculadora libre: alquiler inicial + fecha + cada cuántos meses + índice → progresión completa
-import { LOGO_URL } from "./comun.js?v=202611191406";
-import { calcularAumento, FUENTES, masMeses, hoyISO } from "./indices.js?v=202611191406";
+import { LOGO_URL } from "./comun.js?v=202611191412";
+import { calcularAumento, FUENTES, masMeses, hoyISO } from "./indices.js?v=202611191412";
 
 const BORDO = "#6e1b2a", BORDO2 = "#8c2a3b";
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -96,6 +96,74 @@ export function textoAumento(d) {
   const pi = conIndice ? (d.indicePct != null ? d.indicePct : (d.indiceMonto / d.anterior - 1) * 100) : null;
   return `Hola${n ? " " + n : ""}, te informamos la actualización del alquiler de ${d.direccion}: desde ${mesTexto(d.desde)} pasa de ${pesos(d.anterior, d.usd)} a ${pesos(d.nuevo, d.usd)} (${pctTxt(d.pct)}).`
     + (conIndice ? ` Según el índice ${d.indice} correspondía ${pesos(d.indiceMonto, d.usd)} (${pctTxt(pi)}); el valor quedó redondeado en ${pesos(d.nuevo, d.usd)}.` : ` Ajuste por ${d.indice}.`);
+}
+const pesos2 = (n, usd) => { const r = Math.round(n * 100) / 100; return (usd ? "U$S " : "$ ") + r.toLocaleString("es-AR", { minimumFractionDigits: Number.isInteger(r) ? 0 : 2, maximumFractionDigits: 2 }); };
+/* ---------- imagen con el detalle a pagar ---------- */
+// d: { inquilino, direccion, grupos:[{ p, label, filas:[{ desc, monto, menos, mora }] }], total, usd, vence (ISO o ""), bonificado, obs }
+export async function imagenDetalle(d, cfg = {}) {
+  try { await Promise.all([document.fonts?.load?.("700 40px 'Fraunces'"), document.fonts?.load?.("600 30px 'Plus Jakarta Sans'")]); } catch {}
+  const W = 1080, SANS = "'Plus Jakarta Sans', Arial, sans-serif", SERIF = "'Fraunces', Georgia, serif", logo = await cargarImg(LOGO_URL);
+  const varios = d.grupos.length > 1;
+  const p0 = d.grupos[0].p, p1 = d.grupos[d.grupos.length - 1].p;
+  const titMes = !varios ? cap(mesTexto(p0)) : p0.slice(0, 4) === p1.slice(0, 4) ? cap(MESES[+p0.slice(5, 7) - 1]) + " a " + mesTexto(p1) : cap(mesTexto(p0)) + " a " + mesTexto(p1);
+  const dibujar = (g) => {
+    const grad = g.createLinearGradient(0, 0, W, 300); grad.addColorStop(0, BORDO2); grad.addColorStop(1, "#4a111c");
+    g.fillStyle = grad; g.fillRect(0, 0, W, 290);
+    g.fillStyle = "#fff"; rr(g, 64, 62, 150, 150, 28); g.fill();
+    if (logo) { const s = Math.min(120 / logo.width, 120 / logo.height); g.drawImage(logo, 64 + (150 - logo.width * s) / 2, 62 + (150 - logo.height * s) / 2, logo.width * s, logo.height * s); }
+    g.fillStyle = "rgba(255,255,255,.75)"; g.font = `600 26px ${SANS}`; g.fillText((cfg.nombre || "Inmobiliaria M.M. Fuentes").toUpperCase(), 250, 108);
+    g.fillStyle = "#fff"; g.font = `700 60px ${SERIF}`; g.fillText("Detalle a pagar", 248, 176);
+    g.font = `500 30px ${SANS}`; g.fillStyle = "rgba(255,255,255,.9)"; g.fillText(titMes, 250, 220);
+    let y = 350;
+    const etiqueta = (t, v, grande) => { g.font = `600 24px ${SANS}`; g.fillStyle = "#7a6a6c"; g.fillText(t, 72, y); g.fillStyle = "#111"; g.font = `${grande ? 700 : 600} ${grande ? 36 : 32}px ${SANS}`;
+      for (const l of lineas(g, v, W - 144)) { y += 46; g.fillText(l, 72, y); } y += 44; };
+    if (d.inquilino) etiqueta("INQUILINO", d.inquilino, true);
+    if (d.direccion) etiqueta("PROPIEDAD", d.direccion);
+    // tabla
+    const x0 = 56, ancho = W - 112, xd = 88, xm = W - 88;
+    const top = y; y += 24;
+    for (const gr of d.grupos) {
+      if (varios) { g.fillStyle = BORDO; g.font = `700 22px ${SANS}`; g.fillText(("PERÍODO " + mesTexto(gr.p)).toUpperCase(), xd, y + 30); y += 52; }
+      for (const f of gr.filas) {
+        g.font = `600 30px ${SANS}`;
+        const monto = (f.menos ? "− " : "") + pesos2(f.monto, d.usd), wm = g.measureText(monto).width;
+        const ls = lineas(g, f.desc, xm - xd - wm - 40);
+        g.fillStyle = f.menos ? "#1f7a4a" : f.mora ? "#a03a1a" : "#222";
+        ls.forEach((l, i) => g.fillText(l, xd, y + 34 + i * 40));
+        g.textAlign = "right"; g.font = `700 30px ${SANS}`; g.fillText(monto, xm, y + 34); g.textAlign = "left";
+        if (f.menos && !/descuento|bonific/i.test(f.desc)) { g.font = `600 20px ${SANS}`; g.fillText("DESCUENTO", xd, y + 34 + ls.length * 40); y += 26; }
+        y += 34 + ls.length * 40 - 14;
+        g.strokeStyle = "#eee3e4"; g.lineWidth = 2; g.beginPath(); g.moveTo(xd, y); g.lineTo(xm, y); g.stroke(); y += 8;
+      }
+      y += 14;
+    }
+    y += 6;
+    g.strokeStyle = "#e3d6d8"; g.lineWidth = 2; rr(g, x0, top, ancho, y - top, 22); g.stroke();
+    y += 28;
+    // total
+    g.fillStyle = BORDO; rr(g, x0, y, ancho, 150, 22); g.fill();
+    g.fillStyle = "rgba(255,255,255,.85)"; g.font = `700 24px ${SANS}`; g.fillText("TOTAL A PAGAR", xd, y + 56);
+    if (d.vence) { g.font = `500 24px ${SANS}`; g.fillText("Vence el " + fechaTxt(d.vence), xd, y + 104); }
+    g.fillStyle = "#fff"; g.textAlign = "right"; g.font = `800 56px ${SANS}`; g.fillText(pesos2(d.total, d.usd), xm, y + 96); g.textAlign = "left";
+    y += 190;
+    const nota = (t, col) => { g.fillStyle = col; g.font = `500 24px ${SANS}`; for (const l of lineas(g, t, W - 144)) { g.fillText(l, 72, y); y += 34; } y += 8; };
+    if (d.bonificado) nota("Los intereses por mora fueron bonificados.", "#1f7a4a");
+    if (d.vence) nota("Pasado el vencimiento se suman intereses por mora.", "#666");
+    if (d.obs) nota(d.obs, "#444");
+    y += 16; g.fillStyle = "#f4eff0"; g.fillRect(0, y, W, 120);
+    g.fillStyle = "#4a3b3e"; g.textAlign = "center"; g.font = `600 26px ${SANS}`; g.fillText(cfg.nombre || "Inmobiliaria M.M. Fuentes", W / 2, y + 50);
+    g.font = `400 24px ${SANS}`; g.fillText([cfg.telefono ? "Tel. " + cfg.telefono : "", cfg.whatsapp ? "WhatsApp " + cfg.whatsapp : "", cfg.email || ""].filter(Boolean).join("   ·   "), W / 2, y + 88); g.textAlign = "left";
+    return y + 120;
+  };
+  const tmp = document.createElement("canvas"); tmp.width = W; tmp.height = 4000; const alto = Math.ceil(dibujar(tmp.getContext("2d")));
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = alto; const g = cv.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, W, alto); dibujar(g);
+  return cv;
+}
+export function textoDetalle(d) {
+  const n = (d.inquilino || "").split(" ")[0];
+  const meses = d.grupos.map((x) => mesTexto(x.p));
+  const filas = d.grupos.flatMap((gr) => gr.filas.map((f) => `• ${f.desc}${d.grupos.length > 1 ? " (" + mesTexto(gr.p) + ")" : ""}: ${f.menos ? "− " : ""}${pesos2(f.monto, d.usd)}`));
+  return `Hola${n ? " " + n : ""}, te pasamos el detalle a pagar de ${meses.length > 1 ? meses[0] + " a " + meses[meses.length - 1] : meses[0]} de ${d.direccion}:\n${filas.join("\n")}\nTotal: ${pesos2(d.total, d.usd)}${d.vence ? ` (vence el ${fechaTxt(d.vence)})` : ""}.`;
 }
 // accion: "copiar" | "compartir" | "descargar"
 export async function enviarImagen(cv, accion, { tel, texto, nombre, toast }) {

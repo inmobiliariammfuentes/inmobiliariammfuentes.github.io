@@ -2,9 +2,9 @@
 // Voz directa entre los navegadores (WebRTC). Supabase Realtime solo se usa para saber quién está conectado
 // y para pasar los avisos de la llamada; el audio no pasa por ningún servidor.
 // Canal privado "intercom": solo lo pueden usar usuarios del equipo (ver supabase/32_intercomunicador.sql).
-import { esc, toast } from "./comun.js?v=202611191406";
-import { perso, actualizarPerso } from "./personalizar.js?v=202611191406";
-import { iniciarWalkie, recibirWalkie, botonHablar, pintarBotones, elegirDestino, destinoWalkie } from "./walkie.js?v=202611191406";
+import { esc, toast } from "./comun.js?v=202611191412";
+import { perso, actualizarPerso } from "./personalizar.js?v=202611191412";
+import { iniciarWalkie, recibirWalkie, botonHablar, pintarBotones, elegirDestino, destinoWalkie } from "./walkie.js?v=202611191412";
 
 const ICE = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }];
 const SID = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
