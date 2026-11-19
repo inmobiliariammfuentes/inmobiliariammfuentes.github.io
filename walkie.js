@@ -1,7 +1,7 @@
 // Cobranza Fuentes · Walkie-talkie: mantener apretado para hablar, sin establecer una llamada.
 // Mientras se mantiene apretado, el audio se graba en pedacitos y se manda enseguida por el canal "intercom";
 // del otro lado se escucha casi en vivo (y se puede repetir). Máximo 60 segundos por mensaje.
-import { esc, toast } from "./comun.js?v=202611191344";
+import { esc, toast } from "./comun.js?v=202611191406";
 
 const MAX_MS = 60000, TROZO_MS = 250;
 const TIPOS = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/webm", "audio/mp4"];

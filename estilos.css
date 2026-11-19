@@ -955,3 +955,4 @@ body.movil #f-planilla tr td,body.movil #f-liqprop tr td{background:transparent!
 .hist-tw tr.anulada td{color:var(--muted);text-decoration:line-through}
 .hist-tw tr.anulada td:last-child{text-decoration:none}
 .hist-tw .acciones{white-space:nowrap}.hist-tw .acciones .btn{margin-left:4px}
+.pl-reusar{margin:6px 0 2px;padding:10px 12px;border-radius:10px;background:var(--accent-soft);font-size:14.5px}

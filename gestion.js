@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611191344";
-import { iniciarChat } from "./chat.js?v=202611191344";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191344";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191344";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191344";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191344";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191344";
-import { iniciarCalculadora } from "./calculadora.js?v=202611191344";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191344";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191344";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191344";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191344";
+} from "./comun.js?v=202611191406";
+import { iniciarChat } from "./chat.js?v=202611191406";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191406";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191406";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191406";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191406";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191406";
+import { iniciarCalculadora } from "./calculadora.js?v=202611191406";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191406";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191406";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191406";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191406";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -847,6 +847,10 @@ function vPlanilla() {
       <label class="full">Observaciones (salen en el recibo)<input type="text" id="pl-obs" name="obs" value="${esc(e?.observaciones || "")}"></label>
     </div>
     <div class="resumen" id="pl-resumen"></div>
+    ${(() => { const ps = pgDe(c), hace30 = ymSumar(ymHoy(), -1) + isoHoy().slice(7);
+      // el recibo eliminado hace poco (y todavía no regenerado) cuyo número se puede volver a usar
+      const el = ps.filter((p) => p.anulado && +p.recibo_nro >= 1000 && +p.recibo_nro < 1000000 && p.fecha >= hace30).sort((a, b) => b.recibo_nro - a.recibo_nro)[0];
+      return el && !ps.some((p) => !p.anulado && +p.recibo_nro > +el.recibo_nro) ? `<label class="check pl-reusar"><input type="checkbox" name="reusar" value="${el.recibo_nro}" checked> Usar el número <b>N° ${pad5(el.recibo_nro)}</b> del recibo eliminado (${fecha(el.fecha)} · ${money(el.total, c)})</label>` : ""; })()}
     <div class="row"><button class="btn primary" type="submit" id="pl-ok">${e ? "Aprobar y enviar recibo" : "Confirmar pago"}</button><button class="btn" type="button" data-volver>Cancelar</button></div>
   </form>`;
 }
@@ -1558,8 +1562,8 @@ function modalRecibosInquilino(pid) {
     ${pagos.length ? `<div class="tw hist-tw"><table><thead><tr><th>Recibo</th><th>Fecha</th><th>Período</th>${cs.length > 1 ? "<th>Propiedad</th>" : ""}<th>Forma</th><th class="num">Total</th><th></th></tr></thead><tbody>
       ${pagos.map(({ p, c }) => `<tr class="${p.anulado ? "anulada" : ""}"><td class="mono">${pad5(p.recibo_nro)}</td><td class="num">${fecha(p.fecha)}</td><td>${periodo(p.periodo)}</td>${cs.length > 1 ? `<td>${esc(c.direccion)}</td>` : ""}
         <td>${p.modalidad === "dividida" ? "Dividida" : p.modalidad === "propietario" ? "Al propietario" : esc(p.medio || "")}</td><td class="num">${money(p.total, c)}</td>
-        <td class="num acciones">${p.anulado ? `<span class="chip bad">Eliminado</span>` : `${p.liquidacion_id ? `<span class="chip ok">Liquidado</span> ` : ""}<button class="btn small" data-recibo="${p.id}">Ver</button><button class="btn small" data-recibopdf="${p.id}">PDF</button><button class="btn small danger" data-borrarrecibo="${p.id}" data-pid="${pid}" title="Anula el recibo: la deuda vuelve a quedar pendiente y el número queda como eliminado">Eliminar</button>`}</td></tr>`).join("")}
-    </tbody></table></div><p class="muted" style="margin:0;font-size:13px">Al eliminar un recibo, lo que pagó vuelve a figurar como deuda y el número queda registrado como eliminado (no se reutiliza). Si ya se liquidó al propietario, primero hay que eliminar esa liquidación.</p>`
+        <td class="num acciones">${p.anulado ? `<span class="chip bad">Eliminado</span>` : `${p.liquidacion_id ? `<span class="chip ok">Liquidado</span> ` : ""}<button class="btn small" data-recibo="${p.id}">Ver</button><button class="btn small" data-recibopdf="${p.id}">PDF</button><button class="btn small danger" data-borrarrecibo="${p.id}" data-pid="${pid}" title="Elimina el recibo: la deuda vuelve a quedar pendiente y al generarlo de nuevo sale con el mismo número">Eliminar</button>`}</td></tr>`).join("")}
+    </tbody></table></div><p class="muted" style="margin:0;font-size:13px">Al eliminar un recibo, lo que pagó vuelve a figurar como deuda. Cuando lo vuelvas a generar desde la planilla de cobro, sale con el mismo número. Si ya se liquidó al propietario, primero hay que eliminar esa liquidación.</p>`
     : `<div class="empty">Este inquilino todavía no tiene recibos en el sistema nuevo.</div>`}`, true);
 }
 function modalLiqsPropietario(pid) {
@@ -1750,7 +1754,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191344");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191406");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1802,7 +1806,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191344");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191406");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1940,7 +1944,7 @@ document.addEventListener("click", async (ev) => {
     if (d.recibosinq) { modalRecibosInquilino(+d.recibosinq); return; }
     if (d.liqsprop) { modalLiqsPropietario(+d.liqsprop); return; }
     if (d.borrarrecibo) { if (!confirmar("¿Seguro? Tocá de nuevo")) return; const pg = S.pagosById.get(+d.borrarrecibo);
-      if (await rpc("anular_pago", { p_pago: +d.borrarrecibo }, `Recibo N° ${pad5(pg?.recibo_nro)} eliminado`)) { await cargarTodo(); render(); modalRecibosInquilino(+d.pid); } return; }
+      if (await rpc("anular_pago", { p_pago: +d.borrarrecibo }, `Recibo N° ${pad5(pg?.recibo_nro)} eliminado. Al volver a cobrarlo sale con el mismo número.`)) { await cargarTodo(); render(); modalRecibosInquilino(+d.pid); } return; }
     if (d.borrarliq) { if (!confirmar("¿Seguro? Tocá de nuevo")) return; const l = S.liqs.find((x) => x.id === +d.borrarliq);
       if (await rpc("anular_liquidacion", { p_liq: +d.borrarliq }, `Liquidación N° ${pad5(l?.nro)} eliminada`)) { await cargarTodo(); render(); modalLiqsPropietario(+d.pid); } return; }
     if (d.mrecibos) { const c = S.contratos.get(+d.mrecibos); if (c) abrirModal(htmlRecibos(c, pgDe(c).slice().sort((a, b) => b.recibo_nro - a.recibo_nro), { money: (n) => money(n, c), fecha, periodo, pad5 })); return; }
@@ -2114,6 +2118,10 @@ document.addEventListener("submit", async (ev) => {
       const items = x.items.map(({ cargo_id, monto, punitorio, admin }) => ({ cargo_id, monto, punitorio, admin }));
       const pg = S.pl.eid ? await rpc("aprobar_envio", { p_envio: S.pl.eid, p_items: items, p_extras: x.extras, p_obs: v.obs, p_fecha: v.fecha }, "Aprobado. Se generó el recibo y avisamos al inquilino y al propietario.")
         : await rpc("registrar_cobro", { p_contrato: +f.dataset.cid, p_items: items, p_extras: x.extras, p_fecha: v.fecha, p_medio: v.medio, p_obs: v.obs, p_modalidad: v.modalidad || null }, "Pago confirmado");
+      if (pg && f.reusar?.checked) {
+        const r2n = await rpc("reusar_numero_recibo", { p_pago: pg.id, p_nro: +f.reusar.value });
+        if (r2n) toast(`Pago confirmado con el número N° ${pad5(f.reusar.value)}`);
+      }
       if (pg) { S.pl.eid = null; await cargarTodo(); render(); modalRecibo(pg.id); }
       return;
     }
