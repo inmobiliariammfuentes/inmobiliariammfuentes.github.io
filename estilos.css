@@ -941,3 +941,7 @@ body.movil #f-liqprop tr[data-item],body.movil #f-liqprop tr[data-dif],body.movi
 body.movil #f-planilla .form,body.movil #f-liqprop .form{grid-template-columns:minmax(0,1fr)!important}
 body.movil .tabs{overflow-x:auto;flex-wrap:nowrap;white-space:nowrap}
 body.movil #f-planilla tr td,body.movil #f-liqprop tr td{background:transparent!important}
+/* planilla: editar el importe de un concepto */
+.pl-edit{all:unset;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--accent-ink);padding:2px 8px;margin-left:4px;border-radius:999px;border:1px solid var(--line);background:var(--surface);white-space:nowrap}
+.pl-edit:hover{background:var(--accent-soft);border-color:var(--accent-ink)}
+.pl-edit:focus-visible{outline:2px solid var(--accent-ink);outline-offset:1px}

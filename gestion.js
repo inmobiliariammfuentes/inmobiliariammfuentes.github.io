@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611181443";
-import { iniciarChat } from "./chat.js?v=202611181443";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611181443";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611181443";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611181443";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611181443";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611181443";
-import { iniciarCalculadora } from "./calculadora.js?v=202611181443";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611181443";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611181443";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611181443";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611181443";
+} from "./comun.js?v=202611191333";
+import { iniciarChat } from "./chat.js?v=202611191333";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191333";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191333";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191333";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191333";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191333";
+import { iniciarCalculadora } from "./calculadora.js?v=202611191333";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191333";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191333";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191333";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191333";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -822,7 +822,7 @@ function vPlanilla() {
       filas.push(`<tr data-cargo="${g.id}" data-prop="${g.propietario}" data-inq="${si}">
         <td><input type="checkbox" class="pl-sel" aria-label="Cobrar este renglón" ${x.p <= hasta ? "checked" : ""}></td>
         <td class="num">${fechaPer(x.p)}</td>
-        <td>${parcial ? `<span class="chip warn">Saldo s/</span> ` : ""}${esc(g.descripcion)}${si === -1 ? ' <span class="chip acc">Resta al inquilino</span>' : si === 0 ? ' <span class="chip">No afecta al inquilino</span>' : ""}${g.propietario === 0 ? ' <span class="chip">No va al propietario</span>' : g.propietario === -1 ? ' <span class="chip">Resta al propietario</span>' : ""}${x.vencido && g.tipo === "alquiler" ? (x.enTolerancia ? ' <span class="chip warn">En tolerancia</span>' : ` <span class="chip bad">${x.dias} días</span>`) : ""}</td>
+        <td>${parcial ? `<span class="chip warn">Saldo s/</span> ` : ""}${esc(g.descripcion)}${g.tipo !== "alquiler" ? ` <button type="button" class="pl-edit" data-editcargo="${g.id}" title="Cambiar el importe de este concepto" aria-label="Cambiar el importe de ${esc(g.descripcion)}">✎ Editar importe</button>` : ""}${si === -1 ? ' <span class="chip acc">Resta al inquilino</span>' : si === 0 ? ' <span class="chip">No afecta al inquilino</span>' : ""}${g.propietario === 0 ? ' <span class="chip">No va al propietario</span>' : g.propietario === -1 ? ' <span class="chip">Resta al propietario</span>' : ""}${x.vencido && g.tipo === "alquiler" ? (x.enTolerancia ? ' <span class="chip warn">En tolerancia</span>' : ` <span class="chip bad">${x.dias} días</span>`) : ""}</td>
         <td class="num">${si === -1 ? "− " : ""}${money(g.saldo, c)}</td>
         <td><input type="number" class="pl-monto" step="0.01" min="0" max="${g.saldo}" value="${g.saldo}" aria-label="Importe a cobrar"></td>
         <td>${g.tipo === "alquiler" ? `<input type="number" class="pl-pun" step="0.01" min="0" value="${pu}" aria-label="Punitorio" title="${x.punitorioSugerido ? "Sugerido " + money(x.punitorioSugerido, c) : ""}">` : `<input type="number" class="pl-pun" step="0.01" min="0" value="0" aria-label="Punitorio">`}</td>
@@ -1549,6 +1549,19 @@ function modalRechazar(eid) {
   <div class="full row"><button class="btn danger" type="submit">Rechazar y avisar</button><button class="btn" type="button" data-cerrar>Cancelar</button></div></form>`);
 }
 
+function modalEditarCargo(id) {
+  let g = null; for (const lst of S.cg.values()) { g = lst.find((x) => x.id === id); if (g) break; } if (!g) return;
+  const c = S.contratos.get(g.contrato_id), k = g.concepto_id ? (S.cf.get(g.contrato_id) || []).find((x) => x.id === g.concepto_id) : null;
+  const pagado = r2(+g.monto - +g.saldo), fijo = k && !(+k.porcentaje > 0);
+  abrirModal(`<div class="mh"><div><h2>Cambiar el importe</h2><div class="muted">${esc(g.descripcion)} · ${esc(c?.direccion || "")}</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
+    <form class="form" id="f-editcargo" data-id="${g.id}">
+      <label class="full">Importe de este mes<input type="text" inputmode="decimal" name="monto" value="${esc(String(+g.monto).replace(".", ","))}" required autofocus autocomplete="off"></label>
+      <p class="full muted" style="margin:0">Importe actual: ${money(g.monto, c)}${pagado > 0 ? ` · ya se cobraron ${money(pagado, c)}` : ""}.</p>
+      ${fijo ? `<label class="full check"><input type="checkbox" name="siguientes"> Usar este importe también en los meses siguientes${k.monto ? ` (hoy: ${money(k.monto, c)})` : ""}</label>` : k ? `<p class="full muted" style="margin:0">Este concepto se calcula como porcentaje del alquiler: el cambio vale solo para este mes.</p>` : ""}
+      <div class="full row"><button class="btn primary" type="submit">Guardar</button><button class="btn" type="button" data-cerrar>Cancelar</button></div>
+    </form>`);
+  setTimeout(() => { const i = document.querySelector("#f-editcargo [name=monto]"); i?.focus(); i?.select(); }, 30);
+}
 function modalRecibo(pid) {
   let p = null, c = null; for (const [cid, l] of S.pg) { const f = l.find((x) => x.id === +pid); if (f) { p = f; c = S.contratos.get(cid); break; } }
   if (!p) return;
@@ -1713,7 +1726,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611181443");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191333");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1765,7 +1778,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611181443");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191333");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1899,6 +1912,7 @@ document.addEventListener("click", async (ev) => {
     if (d.servicios) { if (await rpc("revisar_servicios", { p_envio: +d.servicios }, "Revisado. Le avisamos al propietario.")) await recargar(); return; }
     if (d.archivo) { await verArchivo(d.archivo); return; }
     if (d.recibo) { modalRecibo(d.recibo); return; }
+    if (d.editcargo) { modalEditarCargo(+d.editcargo); return; }
     if (d.mrecibos) { const c = S.contratos.get(+d.mrecibos); if (c) abrirModal(htmlRecibos(c, pgDe(c).slice().sort((a, b) => b.recibo_nro - a.recibo_nro), { money: (n) => money(n, c), fecha, periodo, pad5 })); return; }
     if (d.a === "version-completa") { elegirVersion("completa"); return; }
     if (d.a === "version-movil") { elegirVersion("movil"); return; }
@@ -2100,6 +2114,11 @@ document.addEventListener("submit", async (ev) => {
         filas.push({ contrato_id: c.id, servicio: serv, frecuencia: +v.frecuencia, desde: v.desde });
       for (let i = 0; i < filas.length; i += 500) { const { error } = await sb.from("contrato_servicios").upsert(filas.slice(i, i + 500), { onConflict: "contrato_id,servicio", ignoreDuplicates: true }); if (error) throw error; }
       cerrarModal(); await recargar(`Listo: ${filas.length} pedidos nuevos en ${cs.length} contratos`); return;
+    }
+    if (f.id === "f-editcargo") {
+      const g = await rpc("editar_importe_cargo", { p_cargo: +f.dataset.id, p_monto: +String(v.monto).replace(/\./g, "").replace(",", ".") || 0, p_siguientes: !!f.siguientes?.checked }, "Importe actualizado");
+      if (g) { cerrarModal(); await cargarTodo(); render(); }
+      return;
     }
     if (f.id === "f-concepto") {
       const data = { nombre: v.nombre.trim(), monto: r2(v.monto), porcentaje: +v.porcentaje || 0, admin: !!f.admin.checked, propietario: +v.propietario, inquilino: +v.inquilino, desde: v.desde || null, hasta: v.hasta || null };
