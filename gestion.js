@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611191535";
-import { iniciarChat } from "./chat.js?v=202611191535";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191535";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191535";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191535";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191535";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191535";
-import { iniciarCalculadora } from "./calculadora.js?v=202611191535";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191535";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191535";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191535";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191535";
+} from "./comun.js?v=202611191540";
+import { iniciarChat } from "./chat.js?v=202611191540";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191540";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191540";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191540";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191540";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191540";
+import { iniciarCalculadora } from "./calculadora.js?v=202611191540";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191540";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191540";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191540";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191540";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -148,14 +148,14 @@ async function rpc(fn, args, ok) {
 
 /* ================= navegación ================= */
 const VISTAS = [["contratos", "Contratos"], ["inicio", "Resumen del mes"], ["revisar", "Pagos a revisar"], ["cobrar", "Cobrar en oficina"], ["morosos", "Morosos"],
-  ["servicios", "Boletas de servicios"], ["caja", "Caja"], ["documentos", "Reservas y renovaciones"], ["config", "Configuración"]];
+  ["caja", "Caja"], ["documentos", "Reservas y renovaciones"], ["config", "Configuración"]];
 function renderNav() {
   const cs = [...S.contratos.values()];
   const n = { revisar: pendientesRevisar().length,
     morosos: S.cargado ? cs.filter((c) => deudaDe(c).some((d) => d.vencido && !d.enTolerancia)).length : 0,
     ajustes: S.cargado ? cs.filter((c) => contratoActivo(c) && proximoAjuste(c, ajDe(c), S.cfg) === ymSumar(ymHoy(), 1)).length : 0,
     servicios: S.cargado && S.cs ? controlServicios().filter((x) => x.faltan.length).length : 0 };
-  const actual = S.view === "planilla" ? "cobrar" : S.view === "liqprop" ? (S.lpVolver || "contratos") : ["nuevo", "contrato", "ajustes", "personas"].includes(S.view) ? "contratos" : S.view;
+  const actual = S.view === "planilla" ? "cobrar" : S.view === "liqprop" ? (S.lpVolver || "contratos") : ["nuevo", "contrato", "ajustes", "personas", "servicios"].includes(S.view) ? "contratos" : S.view;
   $("#nav").innerHTML = vistasVisibles(VISTAS).map(([k, l]) => `<button data-vista="${k}" ${actual === k ? 'aria-current="page"' : ""}><span>${l}</span>${n[k] ? `<span class="n">${n[k]}</span>` : ""}</button>`).join("");
   $("#quien").textContent = S.yo ? S.yo.nombre : "";
   const bt = $("#tema"); if (bt) bt.innerHTML = botonTema();
@@ -285,13 +285,14 @@ function filtrarContratos() {
 function vContratos() {
   const list = filtrarContratos(), shown = list.slice(0, S.limite);
   const prox = ymSumar(ymHoy(), 1), proxAj = (c) => contratoActivo(c) ? proximoAjuste(c, ajDe(c), S.cfg) : null;
+  const nServ = S.cs ? controlServicios().filter((x) => x.faltan.length).length : 0;
   const nAum = [...S.contratos.values()].filter((c) => proxAj(c) === prox).length;
   const aLiq = new Map(); for (const g of pendientesLiquidar()) if (g.items.length || g.neto) aLiq.set(g.pid, (aLiq.get(g.pid) || []).concat(g));
   const f = (k, l) => `<button data-filtro="${k}" aria-pressed="${S.filtro === k}">${l}</button>`;
   const o = (k, l) => `<button data-orden="${k}" aria-pressed="${S.orden === k}">${l}</button>`;
   const titulo = { vigentes: "Contratos vigentes", porvencer: "Contratos por vencer", vencidos: "Contratos vencidos y rescindidos", todos: "Todos los contratos" }[S.filtro] || "Contratos";
   const fuera = S.q.trim() && S.filtro !== "todos" ? [...S.contratos.values()].filter((c) => !pasaFiltro(c, S.filtro) && coincide(c, S.q.trim())).length : 0;
-  return `<div class="head"><div><h1>${titulo}</h1><p>${list.length} ${list.length === 1 ? "contrato" : "contratos"}${S.q.trim() ? " encontrados" : ""}</p></div><div class="row"><button class="btn" data-vista="ajustes" title="Aumentos del mes, aumento por grupo, calculadora y exportar">Aumentos del mes${nAum ? ` <span class="n-btn">${nAum}</span>` : ""}</button><button class="btn" data-vista="personas" title="Lista de inquilinos y propietarios, datos faltantes, control de calidad y nueva persona">Inquilinos y propietarios</button><button class="btn primary" data-a="nuevo-contrato">Nuevo contrato</button></div></div>
+  return `<div class="head"><div><h1>${titulo}</h1><p>${list.length} ${list.length === 1 ? "contrato" : "contratos"}${S.q.trim() ? " encontrados" : ""}</p></div><div class="row"><button class="btn" data-vista="ajustes" title="Aumentos del mes, aumento por grupo, calculadora y exportar">Aumentos del mes${nAum ? ` <span class="n-btn">${nAum}</span>` : ""}</button><button class="btn" data-vista="servicios" title="Control de las boletas de servicios (luz, gas, agua, ABL) que mandan los inquilinos">Boletas de servicios${nServ ? ` <span class="n-btn">${nServ}</span>` : ""}</button><button class="btn" data-vista="personas" title="Lista de inquilinos y propietarios, datos faltantes, control de calidad y nueva persona">Inquilinos y propietarios</button><button class="btn primary" data-a="nuevo-contrato">Nuevo contrato</button></div></div>
   <label class="buscador"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
   <input type="search" id="q" placeholder="Buscar contrato por dirección, inquilino, propietario, DNI o carpeta" value="${esc(S.q)}" aria-label="Buscar contratos" autocomplete="off"></label>
   ${fuera ? `<div class="buscador-ayuda">También hay ${fuera} ${fuera === 1 ? "coincidencia" : "coincidencias"} en otros estados · <button class="link" data-filtro="todos">Ver todos</button></div>` : ""}
@@ -550,7 +551,7 @@ function vServicios() {
   const q = S.q.trim(), vis = q ? lista.filter((x) => coincide(x.c, q)) : lista;
   const sinConfig = [...S.contratos.values()].filter((c) => contratoActivo(c) && !tieneServicios(c)).length;
   const b = (k, l) => `<button data-servfiltro="${k}" aria-pressed="${f === k}">${l}</button>`;
-  return `<div class="head"><div><h1>Boletas de servicios</h1><p>Los inquilinos suben al portal las boletas pagadas que les pedimos. Si un mes no la suben, a los ${S.cfg.servicios_plazo || 10} días del mes siguiente figura como adeudada y el portal se lo recuerda (una vez por semana).</p></div>
+  return `<div class="head"><div><h1>Boletas de servicios</h1><p>Los inquilinos suben al portal las boletas pagadas que les pedimos. Si un mes no la suben, a los ${S.cfg.servicios_plazo || 10} días del mes siguiente figura como adeudada y el portal se lo recuerda (una vez por semana).</p></div><div class="row"><button class="btn" data-vista="contratos">Volver a contratos</button></div>
     <button class="btn primary" data-a="serv-masivo">Pedir boletas a varios contratos</button></div>
   <div class="kpis"><div class="kpi ${todos.some((x) => x.faltan.length) ? "alert" : ""}"><span class="l">Con boletas adeudadas</span><span class="v">${todos.filter((x) => x.faltan.length).length}</span><span class="s">${todos.reduce((s, x) => s + x.faltan.length, 0)} boletas</span></div>
     <div class="kpi"><span class="l">Contratos con control</span><span class="v">${todos.length}</span><span class="s">${todos.filter((x) => conPortal(x.c)).length} con acceso al portal</span></div>
@@ -1781,7 +1782,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191535");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191540");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1833,7 +1834,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191535");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191540");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
