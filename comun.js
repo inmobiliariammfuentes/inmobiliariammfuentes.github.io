@@ -1,6 +1,6 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611201527";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611201542";
 
 // El sistema del equipo y el portal guardan la sesión por separado: entrar al portal con un DNI
 // en la compu de la oficina no cierra la sesión del sistema de gestión.
@@ -413,92 +413,88 @@ export function letraLegible() {
     .then(([r, b]) => ({ r, b })).catch((e) => { LETRA_LEGIBLE = null; throw e; }));
 }
 export async function pdfAumentos(cfg, titulo, subtitulo, filas, notas = []) {
+  // Hoja A4 VERTICAL, todo en una sola hoja. Las filas ocupan todo el alto disponible y la letra es la más grande que entra.
+  // El recuadro "Valor final" (para escribir a mano) tiene un ancho mínimo de 42 mm y todo el alto de la fila.
   const { jsPDF } = window.jspdf;
   const num = (n, usd) => (usd ? "U$S " : "$") + Math.round(+n || 0).toLocaleString("es-AR");
-  const corta = (d) => String(d || "").replace(/^(\d\d\/\d\d\/)\d\d(\d\d)$/, "$1$2");   // 01/08/2026 → 01/08/26 (ya viene así desde gestion)
-  const may = (t) => String(t ?? "").toLocaleUpperCase("es-AR");                 // en mayúsculas: más fácil de leer para quien ve poco
+  const corta = (d) => String(d || "").replace(/^(\d\d\/\d\d\/)\d\d(\d\d)$/, "$1$2");
+  const may = (t) => String(t ?? "").toLocaleUpperCase("es-AR");
   const vals = (f) => [may(f.dir), may(f.inq), corta(f.inicio), f.ind, f.nro || "", num(f.base, f.usd), f.manual ? "A mano" : num(f.nuevo, f.usd) + (f.est ? " *" : ""), ""];
-  const cols = [["Dirección", "left"], ["Inquilino", "left"], ["Inicio", "center"], ["Índice", "center"], ["Aumento", "center"], ["Venía pagando", "right"], ["Con aumento", "right"], ["Valor final", "right"]];
-  const textos = filas.map(vals), n = Math.max(filas.length, 1), M = 6, PAD = 2.4, ref = 10;
-  const altoTexto = (pt) => pt * 0.3528;                                         // mm que ocupa una línea de texto de "pt" puntos
-  const BORDO = [122, 31, 46], GRIS = [70, 60, 62], TINTA = [15, 12, 13], LINEA = [190, 175, 178], ZEBRA = [245, 237, 239];
-  // letra Atkinson Hyperlegible (hecha para personas con baja visión); si no se pudiera bajar, Helvetica
-  let F = null; try { F = await letraLegible(); } catch {}
-  const nuevoDoc = (orientation) => {
-    const d = new jsPDF({ unit: "mm", format: "a4", orientation });
-    if (F) { d.addFileToVFS("legible.ttf", F.r); d.addFont("legible.ttf", "Legible", "normal"); d.addFileToVFS("legible-b.ttf", F.b); d.addFont("legible-b.ttf", "Legible", "bold"); }
-    return d;
-  };
-  const FAM = F ? "Legible" : "helvetica";
-  // Se prueban 4 armados (hoja vertical u horizontal; dirección e inquilino en 1 o 2 renglones) y se queda con el de LETRA MÁS GRANDE.
-  const medidor = nuevoDoc("portrait");
-  const medir = (t, neg) => { medidor.setFont(FAM, neg ? "bold" : "normal"); medidor.setFontSize(ref); return medidor.getTextWidth(String(t ?? "")); };
-  const enDos = (t) => { const w = String(t ?? "").split(" "); if (w.length < 2) return medir(t); let mejor = Infinity;
-    for (let i = 1; i < w.length; i++) mejor = Math.min(mejor, Math.max(medir(w.slice(0, i).join(" ")), medir(w.slice(i).join(" ")))); return mejor; };
-  const natTit = cols.map(([t]) => Math.max(...t.split(" ").map((w) => medir(w, true))));
-  const nat1 = cols.map((_, i) => Math.max(natTit[i], ...textos.map((v) => medir(v[i], i === 6)), 0));
-  const nat2 = nat1.map((w, i) => (i <= 1 ? Math.max(natTit[i], ...textos.map((v) => enDos(v[i])), 0) : w));
-  for (const a of [nat1, nat2]) a[7] = Math.max(a[7], a[6]);                     // "Valor final" se escribe a mano: igual de ancha que "Con aumento"
-  const cabecera = 17, pieAlto = 6, notasAlto = notas.length ? notas.length * 4 + 2 : 0;
-  const planes = [];
-  for (const orient of ["portrait", "landscape"]) for (const lineas of [1, 2]) {
-    const W = orient === "portrait" ? 210 : 297, H = orient === "portrait" ? 297 : 210, ANCHO = W - 2 * M;
-    const nat = lineas === 1 ? nat1 : nat2, sumNat = nat.reduce((a, b) => a + b, 0);
-    const disponible = H - M - pieAlto - notasAlto - (M + cabecera);
-    const porFila = lineas === 1 ? 1.38 : 2.5;                                   // alto de cada fila, en "líneas de texto"
-    const letraAncho = ref * (ANCHO - cols.length * PAD) / sumNat, letraAlto = disponible / (n * altoTexto(1) * porFila + altoTexto(1) * 2.6);
-    planes.push({ orient, lineas, W, H, ANCHO, nat, disponible, porFila, letra: Math.min(letraAncho, letraAlto, 24) });
-  }
-  const P = planes.reduce((a, b) => (b.letra > a.letra + 0.25 ? b : a));        // ante empate, la hoja vertical y 1 renglón
-  const { W, H, ANCHO, nat, disponible, lineas } = P;
-  let letra = Math.max(7, Math.floor(P.letra * 4) / 4);
-  const doc = nuevoDoc(P.orient);
-  // encabezado
-  const lw = Math.min(13 * LOGO_PROP, 18); doc.addImage(LOGO, "PNG", M, M, lw, lw / LOGO_PROP);
-  doc.setFont(FAM, "bold"); doc.setFontSize(18); doc.setTextColor(...BORDO); doc.text(titulo, M + lw + 4, M + 6.5);
-  doc.setFont(FAM, "normal"); doc.setFontSize(10); doc.setTextColor(...GRIS); doc.text(subtitulo, M + lw + 4, M + 12);
-  let y = M + cabecera;
-  const lc = Math.min(letra, 14), cabAlto = Math.max(7, altoTexto(lc) * 2.6);
-  const fila = Math.min((disponible - cabAlto) / n, altoTexto(letra) * (lineas === 1 ? 2.4 : 3.2));
-  // anchos: lo que ocupa cada columna a esa letra; lo que sobra se reparte (más a dirección, inquilino y valor final)
-  let anchos = nat.map((w) => w * letra / ref + PAD);
-  const sobra = ANCHO - anchos.reduce((a, b) => a + b, 0);
-  if (sobra >= 0) { const peso = [3, 2.5, 1, 0.8, 0.8, 1.2, 1.2, 1.6], tp = peso.reduce((a, b) => a + b, 0); anchos = anchos.map((w, i) => w + sobra * peso[i] / tp); }
-  else { const fijo = anchos.reduce((a, w, i) => a + (i <= 1 ? 0 : w), 0), libre = ANCHO - fijo, dI = anchos[0] + anchos[1]; anchos[0] = libre * anchos[0] / dI; anchos[1] = libre * anchos[1] / dI; }
+  const cols = [["Dirección", "left"], ["Inquilino", "left"], ["Inicio", "center"], ["Índice", "center"], ["Aum.", "center"], ["Venía pagando", "right"], ["Con aumento", "right"], ["Valor final", "center"]];
+  const n = Math.max(filas.length, 1), W = 210, H = 297, M = 6, ANCHO = W - 2 * M, PAD = 2.2, ref = 10, CAJA = 42;
+  const altoTexto = (pt) => pt * 0.3528;
+  const BORDO = [122, 31, 46], GRIS = [70, 60, 62], TINTA = [10, 8, 9], LINEA = [175, 160, 163], ZEBRA = [244, 236, 238];
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+  let FAM = "helvetica";
+  try { const F = await letraLegible(); doc.addFileToVFS("legible.ttf", F.r); doc.addFont("legible.ttf", "Legible", "normal"); doc.addFileToVFS("legible-b.ttf", F.b); doc.addFont("legible-b.ttf", "Legible", "bold"); FAM = "Legible"; } catch {}
+  const medir = (t, neg) => { doc.setFont(FAM, neg ? "bold" : "normal"); doc.setFontSize(ref); return doc.getTextWidth(String(t ?? "")); };
+  const textos = filas.map(vals);
+  const nat = cols.map(([t], i) => Math.max(...t.split(" ").map((w) => medir(w, true)), ...textos.map((v) => medir(v[i], i === 6)), 0) + (i >= 2 && i <= 6 ? 0.6 : 0));
+  const enDos = (t) => { const w = String(t ?? "").split(" "); if (w.length < 2) return medir(t); let m = Infinity; for (let i = 1; i < w.length; i++) m = Math.min(m, Math.max(medir(w.slice(0, i).join(" ")), medir(w.slice(i).join(" ")))); return m; };
+  const nat2 = [0, 1].map((i) => Math.max(...cols[i][0].split(" ").map((w) => medir(w, true)), ...textos.map((v) => enDos(v[i])), 0));
+  // encabezado compacto
+  const lw = Math.min(11 * LOGO_PROP, 15); doc.addImage(LOGO, "PNG", M, M, lw, lw / LOGO_PROP);
+  doc.setFont(FAM, "bold"); doc.setFontSize(17); doc.setTextColor(...BORDO); doc.text(titulo, M + lw + 3.5, M + 5.5);
+  doc.setFont(FAM, "normal"); doc.setFontSize(9.5); doc.setTextColor(...GRIS); doc.text(subtitulo, M + lw + 3.5, M + 10.5);
+  let y = M + Math.max(lw / LOGO_PROP, 12) + 2.5;
+  const pieAlto = 5, notasAlto = notas.length ? notas.length * 3.8 + 1.5 : 0;
+  const disponible = H - M - pieAlto - notasAlto - y;
+  // letra: la mayor que entra a lo ancho (dirección e inquilino pueden ir hasta un 15 % más chicas) y a lo alto
+  const otros = nat.slice(2, 7).reduce((a, b) => a + b, 0), libre = ANCHO - CAJA - cols.length * PAD;
+  const letraAlto = disponible / (n * altoTexto(1) * 1.4 + altoTexto(1) * 2.6);
+  const filaMax = (L) => Math.min((disponible - Math.max(7, altoTexto(Math.min(L, 13)) * 2.6)) / n, 13);
+  // 1 renglón por contrato, o 2 renglones para dirección e inquilino si las filas son bastante altas (pocos aumentos en el mes)
+  const l1 = Math.min(ref * libre / (otros + (nat[0] + nat[1]) * 0.85), letraAlto, 18);
+  let l2 = Math.min(ref * libre / (otros + (nat2[0] + nat2[1]) * 0.85), 18); if (filaMax(l2) < altoTexto(l2 * 0.85) * 2.5) l2 = 0;
+  const dosRenglones = l2 > l1 + 0.5;
+  if (dosRenglones) { nat[0] = nat2[0]; nat[1] = nat2[1]; }
+  let letra = Math.max(7, Math.floor((dosRenglones ? l2 : l1) * 4) / 4);
+  const lc = Math.min(letra, 13), cabAlto = Math.max(7, altoTexto(lc) * 2.6);
+  const fila = Math.min((disponible - cabAlto) / n, 13);                          // filas tan altas como se pueda (para escribir cómodo)
+  // anchos: columnas fijas a su medida; dirección e inquilino se reparten el resto; el recuadro se lleva lo que sobre
+  const anchos = nat.map((w) => w * letra / ref + PAD);
+  const fijos = anchos.slice(2, 7).reduce((a, b) => a + b, 0), resto = ANCHO - CAJA - fijos;
+  const necesitan = anchos[0] + anchos[1];
+  if (necesitan <= resto) { anchos[0] += 0; anchos[1] += 0; anchos[7] = ANCHO - fijos - necesitan; }
+  else { anchos[0] = resto * anchos[0] / necesitan; anchos[1] = resto * anchos[1] / necesitan; anchos[7] = CAJA; }
+  const letraNombre = Math.min(letra, Math.max(letra * 0.85, letra * Math.min(anchos[0] / (nat[0] * letra / ref + PAD), anchos[1] / (nat[1] * letra / ref + PAD))));
   const corto = (t, w) => { t = String(t ?? ""); if (doc.getTextWidth(t) <= w) return t; while (t.length > 1 && doc.getTextWidth(t + "…") > w) t = t.slice(0, -1); return t + "…"; };
-  // cabecera de la tabla (si un título no entra, va en dos renglones)
+  // cabecera de la tabla
   doc.setFont(FAM, "bold"); doc.setFontSize(lc); doc.setTextColor(255, 255, 255);
   doc.setFillColor(...BORDO); doc.rect(M, y, ANCHO, cabAlto, "F");
-  { let x = M; cols.forEach(([t, al], i) => { const w = anchos[i], ls = doc.getTextWidth(t) <= w - 2 ? [t] : doc.splitTextToSize(t, w - 2), tx = al === "right" ? x + w - 1.2 : al === "center" ? x + w / 2 : x + 1.2;
+  { let x = M; cols.forEach(([t, al], i) => { const w = anchos[i], ls = doc.getTextWidth(t) <= w - 2 ? [t] : doc.splitTextToSize(t, w - 2), tx = al === "right" ? x + w - 1.1 : al === "center" ? x + w / 2 : x + 1.1;
       const alto = ls.length * altoTexto(lc) * 1.1; ls.forEach((l, k) => doc.text(l, tx, y + (cabAlto - alto) / 2 + altoTexto(lc) * (k + 0.85) * 1.1, { align: al })); x += w; }); }
   y += cabAlto;
   filas.forEach((f, k) => {
-    doc.setFontSize(letra);
-    if (k % 2) { doc.setFillColor(...ZEBRA); doc.rect(M, y, ANCHO, fila, "F"); }
+    if (k % 2) { doc.setFillColor(...ZEBRA); doc.rect(M, y, ANCHO - anchos[7], fila, "F"); }
     let x = M; const vf = vals(f);
     cols.forEach(([, al], i) => {
       const w = anchos[i];
-      if (i === 7) { doc.setDrawColor(...BORDO); doc.setLineWidth(0.25); doc.rect(x + 0.6, y + 0.45, w - 1.2, fila - 0.9, "S"); }
+      if (i === 7) { doc.setFillColor(255, 255, 255); doc.setDrawColor(...BORDO); doc.setLineWidth(0.35); doc.rect(x + 1, y + 0.6, w - 1.6, fila - 1.2, "FD"); }
       const v = vf[i];
       if (v !== "") {
-        doc.setFont(FAM, i === 6 && !f.manual ? "bold" : "normal"); doc.setTextColor(...TINTA);
-        const tx = al === "right" ? x + w - 1.2 : al === "center" ? x + w / 2 : x + 1.2;
-        let ls = lineas === 2 && i <= 1 && doc.getTextWidth(v) > w - 2.4 ? doc.splitTextToSize(v, w - 2.4) : [v];
-        if (ls.length > 2) ls = [ls[0], ls.slice(1).join(" ")];
-        ls = ls.map((l) => corto(l, w - 2.4));
-        const paso = altoTexto(letra) * 1.12, y0 = y + fila / 2 - (ls.length - 1) * paso / 2 + altoTexto(letra) * 0.35;
-        ls.forEach((l, j) => doc.text(l, tx, y0 + j * paso, { align: al }));
+        const pt = i <= 1 ? letraNombre : letra;
+        doc.setFontSize(pt); doc.setFont(FAM, i === 6 && !f.manual ? "bold" : "normal"); doc.setTextColor(...TINTA);
+        const tx = al === "right" ? x + w - 1.1 : al === "center" ? x + w / 2 : x + 1.1;
+        if (i <= 1) {                                                              // dirección e inquilino: 1 o 2 renglones, si no entra se corta con "…"
+          let ls = dosRenglones && doc.getTextWidth(v) > w - 2.2 ? doc.splitTextToSize(v, w - 2.2) : [v];
+          if (ls.length > 2) ls = [ls[0], ls.slice(1).join(" ")];
+          ls = ls.map((l) => corto(l, w - 2.2)); const paso = altoTexto(pt) * 1.15, y0 = y + fila / 2 - (ls.length - 1) * paso / 2 + altoTexto(pt) * 0.35;
+          ls.forEach((l, j) => doc.text(l, tx, y0 + j * paso, { align: al }));
+        } else {                                                                   // números: nunca se cortan; si hiciera falta, se achica apenas esa celda
+          let p2 = pt; while (p2 > 6 && doc.getTextWidth(v) > w - 1.6) { p2 -= 0.25; doc.setFontSize(p2); }
+          doc.text(v, tx, y + fila / 2 + altoTexto(p2) * 0.35, { align: al });
+        }
       }
       x += w;
     });
-    doc.setDrawColor(...LINEA); doc.setLineWidth(0.1); doc.line(M, y + fila, M + ANCHO, y + fila);
+    doc.setDrawColor(...LINEA); doc.setLineWidth(0.12); doc.line(M, y + fila, M + ANCHO - anchos[7], y + fila);
     y += fila;
   });
   if (!filas.length) { doc.setFont(FAM, "normal"); doc.setFontSize(12); doc.setTextColor(...GRIS); doc.text("No hay aumentos para este mes.", M + 2, y + 7); y += 10; }
-  // notas y pie
-  y += 2; doc.setFont(FAM, "normal"); doc.setFontSize(9); doc.setTextColor(...GRIS);
-  for (const t of notas) { doc.text(t, M, y + 3); y += 4; }
-  doc.setFontSize(8); doc.text(cfg?.nombre || "", M, H - M + 2); doc.text("Impreso el " + new Date().toLocaleDateString("es-AR"), W - M, H - M + 2, { align: "right" });
+  y += 1.5; doc.setFont(FAM, "normal"); doc.setFontSize(9); doc.setTextColor(...GRIS);
+  for (const t of notas) { doc.text(t, M, y + 3); y += 3.8; }
+  doc.setFontSize(8); doc.text(cfg?.nombre || "", M, H - M + 1.5); doc.text("Impreso el " + new Date().toLocaleDateString("es-AR"), W - M, H - M + 1.5, { align: "right" });
   return doc;
 }
 export function pdfLiquidacion(cfg, l, prop) {
