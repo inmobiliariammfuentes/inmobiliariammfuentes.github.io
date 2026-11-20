@@ -2,7 +2,7 @@
 // · Renovación: arma una imagen con las condiciones y los importes para mandarle al inquilino por WhatsApp.
 // · Reserva: arma el "Recibo de reserva para alquiler" (mismo texto que el modelo de Word) en PDF y en imagen.
 // Todo se dibuja en esta computadora; lo que se guarda queda en la tabla documentos_generados.
-import { numeroALetras, LOGO_URL } from "./comun.js?v=202611201554";
+import { numeroALetras, LOGO_URL } from "./comun.js?v=202611202006";
 
 const MEMBRETE_URL = new URL("membrete.png", LOGO_URL).href;
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -140,7 +140,7 @@ function formRes(d) {
   </div></section>${panelVista("Mandar la reserva", true)}</div>`;
 }
 const panelVista = (titulo, pdf) => `<section class="panel doc-vista"><h2>${titulo}</h2>
-  <div class="row" style="flex-wrap:wrap">${pdf ? `<button type="button" class="btn primary" data-dacc="pdf">Descargar PDF</button>` : ""}<button type="button" class="btn ${pdf ? "" : "primary"}" data-dacc="compartir">Compartir / WhatsApp</button><button type="button" class="btn" data-dacc="copiar">Copiar imagen</button><button type="button" class="btn" data-dacc="png">Descargar imagen</button><button type="button" class="btn" data-dacc="guardar">Guardar</button><button type="button" class="btn" data-dacc="nuevo">Empezar de cero</button></div>
+  <div class="row" style="flex-wrap:wrap">${pdf ? `<button type="button" class="btn primary" data-dacc="pdf">Descargar PDF</button>` : ""}<button type="button" class="btn ${pdf ? "" : "primary"}" data-dacc="compartir">Compartir / WhatsApp</button><button type="button" class="btn" data-dacc="copiar">Copiar imagen</button><button type="button" class="btn" data-dacc="png">Descargar imagen</button><button type="button" class="btn" data-dacc="guardar">Guardar</button><button type="button" class="btn" data-dacc="nuevo">Empezar de cero</button>${pdf ? `<button type="button" class="btn" data-dacc="contrato" title="Abre Nuevo contrato con los datos de esta reserva">Cargar contrato con esta reserva</button>` : ""}</div>
   <p class="muted" style="margin:8px 0">En la compu: <b>Copiar imagen</b> y pegala en el chat de WhatsApp Web (Ctrl+V). En el celular: <b>Compartir</b>.</p>
   <div class="doc-canvas"><canvas id="doc-cv"></canvas></div></section>`;
 
@@ -169,6 +169,7 @@ async function alClic(ev) {
     st.tab = g.tipo; if (g.tipo === "renovacion") st.ren = { ...g.datos, _id: g.id }; else st.res = { ...g.datos, _id: g.id }; X.rerender(); return; }
   if (b.dataset.borrardoc) { if (!confirm("¿Borrar este documento guardado?")) return; const { error } = await X.sb.from("documentos_generados").delete().eq("id", +b.dataset.borrardoc); if (error) return X.toast(error.message, "bad"); st.guardados = null; return montarDocumentos(X); }
   if (b.dataset.usarpedido) return usarPedido(+b.dataset.usarpedido);
+  if (b.dataset.contratodoc) { const g = st.guardados.find((x) => x.id === +b.dataset.contratodoc); if (g) X.contratoDesdeReserva(g.datos || {}, String(g.created_at || "").slice(0, 10)); return; }
   if (b.dataset.dtabIr) { st.tab = b.dataset.dtabIr; return X.rerender(); }
   if (b.dataset.descartarpedido || b.dataset.reabrirpedido) { const id = +(b.dataset.descartarpedido || b.dataset.reabrirpedido), estado = b.dataset.descartarpedido ? "descartada" : "nueva";
     const { error } = await X.sb.from("solicitudes_reserva").update({ estado }).eq("id", id); if (error) return X.toast(error.message, "bad");
@@ -177,6 +178,7 @@ async function alClic(ev) {
   const a = b.dataset.dacc; if (!a) return;
   const ren = st.tab === "renovacion", d = ren ? st.ren : st.res;
   if (a === "nuevo") { if (ren) st.ren = renNueva(); else st.res = resNueva(); return montarDocumentos(X); }
+  if (a === "contrato") { if (!(d.nombre || "").trim() && !(d.direccion || "").trim()) return X.toast("Completá al menos quién reserva o la dirección", "bad"); return X.contratoDesdeReserva(d, d.fecha); }
   if (!ren && !(d.nombre || "").trim()) return X.toast("Completá el nombre de quien reserva", "bad");
   if (ren && !(d.inquilino || "").trim()) return X.toast("Completá el nombre del inquilino", "bad");
   const cv = await vista(); if (!cv) return;
@@ -245,7 +247,7 @@ function pintarPedidos(root) {
 async function pintarGuardados(root) {
   if (!st.guardados) { const { data, error } = await X.sb.from("documentos_generados").select("*").order("updated_at", { ascending: false }).limit(200); if (error) { root.innerHTML = `<div class="error">${e(error.message)}</div>`; return; } st.guardados = data || []; }
   root.innerHTML = `<section class="panel"><div class="tw"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th></th></tr></thead><tbody>
-  ${st.guardados.map((g) => `<tr><td class="num">${X.fecha(String(g.updated_at || g.created_at).slice(0, 10))}</td><td>${g.tipo === "reserva" ? "Reserva" : "Renovación"}</td><td>${e(g.titulo)}</td><td class="num"><button class="btn small" data-abrirdoc="${g.id}">Abrir</button> <button class="btn small danger" data-borrardoc="${g.id}">Borrar</button></td></tr>`).join("") || `<tr><td colspan="4"><div class="empty">Todavía no guardaste ninguna reserva ni renovación.</div></td></tr>`}
+  ${st.guardados.map((g) => `<tr><td class="num">${X.fecha(String(g.updated_at || g.created_at).slice(0, 10))}</td><td>${g.tipo === "reserva" ? "Reserva" : "Renovación"}</td><td>${e(g.titulo)}</td><td class="num">${g.tipo === "reserva" ? `<button class="btn small primary" data-contratodoc="${g.id}" title="Abre Nuevo contrato con los datos de esta reserva">Cargar contrato</button> ` : ""}<button class="btn small" data-abrirdoc="${g.id}">Abrir</button> <button class="btn small danger" data-borrardoc="${g.id}">Borrar</button></td></tr>`).join("") || `<tr><td colspan="4"><div class="empty">Todavía no guardaste ninguna reserva ni renovación.</div></td></tr>`}
   </tbody></table></div></section>`;
   if (!root.dataset.escucha) { root.dataset.escucha = "1"; root.addEventListener("input", alEditar); root.addEventListener("change", alEditar); root.addEventListener("click", alClic); }
 }

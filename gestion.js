@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611201554";
-import { iniciarChat } from "./chat.js?v=202611201554";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611201554";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611201554";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611201554";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611201554";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611201554";
-import { iniciarCalculadora } from "./calculadora.js?v=202611201554";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611201554";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611201554";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611201554";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611201554";
+} from "./comun.js?v=202611202006";
+import { iniciarChat } from "./chat.js?v=202611202006";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611202006";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611202006";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611202006";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611202006";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611202006";
+import { iniciarCalculadora } from "./calculadora.js?v=202611202006";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611202006";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611202006";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611202006";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611202006";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -1207,9 +1207,9 @@ function panelWord(n) {
   return `<section class="panel nc-word">
     <div class="ph"><div><h2>Cargar desde el contrato en Word</h2><p class="muted" style="margin:4px 0 0">Subí el .doc o .docx del contrato y completamos solos las partes, la dirección, fechas, precio, depósito, índice y cada cuánto ajusta. Después revisás y guardás.</p></div>
     <label class="btn primary nc-word-btn">${w ? "Elegir otro archivo" : "Elegir archivo Word"}<input type="file" id="nc-word" accept=".doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden></label></div>
-    ${w ? `<div class="nc-word-res"><div class="muted">📄 ${esc(w.archivo)}</div><ul>${w.items.map(([l, v, ok]) => `<li class="${ok ? "ok" : "falta"}"><span>${ok ? "✓" : "!"}</span><b>${esc(l)}:</b> ${ok ? esc(v) : `<span class="muted">${esc(v || "no lo encontré, completalo a mano")}</span>`}</li>`).join("")}</ul>
+    ${w ? `<div class="nc-word-res"><div class="muted">${/^Reserva de /.test(w.archivo) ? "🔖" : "📄"} ${esc(w.archivo)}</div><ul>${w.items.map(([l, v, ok]) => `<li class="${ok ? "ok" : "falta"}"><span>${ok ? "✓" : "!"}</span><b>${esc(l)}:</b> ${ok ? esc(v) : `<span class="muted">${esc(v || "no lo encontré, completalo a mano")}</span>`}</li>`).join("")}</ul>
       ${w.notas.length ? `<div class="banner">${w.notas.map(esc).join("<br>")}</div>` : ""}
-      <p class="muted" style="margin:0">El archivo del contrato se guarda junto al contrato cuando lo confirmes.</p></div>` : ""}
+      ${/^Reserva de /.test(w.archivo) ? "" : `<p class="muted" style="margin:0">El archivo del contrato se guarda junto al contrato cuando lo confirmes.</p>`}</div>` : ""}
   </section>`;
 }
 const claveNombre = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z ]+/g, " ").split(/\s+/).filter(Boolean).sort().join(" ");
@@ -1225,6 +1225,10 @@ async function aplicarWord(file) {
   try { toast("Leyendo el contrato…"); d = detectarDatos(await leerTextoWord(file)); }
   catch (e) { toast("No se pudo leer el archivo: " + mensajeError(e), "bad"); return; }
   if (!d.monto_base && !d.inicio && !d.propietario && !d.direccion) { toast("No encontré datos en ese archivo. ¿Es un contrato de alquiler en Word?", "bad"); return; }
+  aplicarDatosContrato(d, file.name, file);
+}
+// completa el formulario de contrato nuevo con datos leídos (de un Word o de una reserva guardada)
+function aplicarDatosContrato(d, origen, file = null) {
   const n = { ...S.nc, conceptos: S.nc.conceptos || [] }; const items = [];
   // propiedad: si ya existe en el sistema, se usa esa dirección (y su carpeta y conceptos)
   const prev = d.direccion ? [...S.contratos.values()].filter((c) => claveDireccion(c.direccion) === claveDireccion(d.direccion)).sort((a, b) => b.inicio.localeCompare(a.inicio))[0] : null;
@@ -1238,6 +1242,7 @@ async function aplicarWord(file) {
   // partes
   for (const [tipo, et] of [["propietario", "Propietario (locador)"], ["inquilino", "Inquilino (locatario)"]]) {
     const x = d[tipo]; delete n[tipo + "_id"]; delete n[tipo + "_txt"];
+    if (!x && tipo === "propietario" && prev) { n.propietario_id = prev.propietario_id; items.push([et, `${P(prev.propietario_id).nombre} (el dueño de esa propiedad)`, true]); continue; }
     if (!x) { items.push([et, "", false]); continue; }
     const p = buscarPersona(tipo, x);
     if (p) { n[tipo + "_id"] = p.id; items.push([et, `${p.nombre}${x.dni ? " · DNI " + x.dni : ""} (ya estaba cargado)`, true]); }
@@ -1259,11 +1264,25 @@ async function aplicarWord(file) {
   items.push(["Depósito", d.deposito ? money(d.deposito) : "", !!d.deposito]);
   if (d.dia_vto) { n.dia_vto = d.dia_vto === +S.cfg.dia_vto ? "" : d.dia_vto; items.push(["Se paga", `del 1 al ${d.dia_vto} de cada mes`, true]); }
   if (d.renovacion) d.notas.unshift(prev ? "Es una renovación: quedó vinculada al contrato anterior de esta propiedad." : "El contrato dice que es una renovación, pero no encontré el contrato anterior de esa dirección.");
-  n.word = { archivo: file.name, items, notas: d.notas, personas: { propietario: d.propietario, inquilino: d.inquilino } };
+  n.word = { archivo: origen, items, notas: d.notas, personas: { propietario: d.propietario, inquilino: d.inquilino } };
   S.nc = n; S.ncArchivo = file;
   render(); nuevoResumen();
   const faltan = items.filter((x) => !x[2]).length;
   toast(faltan ? `Contrato leído. Revisá ${faltan === 1 ? "1 dato que falta" : faltan + " datos que faltan"}.` : "Contrato leído: revisá los datos y guardá.");
+}
+// Contrato nuevo a partir de una reserva guardada (Reservas y renovaciones → Guardados)
+const numTxt = (v) => { const n = parseFloat(String(v ?? "").replace(/\./g, "").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
+function apellidoPrimero(nom) { const s = String(nom || "").trim().replace(/\s+/g, " "); if (!s || s.includes(",")) return s; const w = s.split(" "); return w.length < 2 ? s : `${w[w.length - 1]}, ${w.slice(0, -1).join(" ")}`; }
+function contratoDesdeReserva(r, fechaRes) {
+  abrirNuevo();
+  const meses = Math.max(1, Math.round(numTxt(r.anios) * 12) || 24);
+  const loc = (String(r.ubicacion || "").match(/^\s*de\s+([^,]+)/i) || [])[1] || "";
+  const d = { notas: [], direccion: String(r.direccion || "").trim() || null, propietario: null,
+    inquilino: (r.nombre || "").trim() ? { nombre: apellidoPrimero(r.nombre), dni: String(r.dni || "").replace(/\D/g, "") || null, email: (r.email || "").trim() || null, telefono: (r.telefono || "").trim() || null } : null,
+    inicio: S.nc.inicio, fin: isoMas(S.nc.inicio, meses, -1), monto_base: numTxt(r.alquiler) || null, indice: r.indice || null, ajuste_meses: +r.ajuste || null, deposito: numTxt(r.deposito) || null };
+  d.notas.push(`Datos tomados de la reserva${fechaRes ? " del " + fecha(fechaRes) : ""}. Revisá la fecha de inicio (puse el 1° del mes que viene)${d.propietario ? "" : " y elegí el propietario si no aparece"}.`);
+  aplicarDatosContrato(d, `Reserva de ${r.nombre || "—"}${r.direccion ? " · " + r.direccion : ""}`);
+  if (loc && !S.nc.calle) { S.nc.localidad = loc.trim(); render(); nuevoResumen(); }
 }
 // después de guardar: adjuntar el Word al contrato y completar DNI/email/CUIT que falten en las personas
 async function guardarArchivoContrato(id) {
@@ -1831,7 +1850,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611201554");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611202006");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1883,7 +1902,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611201554");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611202006");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -2322,7 +2341,7 @@ document.addEventListener("submit", async (ev) => {
   finally { bloquear(false); }
 });
 
-const ctxDocs = () => ({ sb, S, esc, toast, fecha, P, montoHoy, ymSumar, ymDe, ymHoy, rerender: () => { render(); scrollTo(0, 0); } });
+const ctxDocs = () => ({ sb, S, esc, toast, fecha, P, montoHoy, ymSumar, ymDe, ymHoy, rerender: () => { render(); scrollTo(0, 0); }, contratoDesdeReserva });
 async function cargarHistorialSpot() {
   const cid = S.pl.cid, c = S.contratos.get(cid);
   const { data, error } = await sb.from("historial_spot").select("*").eq("contrato_id", cid).order("fecha", { ascending: false }).order("id", { ascending: false }).limit(1000);
