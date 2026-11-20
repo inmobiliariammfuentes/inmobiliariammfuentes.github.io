@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611201458";
-import { iniciarChat } from "./chat.js?v=202611201458";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611201458";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611201458";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611201458";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611201458";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611201458";
-import { iniciarCalculadora } from "./calculadora.js?v=202611201458";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611201458";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611201458";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611201458";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611201458";
+} from "./comun.js?v=202611201512";
+import { iniciarChat } from "./chat.js?v=202611201512";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611201512";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611201512";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611201512";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611201512";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611201512";
+import { iniciarCalculadora } from "./calculadora.js?v=202611201512";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611201512";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611201512";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611201512";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611201512";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -698,8 +698,9 @@ function datosAumentos() {
   const rows = filas.map(({ c, a }) => {
     const ok = a.calc && !a.calc.error, est = !!(ok && a.calc.estimado); if (est) hayEst = true; if (!ok) hayManual = true;
     const paso = +c.ajuste_meses || 12, ini = ymDe(c.inicio), p1 = c.ajuste_desde && c.ajuste_desde > ini ? c.ajuste_desde : ymSumar(ini, paso);
-    const nro = Math.round(ymDif(p1, a.p) / paso) + 1, total = Math.floor(ymDif(p1, ultimoPeriodo(c)) / paso) + 1;
-    return { c, carp: c.carpeta || "", dir: c.direccion, inq: inq(c), inicio: fecha(c.inicio), nro: nro >= 1 ? `${nro}° de ${Math.max(total, nro)}` : "", ind: `${c.indice || ""} ${c.ajuste_meses ? c.ajuste_meses + "m" : ""}`.trim(), base: r2(a.base),
+    // se cuentan los tramos del contrato (el primero, sin aumento, es el 1°): 24 meses cada 4 = 6 tramos; en el 2° aumento va por el 3°
+    const nro = Math.round(ymDif(p1, a.p) / paso) + 2, total = Math.floor(ymDif(p1, ultimoPeriodo(c)) / paso) + 2;
+    return { c, carp: c.carpeta || "", dir: c.direccion, inq: inq(c), inicio: fecha(c.inicio), nro: nro >= 1 ? `${nro}°` : "", ind: `${c.indice || ""} ${c.ajuste_meses ? c.ajuste_meses + "m" : ""}`.trim(), base: r2(a.base),
       nuevo: ok ? Math.round(a.calc.nuevo) : null, pct: ok ? a.calc.pct : null, est, manual: !ok, usd: esUSD(c) };
   });
   const notas = [hayEst && "* Aumento estimado: el índice de algún mes todavía no se publicó.", hayManual && "«A mano»: índice que no se calcula solo, contrato en dólares o sin alquiler actual cargado."].filter(Boolean);
@@ -709,7 +710,7 @@ function descargarBlob(blob, nombre) {
   const url = URL.createObjectURL(blob), lnk = document.createElement("a"); lnk.href = url; lnk.download = nombre; document.body.appendChild(lnk); lnk.click(); lnk.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
-const TIT_AUMENTOS = ["Dirección", "Inquilino", "Inicio del contrato", "Índice", "N° de aumento", "Venía pagando", "Con aumento", "Valor final"];
+const TIT_AUMENTOS = ["Dirección", "Inquilino", "Inicio del contrato", "Índice", "Aumento N°", "Venía pagando", "Con aumento", "Valor final"];
 // Medidas del Excel de aumentos para que ocupe toda la hoja A4 (vertical, márgenes de 0,35" y 0,4"/0,45")
 function layoutExcelAumentos(D) {
   const ANCHO_CH = 97, ALTO_PT = 770, n = Math.max(D.rows.length, 1);       // ~545 pt de ancho útil = 97 "caracteres" de Excel
@@ -1811,7 +1812,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611201458");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611201512");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1863,7 +1864,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611201458");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611201512");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];

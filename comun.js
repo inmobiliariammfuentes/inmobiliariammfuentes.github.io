@@ -1,6 +1,6 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611201458";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611201512";
 
 // El sistema del equipo y el portal guardan la sesión por separado: entrar al portal con un DNI
 // en la compu de la oficina no cierra la sesión del sistema de gestión.
@@ -431,7 +431,7 @@ export async function pdfAumentos(cfg, titulo, subtitulo, filas, notas = []) {
   // la letra más grande posible: que entren todas las filas a lo alto y el texto más largo de cada columna a lo ancho
   const vals = (f) => [f.dir, f.inq, f.inicio || "", f.ind, f.nro || "", num(f.base, f.usd), f.manual ? "A mano" : num(f.nuevo, f.usd) + (f.est ? " *" : ""), ""];
   const textos = filas.map(vals);
-  const cols = [["Dirección", "left"], ["Inquilino", "left"], ["Inicio del contrato", "center"], ["Índice", "center"], ["N° de aumento", "center"], ["Venía pagando", "right"], ["Con aumento", "right"], ["Valor final", "right"]];
+  const cols = [["Dirección", "left"], ["Inquilino", "left"], ["Inicio del contrato", "center"], ["Índice", "center"], ["Aumento N°", "center"], ["Venía pagando", "right"], ["Con aumento", "right"], ["Valor final", "right"]];
   const PAD = 2.6, ref = 10; // ancho medido a 10 pt y escalado
   const medir = (t, neg) => { doc.setFont(FAM, neg ? "bold" : "normal"); doc.setFontSize(ref); return doc.getTextWidth(String(t ?? "")); };
   const nat = cols.map(([t], i) => Math.max(
