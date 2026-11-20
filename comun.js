@@ -1,6 +1,6 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611201542";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611201546";
 
 // El sistema del equipo y el portal guardan la sesión por separado: entrar al portal con un DNI
 // en la compu de la oficina no cierra la sesión del sistema de gestión.
@@ -412,6 +412,7 @@ export function letraLegible() {
   return (LETRA_LEGIBLE ||= Promise.all(["letra-legible.ttf", "letra-legible-negrita.ttf"].map((n) => fetch(new URL(n, LOGO_URL)).then((r) => { if (!r.ok) throw new Error("sin letra"); return r.arrayBuffer(); }).then(aB64)))
     .then(([r, b]) => ({ r, b })).catch((e) => { LETRA_LEGIBLE = null; throw e; }));
 }
+const corto0 = (doc, t, w) => { t = String(t ?? ""); if (doc.getTextWidth(t) <= w) return t; while (t.length > 1 && doc.getTextWidth(t + "…") > w) t = t.slice(0, -1); return t + "…"; };
 export async function pdfAumentos(cfg, titulo, subtitulo, filas, notas = []) {
   // Hoja A4 VERTICAL, todo en una sola hoja. Las filas ocupan todo el alto disponible y la letra es la más grande que entra.
   // El recuadro "Valor final" (para escribir a mano) tiene un ancho mínimo de 42 mm y todo el alto de la fila.
@@ -421,7 +422,7 @@ export async function pdfAumentos(cfg, titulo, subtitulo, filas, notas = []) {
   const may = (t) => String(t ?? "").toLocaleUpperCase("es-AR");
   const vals = (f) => [may(f.dir), may(f.inq), corta(f.inicio), f.ind, f.nro || "", num(f.base, f.usd), f.manual ? "A mano" : num(f.nuevo, f.usd) + (f.est ? " *" : ""), ""];
   const cols = [["Dirección", "left"], ["Inquilino", "left"], ["Inicio", "center"], ["Índice", "center"], ["Aum.", "center"], ["Venía pagando", "right"], ["Con aumento", "right"], ["Valor final", "center"]];
-  const n = Math.max(filas.length, 1), W = 210, H = 297, M = 6, ANCHO = W - 2 * M, PAD = 2.2, ref = 10, CAJA = 42;
+  const n = Math.max(filas.length, 1), W = 210, H = 297, M = 5, ANCHO = W - 2 * M, PAD = 2.2, ref = 10, CAJA = 42;
   const altoTexto = (pt) => pt * 0.3528;
   const BORDO = [122, 31, 46], GRIS = [70, 60, 62], TINTA = [10, 8, 9], LINEA = [175, 160, 163], ZEBRA = [244, 236, 238];
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
@@ -432,12 +433,14 @@ export async function pdfAumentos(cfg, titulo, subtitulo, filas, notas = []) {
   const nat = cols.map(([t], i) => Math.max(...t.split(" ").map((w) => medir(w, true)), ...textos.map((v) => medir(v[i], i === 6)), 0) + (i >= 2 && i <= 6 ? 0.6 : 0));
   const enDos = (t) => { const w = String(t ?? "").split(" "); if (w.length < 2) return medir(t); let m = Infinity; for (let i = 1; i < w.length; i++) m = Math.min(m, Math.max(medir(w.slice(0, i).join(" ")), medir(w.slice(i).join(" ")))); return m; };
   const nat2 = [0, 1].map((i) => Math.max(...cols[i][0].split(" ").map((w) => medir(w, true)), ...textos.map((v) => enDos(v[i])), 0));
-  // encabezado compacto
-  const lw = Math.min(11 * LOGO_PROP, 15); doc.addImage(LOGO, "PNG", M, M, lw, lw / LOGO_PROP);
-  doc.setFont(FAM, "bold"); doc.setFontSize(17); doc.setTextColor(...BORDO); doc.text(titulo, M + lw + 3.5, M + 5.5);
-  doc.setFont(FAM, "normal"); doc.setFontSize(9.5); doc.setTextColor(...GRIS); doc.text(subtitulo, M + lw + 3.5, M + 10.5);
-  let y = M + Math.max(lw / LOGO_PROP, 12) + 2.5;
-  const pieAlto = 5, notasAlto = notas.length ? notas.length * 3.8 + 1.5 : 0;
+  // encabezado en UN solo renglón (título · fecha · aclaraciones) y sin pie de página: todo el alto queda para las filas
+  doc.setFont(FAM, "bold"); doc.setFontSize(13); doc.setTextColor(...BORDO); doc.text(titulo, M, M + 3.6);
+  const tw = doc.getTextWidth(titulo);
+  doc.setFont(FAM, "normal"); doc.setFontSize(8); doc.setTextColor(...GRIS);
+  const extra = [`${cfg?.nombre || ""} · impreso el ${new Date().toLocaleDateString("es-AR")}`, ...notas].filter(Boolean).join("  ·  ");
+  doc.text(corto0(doc, extra, ANCHO - tw - 4), W - M, M + 3.6, { align: "right" });
+  let y = M + 5.5;
+  const pieAlto = 0, notasAlto = 0;
   const disponible = H - M - pieAlto - notasAlto - y;
   // letra: la mayor que entra a lo ancho (dirección e inquilino pueden ir hasta un 15 % más chicas) y a lo alto
   const otros = nat.slice(2, 7).reduce((a, b) => a + b, 0), libre = ANCHO - CAJA - cols.length * PAD;
@@ -450,7 +453,7 @@ export async function pdfAumentos(cfg, titulo, subtitulo, filas, notas = []) {
   if (dosRenglones) { nat[0] = nat2[0]; nat[1] = nat2[1]; }
   let letra = Math.max(7, Math.floor((dosRenglones ? l2 : l1) * 4) / 4);
   const lc = Math.min(letra, 13), cabAlto = Math.max(7, altoTexto(lc) * 2.6);
-  const fila = Math.min((disponible - cabAlto) / n, 13);                          // filas tan altas como se pueda (para escribir cómodo)
+  const fila = Math.min((disponible - cabAlto) / n, 14);                          // filas tan altas como se pueda (para escribir cómodo)
   // anchos: columnas fijas a su medida; dirección e inquilino se reparten el resto; el recuadro se lleva lo que sobre
   const anchos = nat.map((w) => w * letra / ref + PAD);
   const fijos = anchos.slice(2, 7).reduce((a, b) => a + b, 0), resto = ANCHO - CAJA - fijos;
@@ -492,9 +495,6 @@ export async function pdfAumentos(cfg, titulo, subtitulo, filas, notas = []) {
     y += fila;
   });
   if (!filas.length) { doc.setFont(FAM, "normal"); doc.setFontSize(12); doc.setTextColor(...GRIS); doc.text("No hay aumentos para este mes.", M + 2, y + 7); y += 10; }
-  y += 1.5; doc.setFont(FAM, "normal"); doc.setFontSize(9); doc.setTextColor(...GRIS);
-  for (const t of notas) { doc.text(t, M, y + 3); y += 3.8; }
-  doc.setFontSize(8); doc.text(cfg?.nombre || "", M, H - M + 1.5); doc.text("Impreso el " + new Date().toLocaleDateString("es-AR"), W - M, H - M + 1.5, { align: "right" });
   return doc;
 }
 export function pdfLiquidacion(cfg, l, prop) {
