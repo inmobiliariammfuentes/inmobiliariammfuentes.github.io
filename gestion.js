@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611201546";
-import { iniciarChat } from "./chat.js?v=202611201546";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611201546";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611201546";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611201546";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611201546";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611201546";
-import { iniciarCalculadora } from "./calculadora.js?v=202611201546";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611201546";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611201546";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611201546";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611201546";
+} from "./comun.js?v=202611201554";
+import { iniciarChat } from "./chat.js?v=202611201554";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611201554";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611201554";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611201554";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611201554";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611201554";
+import { iniciarCalculadora } from "./calculadora.js?v=202611201554";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611201554";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611201554";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611201554";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611201554";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -724,7 +724,7 @@ function descargarBlob(blob, nombre) {
 const TIT_AUMENTOS = ["Dirección", "Inquilino", "Inicio", "Índice", "Aum.", "Venía pagando", "Con aumento", "Valor final"];
 // Medidas del Excel de aumentos para que ocupe toda la hoja A4 (vertical, márgenes de 0,35" y 0,4"/0,45")
 function layoutExcelAumentos(D) {
-  // Se prueban hoja vertical u horizontal y dirección/inquilino en 1 o 2 renglones; gana el armado con la letra más grande
+  // Hoja vertical: filas lo más altas posible, números con la letra más grande que entre
   const n = Math.max(D.rows.length, 1);
   const cv = document.createElement("canvas").getContext("2d");
   const ancho = (t, neg) => { cv.font = `${neg ? "bold " : ""}${(11 * 96) / 72}px Tahoma, Verdana, "DejaVu Sans", sans-serif`; return cv.measureText(String(t ?? "")).width / 7; }; // en caracteres a 11 pt
@@ -736,20 +736,20 @@ function layoutExcelAumentos(D) {
   const nat2 = nat1.map((w, i) => (i <= 1 ? Math.max(tit[i], ...D.rows.map((f) => enDos(val(f)[i])), 0) : w));
   const CAJA = 23;                                                          // "Valor final" (se escribe a mano): ~42 mm de ancho como mínimo
   for (const a of [nat1, nat2]) a[7] = 0;
-  const PAD = 1.6, fijo = 20;   // un solo renglón de título arriba y sin pie
-  let P = null;
-  for (const [orient, ANCHO_CH, ALTO_PT] of [["portrait", 99, 800]]) for (const lineas of [1, 2]) {   // siempre hoja vertical
-    const nat = lineas === 1 ? nat1 : nat2, sumNat = nat.reduce((a, b) => a + b, 0), porFila = lineas === 1 ? 1.45 : 2.7;
-    const l = Math.min(11 * (ANCHO_CH - CAJA - PAD * 7) / sumNat, (ALTO_PT - fijo) / (n * porFila + 2.8), 24);
-    if (!P || l > P.letra + 0.25) P = { orient, ANCHO_CH, ALTO_PT, lineas, nat, porFila, letra: l };
-  }
-  let letra = Math.max(7, Math.floor(P.letra * 2) / 2);
-  const cab = Math.max(20, Math.min(letra, 13) * 2.8), fila = Math.max(letra * (P.lineas === 1 ? 1.35 : 2.6), Math.min((P.ALTO_PT - fijo - cab) / n, 36));  // filas tan altas como entren (para escribir)
-  let anchos = P.nat.map((w) => w * letra / 11 + PAD); anchos[7] = CAJA;
-  const sobra = P.ANCHO_CH - anchos.reduce((a, b) => a + b, 0);
-  if (sobra >= 0) anchos[7] += sobra;                                       // lo que sobra agranda el recuadro para escribir
-  else { const resto = anchos.reduce((a, w, i) => a + (i <= 1 ? 0 : w), 0), libre = P.ANCHO_CH - resto, dI = anchos[0] + anchos[1]; anchos[0] = libre * anchos[0] / dI; anchos[1] = libre * anchos[1] / dI; }
-  return { letra, cab, fila: Math.round(fila * 4) / 4, anchos: anchos.map((w) => Math.round(w * 10) / 10), orient: P.orient, envolver: P.lineas === 2 };
+  const PAD = 1.6, fijo = 20, ANCHO_CH = 99, ALTO_PT = 800;   // hoja vertical; un solo renglón de título arriba y sin pie
+  // filas tan altas como entren; dirección e inquilino van en 2 renglones con una letra que entre en esa altura,
+  // y los números (lo importante) con la letra más grande que entre a lo ancho
+  const cab = 30, fila = Math.min((ALTO_PT - fijo - cab) / n, 36);
+  const nf = Math.min(fila / 2.55, 14), otros = nat1.slice(2, 7).reduce((a, b) => a + b, 0);
+  const anchoNombres = (nat2[0] + nat2[1]) * nf / 11 + 2 * PAD;
+  let letra = Math.min(11 * (ANCHO_CH - CAJA - 6 * PAD - anchoNombres) / otros, fila / 1.4, 20);
+  letra = Math.max(7, Math.floor(letra * 2) / 2);
+  const letraNombres = Math.min(nf, letra);
+  let anchos = nat1.map((w) => w * letra / 11 + PAD); anchos[0] = nat2[0] * letraNombres / 11 + PAD; anchos[1] = nat2[1] * letraNombres / 11 + PAD; anchos[7] = CAJA;
+  const sobra = ANCHO_CH - anchos.reduce((a, b) => a + b, 0);
+  if (sobra >= 0) { anchos[0] += sobra * 0.3; anchos[1] += sobra * 0.2; anchos[7] += sobra * 0.5; }
+  else { const resto = anchos.reduce((a, w, i) => a + (i <= 1 ? 0 : w), 0), libre = ANCHO_CH - resto, dI = anchos[0] + anchos[1]; anchos[0] = libre * anchos[0] / dI; anchos[1] = libre * anchos[1] / dI; }
+  return { letra, letraNombres, cab, fila: Math.round(fila * 4) / 4, anchos: anchos.map((w) => Math.round(w * 10) / 10), orient: "portrait", envolver: true };
 }
 async function exportarAumentos(boton, formato = "excel") {
   const txt = boton.textContent; boton.disabled = true; boton.textContent = formato === "pdf" ? "Armando el PDF…" : "Armando el Excel…";
@@ -790,7 +790,7 @@ async function exportarAumentos(boton, formato = "excel") {
       r.eachCell({ includeEmpty: true }, (cell, c) => {
         cell.border = { top: linea, left: linea, bottom: linea, right: linea };
         cell.alignment = { vertical: "middle", wrapText: envolver && (c === 1 || c === 2), shrinkToFit: !envolver && (c === 1 || c === 2), horizontal: c >= 3 && c <= 5 ? "center" : c >= 6 ? "right" : "left" };
-        cell.font = { name: "Tahoma", size: letra, color: { argb: "FF0F0C0D" }, ...(c === 7 && !f.manual ? { bold: true } : {}) };
+        cell.font = { name: "Tahoma", size: c <= 2 ? L.letraNombres : letra, color: { argb: "FF0F0C0D" }, ...(c === 7 && !f.manual ? { bold: true } : {}) };
         if (k % 2) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF8F2F3" } };
       });
       r.getCell(6).numFmt = fmt; if (!f.manual) r.getCell(7).numFmt = f.est ? fmt + '" *"' : fmt;
@@ -1831,7 +1831,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611201546");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611201554");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1883,7 +1883,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611201546");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611201554");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];

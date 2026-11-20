@@ -1,6 +1,6 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611201546";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611201554";
 
 // El sistema del equipo y el portal guardan la sesión por separado: entrar al portal con un DNI
 // en la compu de la oficina no cierra la sesión del sistema de gestión.
@@ -447,8 +447,8 @@ export async function pdfAumentos(cfg, titulo, subtitulo, filas, notas = []) {
   const letraAlto = disponible / (n * altoTexto(1) * 1.4 + altoTexto(1) * 2.6);
   const filaMax = (L) => Math.min((disponible - Math.max(7, altoTexto(Math.min(L, 13)) * 2.6)) / n, 13);
   // 1 renglón por contrato, o 2 renglones para dirección e inquilino si las filas son bastante altas (pocos aumentos en el mes)
-  const l1 = Math.min(ref * libre / (otros + (nat[0] + nat[1]) * 0.85), letraAlto, 18);
-  let l2 = Math.min(ref * libre / (otros + (nat2[0] + nat2[1]) * 0.85), 18); if (filaMax(l2) < altoTexto(l2 * 0.85) * 2.5) l2 = 0;
+  const l1 = Math.min(ref * libre / (otros + (nat[0] + nat[1]) * 0.55), letraAlto, 18);   // los nombres largos se acomodan en 2 renglones o un poco más chicos
+  let l2 = Math.min(ref * libre / (otros + (nat2[0] + nat2[1]) * 0.55), 18); if (filaMax(l2) < altoTexto(l2 * 0.85) * 2.5) l2 = 0;
   const dosRenglones = l2 > l1 + 0.5;
   if (dosRenglones) { nat[0] = nat2[0]; nat[1] = nat2[1]; }
   let letra = Math.max(7, Math.floor((dosRenglones ? l2 : l1) * 4) / 4);
@@ -460,7 +460,6 @@ export async function pdfAumentos(cfg, titulo, subtitulo, filas, notas = []) {
   const necesitan = anchos[0] + anchos[1];
   if (necesitan <= resto) { anchos[0] += 0; anchos[1] += 0; anchos[7] = ANCHO - fijos - necesitan; }
   else { anchos[0] = resto * anchos[0] / necesitan; anchos[1] = resto * anchos[1] / necesitan; anchos[7] = CAJA; }
-  const letraNombre = Math.min(letra, Math.max(letra * 0.85, letra * Math.min(anchos[0] / (nat[0] * letra / ref + PAD), anchos[1] / (nat[1] * letra / ref + PAD))));
   const corto = (t, w) => { t = String(t ?? ""); if (doc.getTextWidth(t) <= w) return t; while (t.length > 1 && doc.getTextWidth(t + "…") > w) t = t.slice(0, -1); return t + "…"; };
   // cabecera de la tabla
   doc.setFont(FAM, "bold"); doc.setFontSize(lc); doc.setTextColor(255, 255, 255);
@@ -476,13 +475,21 @@ export async function pdfAumentos(cfg, titulo, subtitulo, filas, notas = []) {
       if (i === 7) { doc.setFillColor(255, 255, 255); doc.setDrawColor(...BORDO); doc.setLineWidth(0.35); doc.rect(x + 1, y + 0.6, w - 1.6, fila - 1.2, "FD"); }
       const v = vf[i];
       if (v !== "") {
-        const pt = i <= 1 ? letraNombre : letra;
+        const pt = letra;
         doc.setFontSize(pt); doc.setFont(FAM, i === 6 && !f.manual ? "bold" : "normal"); doc.setTextColor(...TINTA);
         const tx = al === "right" ? x + w - 1.1 : al === "center" ? x + w / 2 : x + 1.1;
-        if (i <= 1) {                                                              // dirección e inquilino: 1 o 2 renglones, si no entra se corta con "…"
-          let ls = dosRenglones && doc.getTextWidth(v) > w - 2.2 ? doc.splitTextToSize(v, w - 2.2) : [v];
-          if (ls.length > 2) ls = [ls[0], ls.slice(1).join(" ")];
-          ls = ls.map((l) => corto(l, w - 2.2)); const paso = altoTexto(pt) * 1.15, y0 = y + fila / 2 - (ls.length - 1) * paso / 2 + altoTexto(pt) * 0.35;
+        if (i <= 1) {                                                              // dirección e inquilino: en 1 renglón si entra grande; si no, en 2 renglones; si no, más chico o cortado con "…"
+          const wl = w - 2.2, ancho1 = (t, q) => { doc.setFontSize(q); return doc.getTextWidth(t); };
+          const f1 = Math.min(letra, letra * wl * 0.985 / ancho1(v, letra));
+          let ls = [v], q = f1;
+          if (f1 < letra * 0.9 && v.includes(" ")) {
+            const ws = v.split(" "); let mejor = null;
+            for (let c = 1; c < ws.length; c++) { const a = ws.slice(0, c).join(" "), b2 = ws.slice(c).join(" "), m = Math.max(ancho1(a, letra), ancho1(b2, letra)); if (!mejor || m < mejor.m) mejor = { a, b: b2, m }; }
+            const f2 = Math.min(letra, letra * wl * 0.985 / mejor.m, (fila - 0.8) / (altoTexto(1) * 2.15));
+            if (f2 > f1 + 0.2) { ls = [mejor.a, mejor.b]; q = f2; }
+          }
+          q = Math.max(q, 6); doc.setFontSize(q);
+          ls = ls.map((l) => corto(l, wl)); const paso = altoTexto(q) * 1.12, y0 = y + fila / 2 - (ls.length - 1) * paso / 2 + altoTexto(q) * 0.35;
           ls.forEach((l, j) => doc.text(l, tx, y0 + j * paso, { align: al }));
         } else {                                                                   // números: nunca se cortan; si hiciera falta, se achica apenas esa celda
           let p2 = pt; while (p2 > 6 && doc.getTextWidth(v) > w - 1.6) { p2 -= 0.25; doc.setFontSize(p2); }
