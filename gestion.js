@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611201512";
-import { iniciarChat } from "./chat.js?v=202611201512";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611201512";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611201512";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611201512";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611201512";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611201512";
-import { iniciarCalculadora } from "./calculadora.js?v=202611201512";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611201512";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611201512";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611201512";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611201512";
+} from "./comun.js?v=202611201519";
+import { iniciarChat } from "./chat.js?v=202611201519";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611201519";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611201519";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611201519";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611201519";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611201519";
+import { iniciarCalculadora } from "./calculadora.js?v=202611201519";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611201519";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611201519";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611201519";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611201519";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -360,13 +360,24 @@ function aumentoDe(c) {
   const prevYM = ymSumar(p, -n) > ini ? ymSumar(p, -n) : ini;
   const desde = prevYM === ini ? c.inicio : prevYM + "-" + dia, hasta = p + "-" + dia;
   const calc = esUSD(c) ? { error: "Contrato en dólares: el aumento se carga a mano" } : base < 1000 ? { error: "Falta el alquiler actual (vino de SPOT con $ 1)" } : !indiceAutomatico(c.indice) ? { error: `${c.indice}: se calcula a mano` }
-    : S.indices ? redondearCalculo(calcularAumento(S.indices, c.indice, base, desde, hasta), base, S.cfg) : null;
+    : S.indices ? redondearCalculo(calculoDesdeInicio(c, base, desde, hasta), base, S.cfg) : null;
   return { p, base, desde, hasta, calc };
+}
+// El aumento se calcula SIEMPRE desde el primer mes del contrato: alquiler inicial × el índice acumulado desde el inicio
+// (así no arrastra redondeos ni valores puestos a mano). El % se muestra contra lo que viene pagando.
+// Si el índice no tiene datos tan viejos o falta el alquiler inicial, se calcula sobre el alquiler actual (como antes).
+function calculoDesdeInicio(c, base, desde, hasta) {
+  const tramo = calcularAumento(S.indices, c.indice, base, desde, hasta), ini = +c.monto_base || 0;
+  if (ini < 1000 || desde === c.inicio) return tramo;
+  const total = calcularAumento(S.indices, c.indice, ini, c.inicio, hasta);
+  if (total.error) return tramo.error ? tramo : { ...tramo, detalle: tramo.detalle + " · sobre el alquiler actual (el índice no tiene datos desde el inicio)" };
+  return { ...total, pct: Math.round((total.nuevo / base - 1) * 10000) / 100, sobreActual: tramo.error ? null : tramo.nuevo,
+    detalle: `Desde el inicio: ${money(ini, c)} × ${total.detalle}` };
 }
 function celdaCalculo(a, c) {
   if (!a.calc) return `<span class="muted">Bajando índices…</span>`;
   if (a.calc.error) return `<span class="muted">${esc(a.calc.error)}</span>`;
-  return `<b class="mono">${money(a.calc.nuevo, c)}</b> <span class="chip ${a.calc.estimado ? "warn" : "ok"}" title="${esc(a.calc.detalle)}">+${String(a.calc.pct).replace(".", ",")}%${a.calc.estimado ? " · estimado" : ""}</span>${a.calc.redondeado ? `<div class="muted aum-det">Redondeado ${a.calc.redondeado === "arriba" ? "para arriba" : "para abajo"} · antes ${money(a.calc.original, c)}</div>` : ""}<div class="muted aum-det">${esc(a.calc.detalle)}</div>`;
+  return `<b class="mono">${money(a.calc.nuevo, c)}</b> <span class="chip ${a.calc.estimado ? "warn" : "ok"}" title="${esc(a.calc.detalle)}">+${String(a.calc.pct).replace(".", ",")}%${a.calc.estimado ? " · estimado" : ""}</span>${a.calc.redondeado ? `<div class="muted aum-det">Redondeado ${a.calc.redondeado === "arriba" ? "para arriba" : "para abajo"} · antes ${money(a.calc.original, c)}</div>` : ""}<div class="muted aum-det">${esc(a.calc.detalle)}</div>${a.calc.sobreActual && Math.abs(a.calc.sobreActual - (a.calc.original ?? a.calc.nuevo)) >= 1000 ? `<div class="muted aum-det">Sobre el alquiler actual daría ${money(a.calc.sobreActual, c)}</div>` : ""}`;
 }
 async function mostrarImagenAumento(c, x) {
   const pi = P(c.inquilino_id), nom = (pi.nombre || "").includes(",") ? pi.nombre.split(",").reverse().map((s) => s.trim()).join(" ") : pi.nombre;
@@ -1812,7 +1823,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611201512");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611201519");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1864,7 +1875,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611201512");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611201519");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
