@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611202006";
-import { iniciarChat } from "./chat.js?v=202611202006";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611202006";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611202006";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611202006";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611202006";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611202006";
-import { iniciarCalculadora } from "./calculadora.js?v=202611202006";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611202006";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611202006";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611202006";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611202006";
+} from "./comun.js?v=202611202016";
+import { iniciarChat } from "./chat.js?v=202611202016";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611202016";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611202016";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611202016";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611202016";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611202016";
+import { iniciarCalculadora } from "./calculadora.js?v=202611202016";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611202016";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611202016";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611202016";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611202016";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -1094,10 +1094,10 @@ function abrirRenovacion(cid) {
     indice: c.indice, ajuste_meses: c.ajuste_meses, forma_pago: c.forma_pago, comision: c.comision ?? "", dia_vto: c.dia_vto ?? "",
     conceptos: (S.cf.get(c.id) || []).filter((k) => k.activo).map((k) => ({ nombre: k.nombre, monto: k.monto, porcentaje: k.porcentaje, admin: k.admin, propietario: k.propietario, inquilino: k.inquilino })) });
 }
-function filaConceptoNuevo(k = {}) {
-  return `<div class="concepto-fila nc-concepto">
+function filaConceptoNuevo(k = {}, cls = "nc-concepto") {
+  return `<div class="concepto-fila ${cls}">
     <input type="text" data-c="nombre" list="dl-conceptos-f" value="${esc(k.nombre || "")}" placeholder="Concepto" aria-label="Concepto">
-    <input type="number" step="0.01" min="0" data-c="monto" value="${esc(k.monto || "")}" placeholder="Monto por mes" aria-label="Monto por mes">
+    <input type="number" step="0.01" min="0" data-c="monto" value="${esc(k.monto || "")}" placeholder="${cls === "nc-unavez" ? "Monto" : "Monto por mes"}" aria-label="Monto">
     <select data-c="inquilino" aria-label="Para el inquilino"><option value="1" ${k.inquilino === 0 || k.inquilino === -1 ? "" : "selected"}>Inquilino: suma</option><option value="-1" ${k.inquilino === -1 ? "selected" : ""}>Inquilino: resta</option><option value="0" ${k.inquilino === 0 ? "selected" : ""}>Inquilino: no afecta</option></select>
     <select data-c="propietario" aria-label="Para el propietario"><option value="1" ${k.propietario === 0 || k.propietario === -1 ? "" : "selected"}>Propietario: suma</option><option value="0" ${k.propietario === 0 ? "selected" : ""}>Propietario: no afecta</option><option value="-1" ${k.propietario === -1 ? "selected" : ""}>Propietario: resta</option></select>
     <label class="check"><input type="checkbox" data-c="admin" ${k.admin ? "checked" : ""}> Aplica administración</label>
@@ -1146,7 +1146,11 @@ function vNuevo() {
       <h2 class="full">4 · Conceptos fijos de cada mes</h2>
       <div class="full row">${["TSG", "Aysa", "Expensas Comunes", "Municipal (ABL)"].map((k) => `<button type="button" class="btn small" data-ncconcepto="${k}">+ ${k}</button>`).join("")}<button type="button" class="btn small" data-ncconcepto="">+ Otro</button></div>
       <datalist id="dl-conceptos-f">${CONCEPTOS_SUG.concat(["TSG", "Aysa", "Expensas Comunes"]).map((x) => `<option value="${x}"></option>`).join("")}</datalist>
-      <div class="full filas" id="nc-conceptos">${(n.conceptos || []).map(filaConceptoNuevo).join("")}</div>
+      <div class="full filas" id="nc-conceptos">${(n.conceptos || []).map((k) => filaConceptoNuevo(k)).join("")}</div>
+      ${n.unaVez ? `<h2 class="full">5 · Se cobran solo en el primer mes <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:500">(de la reserva)</span></h2>
+      <p class="full muted" style="margin:0">Quedan cargados para cobrar junto con el primer alquiler. La reserva ya abonada se descuenta al inquilino y no afecta al propietario, porque la recibió la inmobiliaria. Podés cambiar los importes o quitar renglones.</p>
+      <div class="full filas" id="nc-unavez">${n.unaVez.map((k) => filaConceptoNuevo(k, "nc-unavez")).join("")}</div>
+      <div class="full row"><button type="button" class="btn small" data-ncunavez>+ Otro importe del primer mes</button></div>` : ""}
       <label class="full">Notas<input type="text" id="nc-notas" name="notas" value="${esc(n.notas || "")}"></label>
     </section>
     <section class="panel nc-resumen"><h2>Resumen</h2><div id="nc-resumen"></div>
@@ -1197,6 +1201,15 @@ async function guardarNuevo(f, modo) {
   if (!id) return;
   { const { error } = await sb.from("contratos").update(datosDireccion(v)).eq("id", id); if (error) toast("No se pudo guardar la dirección en partes: " + mensajeError(error), "bad"); }
   if (v.moneda === "USD") { const { error } = await sb.from("contratos").update({ moneda: "USD" }).eq("id", id); if (error) toast("No se pudo marcar el contrato en dólares: " + mensajeError(error), "bad"); }
+  // importes que se cobran una sola vez, en el primer mes (depósito, honorarios, sellado… y la reserva que se descuenta)
+  const unaVez = [...f.querySelectorAll(".nc-unavez")].map((r) => ({ nombre: r.querySelector('[data-c="nombre"]').value.trim(), monto: r2(+r.querySelector('[data-c="monto"]').value || 0),
+    propietario: +r.querySelector('[data-c="propietario"]').value, inquilino: +r.querySelector('[data-c="inquilino"]').value, admin: r.querySelector('[data-c="admin"]').checked })).filter((k) => k.nombre && k.monto > 0);
+  if (unaVez.length) {
+    const p1 = ymDe(v.inicio);
+    const { error } = await sb.from("conceptos_fijos").insert(unaVez.map((k) => ({ ...k, contrato_id: id, porcentaje: 0, desde: p1, hasta: p1 })));
+    if (error) toast("El contrato se guardó, pero no se pudieron cargar los importes del primer mes: " + mensajeError(error), "bad");
+    else await sb.rpc("generar_cargos", { p_contrato: id });
+  }
   await cargarTodo();
   if (S.ncArchivo) { await guardarArchivoContrato(id); await cargarTodo(); }
   if (modo === "otro") abrirNuevo(); else { S.view = "contratos"; render(); fichaTab = "cuenta"; await abrirFicha(id); }
@@ -1282,6 +1295,12 @@ function contratoDesdeReserva(r, fechaRes) {
     inicio: S.nc.inicio, fin: isoMas(S.nc.inicio, meses, -1), monto_base: numTxt(r.alquiler) || null, indice: r.indice || null, ajuste_meses: +r.ajuste || null, deposito: numTxt(r.deposito) || null };
   d.notas.push(`Datos tomados de la reserva${fechaRes ? " del " + fecha(fechaRes) : ""}. Revisá la fecha de inicio (puse el 1° del mes que viene)${d.propietario ? "" : " y elegí el propietario si no aparece"}.`);
   aplicarDatosContrato(d, `Reserva de ${r.nombre || "—"}${r.direccion ? " · " + r.direccion : ""}`);
+  // lo que figura en la liquidación de la reserva se cobra en el primer mes (el "mes adelantado" es el primer alquiler, que ya se genera solo)
+  const uv = [["Depósito", r.deposito, 1, 1], ["Honorarios", r.honorarios, 1, 0], ["Sellado del contrato", r.sellado, 1, 0], ["Informes / certificaciones", r.informes, 1, 0], ["Reserva abonada", r.reserva, -1, 0]]
+    .map(([nombre, m, inquilino, propietario]) => ({ nombre, monto: numTxt(m), inquilino, propietario, admin: false })).filter((k) => k.monto > 0);
+  const mes = numTxt(r.mes);
+  if (mes > 0 && Math.abs(mes - numTxt(r.alquiler)) >= 1) S.nc.word.notas.push(`En la reserva el mes adelantado figura ${money(mes)} y el alquiler ${money(numTxt(r.alquiler))}: se cobra el alquiler del contrato. Si corresponde otra cosa, corregilo al cobrar.`);
+  S.nc.unaVez = uv; render(); nuevoResumen();
   if (loc && !S.nc.calle) { S.nc.localidad = loc.trim(); render(); nuevoResumen(); }
 }
 // después de guardar: adjuntar el Word al contrato y completar DNI/email/CUIT que falten en las personas
@@ -1850,7 +1869,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611202006");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611202016");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1902,7 +1921,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611202006");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611202016");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -1995,6 +2014,7 @@ document.addEventListener("click", async (ev) => {
     if (d.a === "salir") { salirPerso(); await sb.auth.signOut(); location.reload(); return; }
     if (d.a === "nuevo-contrato") { abrirNuevo(); return; }
     if (d.renovar) { abrirRenovacion(d.renovar); return; }
+    if (d.ncunavez !== undefined) { $("#nc-unavez").insertAdjacentHTML("beforeend", filaConceptoNuevo({ propietario: 0 }, "nc-unavez")); $("#nc-unavez").lastElementChild.querySelector("input").focus(); return; }
     if (d.ncconcepto !== undefined) { $("#nc-conceptos").insertAdjacentHTML("beforeend", filaConceptoNuevo({ nombre: d.ncconcepto })); const r = $("#nc-conceptos").lastElementChild; r.querySelector(d.ncconcepto ? '[data-c="monto"]' : "input").focus(); nuevoResumen(); return; }
     if (d.depositoIgual !== undefined) { const f = $("#f-nuevo"); f.deposito.value = f.monto_base.value; nuevoResumen(); return; }
     if (d.a === "nueva-persona") { modalPersona(null); return; }
