@@ -2,7 +2,7 @@
 // · Renovación: arma una imagen con las condiciones y los importes para mandarle al inquilino por WhatsApp.
 // · Reserva: arma el "Recibo de reserva para alquiler" (mismo texto que el modelo de Word) en PDF y en imagen.
 // Todo se dibuja en esta computadora; lo que se guarda queda en la tabla documentos_generados.
-import { numeroALetras, LOGO_URL } from "./comun.js?v=202611191553";
+import { numeroALetras, LOGO_URL } from "./comun.js?v=202611201333";
 
 const MEMBRETE_URL = new URL("membrete.png", LOGO_URL).href;
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -12,7 +12,7 @@ const TIPOS_INMUEBLE = ["departamento", "casa", "PH", "local", "oficina", "coche
 const BORDO = "#6e1b2a", BORDO2 = "#8c2a3b";
 
 let X = null;          // contexto que pasa gestion.js: { sb, S, esc, toast, fecha, P, montoHoy, ymSumar, ymDe }
-let st = { tab: "renovacion", ren: null, res: null, guardados: null, firma: undefined, imgs: {} };
+let st = { tab: "renovacion", ren: null, res: null, guardados: null, pedidos: null, verUsados: false, firma: undefined, imgs: {} };
 
 /* ---------- utilidades ---------- */
 const num = (v) => { const n = parseFloat(String(v ?? "").replace(/\./g, "").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
@@ -62,13 +62,15 @@ const totalRen = (d) => num(d.alquiler) + d.renglones.reduce((s, r) => s + num(r
 /* ---------- pantalla ---------- */
 export function vDocumentos() {
   return `<div class="head"><div><h1>Reservas y renovaciones</h1><p>Armá la imagen de una renovación para mandarle al inquilino, o el recibo de reserva de un inquilino nuevo.</p></div></div>
-  <div class="tabs" role="tablist"><button data-dtab="renovacion" aria-selected="${st.tab === "renovacion"}">Renovación</button><button data-dtab="reserva" aria-selected="${st.tab === "reserva"}">Reserva</button><button data-dtab="guardados" aria-selected="${st.tab === "guardados"}">Guardados</button></div>
+  <div class="tabs" role="tablist"><button data-dtab="renovacion" aria-selected="${st.tab === "renovacion"}">Renovación</button><button data-dtab="reserva" aria-selected="${st.tab === "reserva"}">Reserva</button><button data-dtab="pedidos" aria-selected="${st.tab === "pedidos"}">Pedidos del formulario${nPedidos() ? ` <span class="n-btn">${nPedidos()}</span>` : ""}</button><button data-dtab="guardados" aria-selected="${st.tab === "guardados"}">Guardados</button></div>
   <div id="docs-root"><div class="empty">Cargando…</div></div>`;
 }
 export async function montarDocumentos(ctx) {
   X = ctx;
   const root = document.getElementById("docs-root"); if (!root) return;
+  if (!st.pedidos) { await cargarPedidos(); if (st.pedidos?.length) X.rerender(); if (!document.getElementById("docs-root")) return; }
   if (st.tab === "guardados") return pintarGuardados(root);
+  if (st.tab === "pedidos") { pintarPedidos(root); if (!root.dataset.escucha) { root.dataset.escucha = "1"; root.addEventListener("input", alEditar); root.addEventListener("change", alEditar); root.addEventListener("click", alClic); } return; }
   if (st.tab === "renovacion") { st.ren ||= renNueva(); root.innerHTML = formRen(st.ren); }
   else { st.res ||= resNueva(); root.innerHTML = formRes(st.res); }
   if (!root.dataset.escucha) { root.dataset.escucha = "1"; root.addEventListener("input", alEditar); root.addEventListener("change", alEditar); root.addEventListener("click", alClic); }
@@ -107,7 +109,10 @@ function formRen(d) {
 }
 function formRes(d) {
   const t = totalRes(d);
-  return `<div class="docs-grid"><section class="panel"><h2>Quién reserva</h2><div class="form">
+  const nuevos = (st.pedidos || []).filter((x) => x.estado === "nueva");
+  const aviso = nuevos.length && !d.nombre ? `<div class="banner ped-aviso"><span><b>${nuevos.length === 1 ? "Hay 1 pedido nuevo" : `Hay ${nuevos.length} pedidos nuevos`} del formulario.</b> Elegí uno y los datos se completan solos.</span>
+    <div class="ped-rap">${nuevos.slice(0, 4).map((x) => `<button type="button" class="btn small primary" data-usarpedido="${x.id}">${e(x.nombre || "Sin nombre")}</button>`).join("")}${nuevos.length > 4 ? `<button type="button" class="btn small" data-dtab-ir="pedidos">Ver los ${nuevos.length}</button>` : ""}</div></div>` : "";
+  return `${aviso}<div class="docs-grid"><section class="panel"><h2>Quién reserva</h2>${d._pedido ? `<p class="muted" style="margin:0 0 8px">Datos del formulario del ${X.fecha(String(d._pedidoFecha || "").slice(0, 10))}. Completá lo que falta.</p>` : ""}<div class="form">
     ${sel("Trato", "trato", d.trato, [["Sr.", "Sr."], ["Sra.", "Sra."], ["Srta.", "Srta."], ["Sres.", "Sres."]])}
     ${campo("Nombre y apellido", "nombre", d.nombre)}${campo("DNI", "dni", d.dni, 'inputmode="numeric"')}${campo("Celular", "telefono", d.telefono)}
     ${campo("Domicilio", "domicilio", d.domicilio)}${campo("Localidad", "localidad", d.localidad, 'placeholder="Ituzaingó, Prov. de Bs. As."')}
@@ -163,6 +168,12 @@ async function alClic(ev) {
   if (b.dataset.abrirdoc) { const g = st.guardados.find((x) => x.id === +b.dataset.abrirdoc); if (!g) return;
     st.tab = g.tipo; if (g.tipo === "renovacion") st.ren = { ...g.datos, _id: g.id }; else st.res = { ...g.datos, _id: g.id }; X.rerender(); return; }
   if (b.dataset.borrardoc) { if (!confirm("¿Borrar este documento guardado?")) return; const { error } = await X.sb.from("documentos_generados").delete().eq("id", +b.dataset.borrardoc); if (error) return X.toast(error.message, "bad"); st.guardados = null; return montarDocumentos(X); }
+  if (b.dataset.usarpedido) return usarPedido(+b.dataset.usarpedido);
+  if (b.dataset.dtabIr) { st.tab = b.dataset.dtabIr; return X.rerender(); }
+  if (b.dataset.descartarpedido || b.dataset.reabrirpedido) { const id = +(b.dataset.descartarpedido || b.dataset.reabrirpedido), estado = b.dataset.descartarpedido ? "descartada" : "nueva";
+    const { error } = await X.sb.from("solicitudes_reserva").update({ estado }).eq("id", id); if (error) return X.toast(error.message, "bad");
+    const x = st.pedidos.find((y) => y.id === id); if (x) x.estado = estado; X.S.nPedForm = nPedidos(); return X.rerender(); }
+  if (b.dataset.verusados !== undefined) { st.verUsados = !st.verUsados; return montarDocumentos(X); }
   const a = b.dataset.dacc; if (!a) return;
   const ren = st.tab === "renovacion", d = ren ? st.ren : st.res;
   if (a === "nuevo") { if (ren) st.ren = renNueva(); else st.res = resNueva(); return montarDocumentos(X); }
@@ -201,6 +212,36 @@ async function alClic(ev) {
 }
 function bajar(url, nombre) { const a = document.createElement("a"); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000); }
 
+/* ---------- pedidos que llegan del Google Forms ---------- */
+const nPedidos = () => (st.pedidos || []).filter((x) => x.estado === "nueva").length;
+async function cargarPedidos() {
+  const { data, error } = await X.sb.from("solicitudes_reserva").select("*").order("enviado_at", { ascending: false }).limit(300);
+  st.pedidos = error ? [] : data || []; X.S.nPedForm = nPedidos();
+}
+function partirDomicilio(t) {
+  const s = String(t || "").replace(/\s+/g, " ").trim(); const m = s.match(/^(.*\d.*?)\s*[-–,]\s*([^\d,–-]+(?:,.*)?)$/);
+  return m ? { domicilio: m[1].trim(), localidad: m[2].trim() } : { domicilio: s, localidad: "" };
+}
+async function usarPedido(id) {
+  const x = (st.pedidos || []).find((y) => y.id === id); if (!x) return;
+  const dom = partirDomicilio(x.domicilio);
+  st.res = { ...resNueva(), nombre: x.nombre || "", email: x.email || "", telefono: x.telefono || "", dni: x.dni || "", domicilio: dom.domicilio, localidad: dom.localidad, _pedido: x.id, _pedidoFecha: x.enviado_at };
+  st.tab = "reserva";
+  if (x.estado === "nueva") { const { error } = await X.sb.from("solicitudes_reserva").update({ estado: "usada", usada_at: new Date().toISOString() }).eq("id", x.id); if (!error) x.estado = "usada"; X.S.nPedForm = nPedidos(); }
+  X.rerender(); X.toast(`Datos de ${x.nombre || "la persona"} cargados. Completá la propiedad y los importes.`);
+}
+function pintarPedidos(root) {
+  const lista = (st.pedidos || []).filter((x) => st.verUsados || x.estado === "nueva");
+  const chip = (x) => x.estado === "nueva" ? `<span class="chip warn">Nuevo</span>` : x.estado === "usada" ? `<span class="chip ok">Reserva armada</span>` : `<span class="chip">Descartado</span>`;
+  root.innerHTML = `<section class="panel"><div class="ph"><div><h2>Pedidos del formulario de alquileres</h2><p class="muted" style="margin:0">Cada vez que alguien completa la Ficha de Datos Personales (Google Forms), aparece acá. Tocá <b>Armar reserva</b> y sus datos pasan solos al recibo de reserva.</p></div>
+    <button class="btn small" data-verusados>${st.verUsados ? "Ver solo los nuevos" : "Ver también los ya usados"}</button></div>
+  <div class="tw"><table><thead><tr><th>Fecha</th><th>Nombre</th><th>Celular</th><th>Email</th><th>Domicilio</th><th>DNI</th><th></th></tr></thead><tbody>
+  ${lista.map((x) => `<tr><td class="num">${X.fecha(String(x.enviado_at || x.created_at).slice(0, 10))}</td><td><b>${e(x.nombre || "—")}</b> ${chip(x)}</td><td class="mono">${e(x.telefono || "—")}</td><td>${e(x.email || "—")}</td><td>${e(x.domicilio || "—")}</td>
+    <td>${x.dni ? `<span class="mono">${e(x.dni)}</span> ` : ""}${(x.archivos || []).map((a, i) => `<a class="btn small" href="${e(a.url)}" target="_blank" rel="noopener" title="Abre la foto en el Drive de la inmobiliaria">Foto ${i + 1}</a>`).join(" ") || (x.dni ? "" : "—")}</td>
+    <td class="num acciones"><button class="btn small primary" data-usarpedido="${x.id}">Armar reserva</button>${x.estado === "nueva" ? `<button class="btn small" data-descartarpedido="${x.id}">Descartar</button>` : `<button class="btn small" data-reabrirpedido="${x.id}">Marcar como nuevo</button>`}</td></tr>`).join("")
+    || `<tr><td colspan="7"><div class="empty">${st.verUsados ? "Todavía no llegó ningún pedido del formulario." : "No hay pedidos nuevos."}</div></td></tr>`}
+  </tbody></table></div></section>`;
+}
 async function pintarGuardados(root) {
   if (!st.guardados) { const { data, error } = await X.sb.from("documentos_generados").select("*").order("updated_at", { ascending: false }).limit(200); if (error) { root.innerHTML = `<div class="error">${e(error.message)}</div>`; return; } st.guardados = data || []; }
   root.innerHTML = `<section class="panel"><div class="tw"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th></th></tr></thead><tbody>

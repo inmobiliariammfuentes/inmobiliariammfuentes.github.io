@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611191553";
-import { iniciarChat } from "./chat.js?v=202611191553";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611191553";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611191553";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611191553";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611191553";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611191553";
-import { iniciarCalculadora } from "./calculadora.js?v=202611191553";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611191553";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611191553";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611191553";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611191553";
+} from "./comun.js?v=202611201333";
+import { iniciarChat } from "./chat.js?v=202611201333";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611201333";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611201333";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611201333";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611201333";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611201333";
+import { iniciarCalculadora } from "./calculadora.js?v=202611201333";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611201333";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611201333";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611201333";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611201333";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -91,7 +91,8 @@ async function cargarTodo() {
     traerTodo("contrato_servicios").catch(() => []), traerTodo("servicio_marcas").catch(() => []), traerTodo("archivos", (q) => q.eq("categoria", "boleta")).catch(() => []),
     traerTodo("pedidos_datos").catch(() => []),
     traerTodo("pago_items", (q) => q.gt("adm_diferida", 0).is("adm_dif_liq", null)).catch(() => []),
-  ]);
+    traerTodo("solicitudes_reserva", (q) => q.eq("estado", "nueva")).catch(() => []),
+  ]).then((r) => { S.nPedForm = r.pop().length; return r; });
   S.difs = difs;
   S.pedidos = new Map(); for (const x of ped) { const y = S.pedidos.get(x.persona_id); if (!y || x.created_at > y.created_at) S.pedidos.set(x.persona_id, x); }
   S.cs = agrupar(csv, "contrato_id"); S.sm = smk; S.boletas = agrupar(bol, "contrato_id");
@@ -156,7 +157,7 @@ function renderNav() {
   const n = { revisar: pendientesRevisar().length,
     morosos: S.cargado ? cs.filter((c) => deudaDe(c).some((d) => d.vencido && !d.enTolerancia)).length : 0,
     ajustes: S.cargado ? cs.filter((c) => seCobra(c) && proximoAjuste(c, ajDe(c), S.cfg) === ymSumar(ymHoy(), 1)).length : 0,
-    servicios: S.cargado && S.cs ? controlServicios().filter((x) => x.faltan.length).length : 0 };
+    servicios: S.cargado && S.cs ? controlServicios().filter((x) => x.faltan.length).length : 0, documentos: S.nPedForm || 0 };
   const actual = S.view === "planilla" ? (S.pl?.volver && S.pl.volver !== "cobrar" ? S.pl.volver : "contratos") : S.view === "liqprop" ? (S.lpVolver || "contratos") : ["nuevo", "contrato", "ajustes", "personas", "servicios"].includes(S.view) ? "contratos" : S.view;
   $("#nav").innerHTML = vistasVisibles(VISTAS).map(([k, l]) => `<button data-vista="${k}" ${actual === k ? 'aria-current="page"' : ""}><span>${l}</span>${n[k] ? `<span class="n">${n[k]}</span>` : ""}</button>`).join("");
   $("#quien").textContent = S.yo ? S.yo.nombre : "";
@@ -1787,7 +1788,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191553");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611201333");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1839,7 +1840,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611191553");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611201333");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];

@@ -968,3 +968,6 @@ section.panel.cfg-mio{flex-direction:row;align-items:center;justify-content:spac
 .cfg-mio>div:first-child{flex:1 1 280px}.cfg-mio .row{margin:0}
 .cfg-mio h2{margin:0 0 4px}.cfg-mio p{margin:0}
 .ct-noadm{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.ped-aviso{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.ped-rap{display:flex;gap:6px;flex-wrap:wrap}
+.tabs .n-btn{margin-left:6px}

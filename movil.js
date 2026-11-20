@@ -1,7 +1,7 @@
 // Cobranza Fuentes · Versión para el celular del sistema del equipo
 // En el teléfono el sistema se abre en una versión básica: buscar un contrato, ver y mandar recibos,
 // cobrar (generar el recibo) y liquidar. Se puede instalar como app y siempre se puede pasar a la versión completa.
-import { esc, toast, LOGO_URL } from "./comun.js?v=202611191553";
+import { esc, toast, LOGO_URL } from "./comun.js?v=202611201333";
 
 const UA = navigator.userAgent;
 export const esCelularReal = () => /Android|iPhone|iPod|Mobile/i.test(UA) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1 && innerWidth < 900);
