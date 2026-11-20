@@ -1,6 +1,6 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611201333";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611201458";
 
 // El sistema del equipo y el portal guardan la sesión por separado: entrar al portal con un DNI
 // en la compu de la oficina no cierra la sesión del sistema de gestión.
@@ -406,40 +406,72 @@ function encabezadoMedio(doc, cfg, y, titulo, filas, copia) {
 /* Liquidación al propietario: media hoja A4; original en la página 1 y copia en la página 2. */
 /** Aumentos del mes en UNA hoja A4: la letra y el alto de los renglones se achican según cuántos sean.
  *  filas: [{ carp, dir, inq, ind, base, nuevo, pct, est, manual, usd }] */
-export function pdfAumentos(cfg, titulo, subtitulo, filas, notas = []) {
+let LETRA_LEGIBLE = null;
+const aB64 = (buf) => { let s = ""; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+export function letraLegible() {
+  return (LETRA_LEGIBLE ||= Promise.all(["letra-legible.ttf", "letra-legible-negrita.ttf"].map((n) => fetch(new URL(n, LOGO_URL)).then((r) => { if (!r.ok) throw new Error("sin letra"); return r.arrayBuffer(); }).then(aB64)))
+    .then(([r, b]) => ({ r, b })).catch((e) => { LETRA_LEGIBLE = null; throw e; }));
+}
+export async function pdfAumentos(cfg, titulo, subtitulo, filas, notas = []) {
   const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-  const W = 210, H = 297, M = 10, ANCHO = W - 2 * M;
-  const BORDO = [122, 31, 46], GRIS = [108, 94, 97], LINEA = [217, 203, 205], ZEBRA = [248, 242, 243];
+  // letra Atkinson Hyperlegible (hecha para personas con baja visión); si no se pudiera bajar, Helvetica
+  let FAM = "helvetica";
+  try { const F = await letraLegible(); doc.addFileToVFS("legible.ttf", F.r); doc.addFont("legible.ttf", "Legible", "normal"); doc.addFileToVFS("legible-b.ttf", F.b); doc.addFont("legible-b.ttf", "Legible", "bold"); FAM = "Legible"; } catch {}
+  const W = 210, H = 297, M = 8, ANCHO = W - 2 * M;
+  const BORDO = [122, 31, 46], GRIS = [70, 60, 62], TINTA = [15, 12, 13], LINEA = [190, 175, 178], ZEBRA = [245, 237, 239];
   const num = (n, usd) => (usd ? "U$S " : "$ ") + Math.round(+n || 0).toLocaleString("es-AR");
   // encabezado
   const lh = 13, lw = Math.min(lh * LOGO_PROP, 18); doc.addImage(LOGO, "PNG", M, M, lw, lw / LOGO_PROP);
-  doc.setFont("helvetica", "bold"); doc.setFontSize(15); doc.setTextColor(...BORDO); doc.text(titulo, M + lw + 4, M + 6);
-  doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(...GRIS); doc.text(subtitulo, M + lw + 4, M + 11.5);
+  doc.setFont(FAM, "bold"); doc.setFontSize(17); doc.setTextColor(...BORDO); doc.text(titulo, M + lw + 4, M + 6);
+  doc.setFont(FAM, "normal"); doc.setFontSize(9.5); doc.setTextColor(...GRIS); doc.text(subtitulo, M + lw + 4, M + 11.5);
   let y = M + lw / LOGO_PROP + 4;
-  const pieAlto = 7, notasAlto = notas.length ? notas.length * 3.6 + 2 : 0;
+  const pieAlto = 7, notasAlto = notas.length ? notas.length * 4 + 2 : 0;
   const disponible = H - M - pieAlto - notasAlto - y;
-  const n = Math.max(filas.length, 1), cabAlto = 7.5;
-  const fila = Math.min(8, (disponible - cabAlto) / n), letra = Math.max(4.5, Math.min(9, fila / 0.45));
-  const cols = [[" Carp.", 10, "center"], ["Dirección", 52, "left"], ["Inquilino", 40, "left"], ["Índice", 16, "center"], ["Venía pagando", 22, "right"], ["Con aumento", 22, "right"], ["Aum. %", 12, "center"], ["Valor final", 16, "right"]];
+  const n = Math.max(filas.length, 1);
+  // la letra más grande posible: que entren todas las filas a lo alto y el texto más largo de cada columna a lo ancho
+  const vals = (f) => [f.dir, f.inq, f.inicio || "", f.ind, f.nro || "", num(f.base, f.usd), f.manual ? "A mano" : num(f.nuevo, f.usd) + (f.est ? " *" : ""), ""];
+  const textos = filas.map(vals);
+  const cols = [["Dirección", "left"], ["Inquilino", "left"], ["Inicio del contrato", "center"], ["Índice", "center"], ["N° de aumento", "center"], ["Venía pagando", "right"], ["Con aumento", "right"], ["Valor final", "right"]];
+  const PAD = 2.6, ref = 10; // ancho medido a 10 pt y escalado
+  const medir = (t, neg) => { doc.setFont(FAM, neg ? "bold" : "normal"); doc.setFontSize(ref); return doc.getTextWidth(String(t ?? "")); };
+  const nat = cols.map(([t], i) => Math.max(
+    Math.max(...t.split(" ").map((w) => medir(w, true))),                       // el título puede ir en dos renglones
+    ...textos.map((v) => medir(v[i], i === 6)), 0));
+  nat[7] = Math.max(nat[7], nat[6]);                                             // "Valor final" se escribe a mano: igual de ancha que "Con aumento"
+  const pads = cols.length * PAD, sumNat = nat.reduce((a, b) => a + b, 0);
+  const letraAncho = ref * (ANCHO - pads) / sumNat;
+  const altoTexto = (pt) => pt * 0.3528;                                         // mm de una línea de texto
+  // alto: cabecera (2 renglones) + filas de 1,6 veces el alto de la letra (como mínimo)
+  const letraAlto = disponible / (n * altoTexto(1) * 1.6 + altoTexto(1) * 3);
+  let letra = Math.min(letraAncho, letraAlto, 20);
+  if (letra < 7) letra = Math.min(7, letraAlto);                                // textos muy largos: se recortan dirección e inquilino
+  letra = Math.floor(letra * 4) / 4;
+  const lc = Math.min(letra, 13), cabAlto = Math.max(7, altoTexto(lc) * 3);
+  const fila = Math.min((disponible - cabAlto) / n, altoTexto(letra) * 2.6);
+  // anchos: lo que ocupa cada columna a esa letra; lo que sobra se reparte (más a dirección, inquilino y valor final)
+  let anchos = nat.map((w) => w * letra / ref + PAD);
+  const sobra = ANCHO - anchos.reduce((a, b) => a + b, 0);
+  if (sobra >= 0) { const peso = [3, 2.5, 0.5, 0.5, 0.5, 0.8, 0.8, 2.4], tp = peso.reduce((a, b) => a + b, 0); anchos = anchos.map((w, i) => w + sobra * peso[i] / tp); }
+  else { const fijo = anchos.reduce((a, w, i) => a + (i <= 1 ? 0 : w), 0), libre = ANCHO - fijo, dI = anchos[0] + anchos[1]; anchos[0] = libre * anchos[0] / dI; anchos[1] = libre * anchos[1] / dI; }
+  cols.forEach((c, i) => c.splice(1, 0, anchos[i]));
   const corto = (t, w) => { t = String(t ?? ""); if (doc.getTextWidth(t) <= w) return t; while (t.length > 1 && doc.getTextWidth(t + "…") > w) t = t.slice(0, -1); return t + "…"; };
   // cabecera de la tabla
   // cabecera de la tabla (si un título no entra, va en dos renglones)
-  const lc = Math.min(letra, 7.5); doc.setFont("helvetica", "bold"); doc.setFontSize(lc); doc.setTextColor(255, 255, 255);
+  doc.setFont(FAM, "bold"); doc.setFontSize(lc); doc.setTextColor(255, 255, 255);
   doc.setFillColor(...BORDO); doc.rect(M, y, ANCHO, cabAlto, "F");
-  { let x = M; for (const [t, w, al] of cols) { const ls = doc.splitTextToSize(t.trim(), w - 2), tx = al === "right" ? x + w - 1.2 : al === "center" ? x + w / 2 : x + 1.2;
+  { let x = M; for (const [t, w, al] of cols) { const ls = doc.getTextWidth(t) <= w - 2 ? [t] : doc.splitTextToSize(t.trim(), w - 2), tx = al === "right" ? x + w - 1.2 : al === "center" ? x + w / 2 : x + 1.2;
       const alto = ls.length * lc * 0.3528 * 1.1; ls.forEach((l, i) => doc.text(l, tx, y + (cabAlto - alto) / 2 + lc * 0.3528 * (i + 0.85) * 1.1, { align: al })); x += w; } }
   y += cabAlto;
   filas.forEach((f, k) => {
-    doc.setFont("helvetica", "normal"); doc.setFontSize(letra); doc.setTextColor(36, 26, 28);
+    doc.setFont(FAM, "normal"); doc.setFontSize(letra); doc.setTextColor(...TINTA);
     if (k % 2) { doc.setFillColor(...ZEBRA); doc.rect(M, y, ANCHO, fila, "F"); }
-    const nuevo = f.manual ? "A mano" : num(f.nuevo, f.usd), pct = f.manual ? "" : (f.pct >= 0 ? "+" : "") + (+f.pct).toFixed(1).replace(".", ",") + "%";
-    let x = M; const vals = [f.carp || "", f.dir, f.inq, f.ind, num(f.base, f.usd), nuevo, pct, ""];
+    let x = M; const vf = vals(f);
     cols.forEach(([, w, al], i) => {
       if (i === 7) { doc.setDrawColor(...BORDO); doc.setLineWidth(0.2); doc.rect(x + 0.6, y + 0.45, w - 1.2, fila - 0.9, "S"); }
-      const v = vals[i];
+      const v = vf[i];
       if (v !== "") {
-        doc.setFont("helvetica", i === 5 && !f.est && !f.manual ? "bold" : f.est && (i === 5 || i === 6) ? "italic" : "normal");
-        doc.setTextColor(...(f.est && (i === 5 || i === 6) ? GRIS : [36, 26, 28]));
+        doc.setFont(FAM, i === 6 && !f.manual ? "bold" : "normal");
+        doc.setTextColor(...TINTA);
         const tx = al === "right" ? x + w - 1.2 : al === "center" ? x + w / 2 : x + 1.2;
         doc.text(corto(v, w - 2.4), tx, y + fila / 2 + letra * 0.1235, { align: al });
       }
@@ -448,11 +480,11 @@ export function pdfAumentos(cfg, titulo, subtitulo, filas, notas = []) {
     doc.setDrawColor(...LINEA); doc.setLineWidth(0.1); doc.line(M, y + fila, M + ANCHO, y + fila);
     y += fila;
   });
-  if (!filas.length) { doc.setFont("helvetica", "italic"); doc.setFontSize(9); doc.setTextColor(...GRIS); doc.text("No hay aumentos para este mes.", M + 2, y + 6); y += 10; }
+  if (!filas.length) { doc.setFont(FAM, "normal"); doc.setFontSize(11); doc.setTextColor(...GRIS); doc.text("No hay aumentos para este mes.", M + 2, y + 6); y += 10; }
   // notas y pie
-  y += 2; doc.setFont("helvetica", "italic"); doc.setFontSize(7.5); doc.setTextColor(...GRIS);
-  for (const t of notas) { doc.text(t, M, y + 2.5); y += 3.6; }
-  doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...GRIS);
+  y += 2; doc.setFont(FAM, "normal"); doc.setFontSize(8.5); doc.setTextColor(...GRIS);
+  for (const t of notas) { doc.text(t, M, y + 3); y += 4; }
+  doc.setFont(FAM, "normal"); doc.setFontSize(7.5); doc.setTextColor(...GRIS);
   doc.text(cfg?.nombre || "", M, H - M + 2); doc.text("Impreso el " + new Date().toLocaleDateString("es-AR"), W - M, H - M + 2, { align: "right" });
   return doc;
 }

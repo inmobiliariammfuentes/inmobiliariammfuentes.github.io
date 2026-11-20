@@ -1,7 +1,7 @@
 // Cobranza Fuentes · Control de calidad de los datos de contacto
 // Revisa a inquilinos y propietarios con contrato vigente: celular (vacío, mal escrito, repetido, varios números),
 // email, DNI y cuenta bancaria. Es la base para conectar el WhatsApp del sistema: cada persona se reconoce por su celular.
-import { esc, normCel, fmtCel } from "./comun.js?v=202611201333";
+import { esc, normCel, fmtCel } from "./comun.js?v=202611201458";
 
 const TIPOS = {
   sin_cel: ["Sin celular", "bad", "cel"], cel_invalido: ["Celular mal escrito", "bad", "cel"], cel_repetido: ["Celular repetido", "bad", "rep"],
