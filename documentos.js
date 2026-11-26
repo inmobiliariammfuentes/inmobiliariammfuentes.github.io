@@ -2,8 +2,8 @@
 // · Renovación: arma una imagen con las condiciones y los importes para mandarle al inquilino por WhatsApp.
 // · Reserva: arma el "Recibo de reserva para alquiler" (mismo texto que el modelo de Word) en PDF y en imagen.
 // Todo se dibuja en esta computadora; lo que se guarda queda en la tabla documentos_generados.
-import { numeroALetras, LOGO_URL, abrirModal, cerrarModal } from "./comun.js?v=202611262157";
-import { GARANTIAS, valoresContrato, generarBorrador } from "./contrato-borrador.js?v=202611262157";
+import { numeroALetras, LOGO_URL, abrirModal, cerrarModal } from "./comun.js?v=202611262209";
+import { GARANTIAS, valoresContrato, generarBorrador } from "./contrato-borrador.js?v=202611262209";
 
 const MEMBRETE_URL = new URL("membrete.png", LOGO_URL).href;
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
