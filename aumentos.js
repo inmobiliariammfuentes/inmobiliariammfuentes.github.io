@@ -2,8 +2,8 @@
 // · Redondeo de los aumentos calculados (exacto, para arriba o para abajo, de a $ 5.000 u otro paso)
 // · Imagen del aumento para mandarle al inquilino (copiar / compartir / WhatsApp)
 // · Calculadora libre: alquiler inicial + fecha + cada cuántos meses + índice → progresión completa
-import { LOGO_URL } from "./comun.js?v=202611261423";
-import { calcularAumento, FUENTES, masMeses, hoyISO } from "./indices.js?v=202611261423";
+import { LOGO_URL } from "./comun.js?v=202611261436";
+import { calcularAumento, FUENTES, masMeses, hoyISO } from "./indices.js?v=202611261436";
 
 const BORDO = "#6e1b2a", BORDO2 = "#8c2a3b";
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -146,6 +146,23 @@ export async function imagenDetalle(d, cfg = {}) {
     if (d.vence) { g.font = `500 24px ${SANS}`; g.fillText("Vence el " + fechaTxt(d.vence), xd, y + 104); }
     g.fillStyle = "#fff"; g.textAlign = "right"; g.font = `800 56px ${SANS}`; g.fillText(pesos2(d.total, d.usd), xm, y + 96); g.textAlign = "left";
     y += 190;
+    // transferencia dividida: dos transferencias, una al dueño y otra a la inmobiliaria
+    if (d.reparto) {
+      const R = d.reparto, cw = (ancho - 24) / 2;
+      g.fillStyle = "#222"; g.font = `700 26px ${SANS}`; g.fillText("Cómo se paga: dos transferencias", xd, y); y += 22;
+      const caja = (x, titulo, nombre, monto, cuenta, detalle) => {
+        g.fillStyle = "#f7f1f2"; rr(g, x, y, cw, 280, 20); g.fill(); g.strokeStyle = "#e3d6d8"; g.lineWidth = 2; rr(g, x, y, cw, 280, 20); g.stroke();
+        g.fillStyle = BORDO; g.font = `700 22px ${SANS}`; g.fillText(titulo, x + 28, y + 44);
+        g.fillStyle = "#333"; g.font = `600 24px ${SANS}`; let yy = y + 80; for (const l of lineas(g, nombre, cw - 56).slice(0, 2)) { g.fillText(l, x + 28, yy); yy += 32; }
+        g.fillStyle = "#111"; g.font = `800 44px ${SANS}`; g.fillText(pesos2(monto, d.usd), x + 28, y + 168);
+        g.font = `500 21px ${SANS}`; g.fillStyle = "#555";
+        if (cuenta) g.fillText(lineas(g, (/^\d{22}$/.test(cuenta) ? "CBU " : "Alias ") + cuenta, cw - 56)[0], x + 28, y + 204);
+        if (detalle) lineas(g, detalle, cw - 56).slice(0, 2).forEach((l, i) => g.fillText(l, x + 28, y + (cuenta ? 234 : 204) + i * 28));
+      };
+      caja(x0, "AL PROPIETARIO", R.propNombre, R.prop, R.propCuenta, "Alquiler y lo que es del dueño");
+      caja(x0 + cw + 24, "A LA INMOBILIARIA", R.inmoNombre, R.inmo, R.inmoCuenta, R.otros > 0 ? `Administración ${pesos2(R.hon, d.usd)} + otros conceptos ${pesos2(R.otros, d.usd)}` : "Honorarios de administración");
+      y += 320;
+    }
     const nota = (t, col) => { g.fillStyle = col; g.font = `500 24px ${SANS}`; for (const l of lineas(g, t, W - 144)) { g.fillText(l, 72, y); y += 34; } y += 8; };
     if (d.bonificado) nota("Los intereses por mora fueron bonificados.", "#1f7a4a");
     if (d.vence) nota("Pasado el vencimiento se suman intereses por mora.", "#666");
@@ -161,9 +178,11 @@ export async function imagenDetalle(d, cfg = {}) {
 }
 export function textoDetalle(d) {
   const n = (d.inquilino || "").split(" ")[0];
+  const R = d.reparto, cta = (c) => (c ? ` (${/^\d{22}$/.test(c) ? "CBU" : "alias"} ${c})` : "");
+  const rep = R ? `\nSe paga en dos transferencias:\n• Al propietario, ${R.propNombre}${cta(R.propCuenta)}: ${pesos2(R.prop, d.usd)}\n• A la inmobiliaria${cta(R.inmoCuenta)}: ${pesos2(R.inmo, d.usd)}${R.otros > 0 ? ` (administración ${pesos2(R.hon, d.usd)} + otros ${pesos2(R.otros, d.usd)})` : " (administración)"}` : "";
   const meses = d.grupos.map((x) => mesTexto(x.p));
   const filas = d.grupos.flatMap((gr) => gr.filas.map((f) => `• ${f.desc}${d.grupos.length > 1 ? " (" + mesTexto(gr.p) + ")" : ""}: ${f.menos ? "− " : ""}${pesos2(f.monto, d.usd)}`));
-  return `Hola${n ? " " + n : ""}, te pasamos el detalle a pagar de ${meses.length > 1 ? meses[0] + " a " + meses[meses.length - 1] : meses[0]} de ${d.direccion}:\n${filas.join("\n")}\nTotal: ${pesos2(d.total, d.usd)}${d.vence ? ` (vence el ${fechaTxt(d.vence)})` : ""}.`;
+  return `Hola${n ? " " + n : ""}, te pasamos el detalle a pagar de ${meses.length > 1 ? meses[0] + " a " + meses[meses.length - 1] : meses[0]} de ${d.direccion}:\n${filas.join("\n")}\nTotal: ${pesos2(d.total, d.usd)}${d.vence ? ` (vence el ${fechaTxt(d.vence)})` : ""}.${rep}`;
 }
 // accion: "copiar" | "compartir" | "descargar"
 export async function enviarImagen(cv, accion, { tel, texto, nombre, toast }) {

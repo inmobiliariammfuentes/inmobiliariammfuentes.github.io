@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611261423";
-import { iniciarChat } from "./chat.js?v=202611261423";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611261423";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611261423";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611261423";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611261423";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611261423";
-import { iniciarCalculadora } from "./calculadora.js?v=202611261423";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611261423";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611261423";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611261423";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611261423";
+} from "./comun.js?v=202611261436";
+import { iniciarChat } from "./chat.js?v=202611261436";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611261436";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611261436";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611261436";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611261436";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611261436";
+import { iniciarCalculadora } from "./calculadora.js?v=202611261436";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611261436";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611261436";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611261436";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611261436";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -389,6 +389,7 @@ async function mostrarImagenAumento(c, x) {
   const box = $("#aum-cv"); cv.style.cssText = "width:100%;height:auto;display:block"; box.appendChild(cv);
 }
 /* ================= imagen con el detalle a pagar (desde la planilla de cobro) ================= */
+const natural = (n) => { const x = String(n || "").trim(); if (!x.includes(",")) return x; const [a, b] = x.split(","); return `${b.trim()} ${a.trim()}`.trim(); };
 async function mostrarDetalleAPagar() {
   const f = $("#f-planilla"); if (!f) return; const c = S.contratos.get(+f.dataset.cid); const usd = esUSD(c);
   const grupos = new Map(); let total = 0, bonif = false, vence = "", vencido = false;
@@ -409,6 +410,12 @@ async function mostrarDetalleAPagar() {
   if (!grupos.size) { toast("Tildá al menos un renglón de la planilla", "bad"); return; }
   const pi = P(c.inquilino_id), nom = (pi.nombre || "").includes(",") ? pi.nombre.split(",").reverse().map((x) => x.trim()).join(" ") : pi.nombre;
   const datos = { inquilino: nom, direccion: c.direccion, grupos: [...grupos.values()].sort((a, b) => a.p.localeCompare(b.p)), total: r2(total), usd, vence: vence && !vencido ? vence.vto : "", bonificado: bonif, obs: $("#pl-obs")?.value.trim() || "" };
+  // transferencia dividida: cuánto va al dueño y cuánto a la inmobiliaria (administración + conceptos que son de la inmobiliaria)
+  if (c.forma_pago === "dividida") {
+    const t = totalesPlanilla(), pp = P(c.propietario_id);
+    if (t) { const inmo = r2(t.total - t.prop);
+      datos.reparto = { prop: t.prop, inmo, hon: t.hon, otros: r2(inmo - t.hon), propNombre: pp.nombre ? natural(pp.nombre) : "el propietario", propCuenta: pp.alias || pp.cbu || "", inmoNombre: S.cfg.nombre || "la inmobiliaria", inmoCuenta: S.cfg.alias || S.cfg.cbu || "" }; }
+  }
   const cv = await imagenDetalle(datos, S.cfg);
   S.aumImg = { cv, tel: pi.telefono, texto: textoDetalle(datos), nombre: "Detalle a pagar " + c.direccion };
   abrirModal(modalImagenHtml("Detalle a pagar · " + esc(c.direccion)));
@@ -929,11 +936,16 @@ function leerPlanilla() {
   }).filter(Boolean);
   return { f, items, extras: leerConceptos(f) };
 }
-function planillaTotal() {
-  const x = leerPlanilla(); if (!x) return; const c = S.contratos.get(+x.f.dataset.cid);
+// totales de lo tildado en la planilla: total que paga el inquilino, lo que le toca al propietario y los honorarios
+function totalesPlanilla() {
+  const x = leerPlanilla(); if (!x) return null; const c = S.contratos.get(+x.f.dataset.cid);
   const base = divisionLineas(c, S.cfg, x.items);
   let total = base.total, prop = base.propietario, hon = base.honorarios;
   for (const k of x.extras) { const h = k.admin ? r2(k.monto * base.pct / 100) * (k.propietario === -1 ? -1 : 1) : 0; total += k.inquilino * k.monto; prop += k.propietario * k.monto - h; hon += h; }
+  return { x, c, base, total: r2(total), prop: r2(prop), hon: r2(hon) };
+}
+function planillaTotal() {
+  const t = totalesPlanilla(); if (!t) return; const { x, c, base, total, prop, hon } = t;
   const pun = x.items.reduce((s, i) => s + i.punitorio, 0);
   const alProp = S.pl.eid ? c.forma_pago === "propietario" : $("#pl-modalidad")?.value === "propietario";
   if (alProp) { $("#pl-resumen").innerHTML = `<div class="total-line"><span>Total que el inquilino le pagó al propietario</span><span class="mono">${money(total, c)}</span></div>
@@ -1930,7 +1942,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611261423");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611261436");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -1982,7 +1994,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611261423");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611261436");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
