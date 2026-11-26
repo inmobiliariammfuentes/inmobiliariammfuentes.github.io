@@ -2,7 +2,8 @@
 // · Renovación: arma una imagen con las condiciones y los importes para mandarle al inquilino por WhatsApp.
 // · Reserva: arma el "Recibo de reserva para alquiler" (mismo texto que el modelo de Word) en PDF y en imagen.
 // Todo se dibuja en esta computadora; lo que se guarda queda en la tabla documentos_generados.
-import { numeroALetras, LOGO_URL } from "./comun.js?v=202611251405";
+import { numeroALetras, LOGO_URL, abrirModal, cerrarModal } from "./comun.js?v=202611261346";
+import { GARANTIAS, valoresContrato, generarBorrador } from "./contrato-borrador.js?v=202611261346";
 
 const MEMBRETE_URL = new URL("membrete.png", LOGO_URL).href;
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -140,7 +141,7 @@ function formRes(d) {
   </div></section>${panelVista("Mandar la reserva", true)}</div>`;
 }
 const panelVista = (titulo, pdf) => `<section class="panel doc-vista"><h2>${titulo}</h2>
-  <div class="row" style="flex-wrap:wrap">${pdf ? `<button type="button" class="btn primary" data-dacc="pdf">Descargar PDF</button>` : ""}<button type="button" class="btn ${pdf ? "" : "primary"}" data-dacc="compartir">Compartir / WhatsApp</button><button type="button" class="btn" data-dacc="copiar">Copiar imagen</button><button type="button" class="btn" data-dacc="png">Descargar imagen</button><button type="button" class="btn" data-dacc="guardar">Guardar</button><button type="button" class="btn" data-dacc="nuevo">Empezar de cero</button>${pdf ? `<button type="button" class="btn" data-dacc="contrato" title="Abre Nuevo contrato con los datos de esta reserva">Cargar contrato con esta reserva</button>` : ""}</div>
+  <div class="row" style="flex-wrap:wrap">${pdf ? `<button type="button" class="btn primary" data-dacc="pdf">Descargar PDF</button>` : ""}<button type="button" class="btn ${pdf ? "" : "primary"}" data-dacc="compartir">Compartir / WhatsApp</button><button type="button" class="btn" data-dacc="copiar">Copiar imagen</button><button type="button" class="btn" data-dacc="png">Descargar imagen</button><button type="button" class="btn" data-dacc="guardar">Guardar</button><button type="button" class="btn" data-dacc="nuevo">Empezar de cero</button>${pdf ? `<button type="button" class="btn" data-dacc="contrato" title="Abre Nuevo contrato con los datos de esta reserva">Cargar contrato con esta reserva</button><button type="button" class="btn" data-dacc="word" title="Arma el contrato en Word con los datos de la reserva">Contrato en Word (borrador)</button>` : ""}</div>
   <p class="muted" style="margin:8px 0">En la compu: <b>Copiar imagen</b> y pegala en el chat de WhatsApp Web (Ctrl+V). En el celular: <b>Compartir</b>.</p>
   <div class="doc-canvas"><canvas id="doc-cv"></canvas></div></section>`;
 
@@ -169,6 +170,7 @@ async function alClic(ev) {
     st.tab = g.tipo; if (g.tipo === "renovacion") st.ren = { ...g.datos, _id: g.id }; else st.res = { ...g.datos, _id: g.id }; X.rerender(); return; }
   if (b.dataset.borrardoc) { if (!confirm("¿Borrar este documento guardado?")) return; const { error } = await X.sb.from("documentos_generados").delete().eq("id", +b.dataset.borrardoc); if (error) return X.toast(error.message, "bad"); st.guardados = null; return montarDocumentos(X); }
   if (b.dataset.usarpedido) return usarPedido(+b.dataset.usarpedido);
+  if (b.dataset.worddoc) { const g = st.guardados.find((x) => x.id === +b.dataset.worddoc); if (g) modalWord(g.datos || {}); return; }
   if (b.dataset.contratodoc) { const g = st.guardados.find((x) => x.id === +b.dataset.contratodoc); if (g) X.contratoDesdeReserva(g.datos || {}, String(g.created_at || "").slice(0, 10)); return; }
   if (b.dataset.dtabIr) { st.tab = b.dataset.dtabIr; return X.rerender(); }
   if (b.dataset.descartarpedido || b.dataset.reabrirpedido) { const id = +(b.dataset.descartarpedido || b.dataset.reabrirpedido), estado = b.dataset.descartarpedido ? "descartada" : "nueva";
@@ -178,6 +180,7 @@ async function alClic(ev) {
   const a = b.dataset.dacc; if (!a) return;
   const ren = st.tab === "renovacion", d = ren ? st.ren : st.res;
   if (a === "nuevo") { if (ren) st.ren = renNueva(); else st.res = resNueva(); return montarDocumentos(X); }
+  if (a === "word") { if (!(d.nombre || "").trim()) return X.toast("Completá al menos quién reserva", "bad"); return modalWord(d); }
   if (a === "contrato") { if (!(d.nombre || "").trim() && !(d.direccion || "").trim()) return X.toast("Completá al menos quién reserva o la dirección", "bad"); return X.contratoDesdeReserva(d, d.fecha); }
   if (!ren && !(d.nombre || "").trim()) return X.toast("Completá el nombre de quien reserva", "bad");
   if (ren && !(d.inquilino || "").trim()) return X.toast("Completá el nombre del inquilino", "bad");
@@ -214,6 +217,49 @@ async function alClic(ev) {
 }
 function bajar(url, nombre) { const a = document.createElement("a"); a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000); }
 
+/* ---------- borrador del contrato en Word ---------- */
+function modalWord(r) {
+  const props = [...X.S.personas.values()].filter((p) => p.tipo === "propietario").sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  const clave = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const previo = [...X.S.contratos.values()].filter((c) => clave(c.direccion) === clave(r.direccion)).sort((a, b) => (a.inicio < b.inicio ? 1 : -1))[0];
+  const prop = previo ? X.P(previo.propietario_id) : null;
+  const hoy = hoyISO(), d = new Date(); const ini = new Date(d.getFullYear(), d.getMonth() + 1, 1).toISOString().slice(0, 10);
+  const opt = (v, t, sel) => `<option value="${v}" ${sel ? "selected" : ""}>${t}</option>`;
+  abrirModal(`<div class="mh"><div><h2>Contrato en Word (borrador)</h2><div class="muted">${e(r.nombre || "")}${r.direccion ? " · " + e(r.direccion) : ""}</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
+  <div class="form" id="cw">
+    <div class="full"><span class="muted" style="font-size:14px;font-weight:500">Garantía</span><div class="seg" role="radiogroup">${Object.entries(GARANTIAS).map(([k, t], i) => `<label class="segopt"><input type="radio" name="cw-gar" value="${k}" ${i ? "" : "checked"}> ${t}</label>`).join("")}</div></div>
+    <label class="full">Propietario<input type="text" id="cw-prop" list="cw-dl" value="${e(prop ? prop.nombre : "")}" placeholder="Apellido y nombre del dueño" autocomplete="off"><datalist id="cw-dl">${props.map((p) => `<option value="${e(p.nombre)}"></option>`).join("")}</datalist></label>
+    <label>El propietario es<select id="cw-ptrato">${opt("Sr.", "Sr.", true)}${opt("Sra.", "Sra.")}</select></label>
+    <label>Inquilino<select id="cw-itrato">${opt("Sr.", "Sr.", !/^sra|^srta/i.test(r.trato || ""))}${opt("Sra.", "Sra.", /^sra|^srta/i.test(r.trato || ""))}</select></label>
+    <label>Inicio del contrato<input type="date" id="cw-ini" value="${ini}"></label>
+    <label>Fecha de firma<input type="date" id="cw-firma" value="${hoy}"></label>
+    <div class="full form" id="cw-fiador" style="margin:0;padding:0">
+      <label>Fiador<select id="cw-ftrato">${opt("Sr.", "Sr.", true)}${opt("Sra.", "Sra.")}</select></label>
+      <label>Nombre del fiador (opcional)<input type="text" id="cw-fnom" placeholder="Apellido, Nombre"></label>
+      <label>DNI del fiador (opcional)<input type="text" id="cw-fdni" inputmode="numeric"></label>
+    </div>
+    <p class="full muted" style="margin:0">Se completa con los datos de la reserva y del propietario. Lo que falta sale <mark>resaltado en amarillo</mark> para completarlo en Word.</p>
+    <div class="full row"><button type="button" class="btn primary" id="cw-ok">Descargar borrador</button></div>
+  </div>`);
+  const m = document.getElementById("modal");
+  const verFiador = () => { m.querySelector("#cw-fiador").hidden = m.querySelector('[name="cw-gar"]:checked').value !== "fiador"; };
+  m.querySelectorAll('[name="cw-gar"]').forEach((x) => x.addEventListener("change", verFiador)); verFiador();
+  m.querySelector("#cw-ok").addEventListener("click", async (ev) => {
+    const btn = ev.currentTarget, v = (id) => m.querySelector(id).value.trim();
+    const garantia = m.querySelector('[name="cw-gar"]:checked').value, nomP = v("#cw-prop");
+    const persona = props.find((p) => p.nombre.toLowerCase() === nomP.toLowerCase());
+    btn.disabled = true; btn.textContent = "Armando el Word…";
+    try {
+      const vals = valoresContrato({ ...r, trato: v("#cw-itrato") }, { garantia, propietario: persona || { nombre: nomP }, propTrato: v("#cw-ptrato"), inicio: v("#cw-ini"), firma: v("#cw-firma"),
+        fiador: garantia === "fiador" ? { trato: v("#cw-ftrato"), nombre: v("#cw-fnom"), dni: v("#cw-fdni") } : null });
+      const { blob, faltan } = await generarBorrador(X.sb, garantia, vals);
+      const nombre = `Contrato BORRADOR ${r.direccion || ""} ${apellido(r.nombre)}`.replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim() + ".docx";
+      bajar(URL.createObjectURL(blob), nombre); cerrarModal();
+      X.toast(faltan.length ? `Borrador descargado. Faltan ${faltan.length} datos: están resaltados en amarillo.` : "Borrador descargado. Revisalo antes de imprimir.");
+    } catch (er) { X.toast(er.message || String(er), "bad"); btn.disabled = false; btn.textContent = "Descargar borrador"; }
+  });
+}
+
 /* ---------- pedidos que llegan del Google Forms ---------- */
 const nPedidos = () => (st.pedidos || []).filter((x) => x.estado === "nueva").length;
 async function cargarPedidos() {
@@ -247,7 +293,7 @@ function pintarPedidos(root) {
 async function pintarGuardados(root) {
   if (!st.guardados) { const { data, error } = await X.sb.from("documentos_generados").select("*").order("updated_at", { ascending: false }).limit(200); if (error) { root.innerHTML = `<div class="error">${e(error.message)}</div>`; return; } st.guardados = data || []; }
   root.innerHTML = `<section class="panel"><div class="tw"><table><thead><tr><th>Fecha</th><th>Tipo</th><th>Detalle</th><th></th></tr></thead><tbody>
-  ${st.guardados.map((g) => `<tr><td class="num">${X.fecha(String(g.updated_at || g.created_at).slice(0, 10))}</td><td>${g.tipo === "reserva" ? "Reserva" : "Renovación"}</td><td>${e(g.titulo)}</td><td class="num">${g.tipo === "reserva" ? `<button class="btn small primary" data-contratodoc="${g.id}" title="Abre Nuevo contrato con los datos de esta reserva">Cargar contrato</button> ` : ""}<button class="btn small" data-abrirdoc="${g.id}">Abrir</button> <button class="btn small danger" data-borrardoc="${g.id}">Borrar</button></td></tr>`).join("") || `<tr><td colspan="4"><div class="empty">Todavía no guardaste ninguna reserva ni renovación.</div></td></tr>`}
+  ${st.guardados.map((g) => `<tr><td class="num">${X.fecha(String(g.updated_at || g.created_at).slice(0, 10))}</td><td>${g.tipo === "reserva" ? "Reserva" : "Renovación"}</td><td>${e(g.titulo)}</td><td class="num">${g.tipo === "reserva" ? `<button class="btn small primary" data-contratodoc="${g.id}" title="Abre Nuevo contrato con los datos de esta reserva">Cargar contrato</button> <button class="btn small" data-worddoc="${g.id}" title="Borrador del contrato en Word">Contrato en Word</button> ` : ""}<button class="btn small" data-abrirdoc="${g.id}">Abrir</button> <button class="btn small danger" data-borrardoc="${g.id}">Borrar</button></td></tr>`).join("") || `<tr><td colspan="4"><div class="empty">Todavía no guardaste ninguna reserva ni renovación.</div></td></tr>`}
   </tbody></table></div></section>`;
   if (!root.dataset.escucha) { root.dataset.escucha = "1"; root.addEventListener("input", alEditar); root.addEventListener("change", alEditar); root.addEventListener("click", alClic); }
 }
