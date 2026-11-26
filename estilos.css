@@ -971,3 +971,6 @@ section.panel.cfg-mio{flex-direction:row;align-items:center;justify-content:spac
 .ped-aviso{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .ped-rap{display:flex;gap:6px;flex-wrap:wrap}
 .tabs .n-btn{margin-left:6px}
+.rr-conc{display:flex;flex-direction:column;gap:6px}
+.rr-k{display:flex;align-items:center;gap:10px}
+.rr-k span:first-of-type{min-width:180px}

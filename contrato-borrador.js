@@ -3,7 +3,7 @@
 // guardadas en la base (tabla "recursos", solo el equipo). Completa los «campos» con los datos de la
 // reserva y del propietario; lo que falta queda resaltado en amarillo como "COMPLETAR: …".
 // Todo se arma en esta computadora: nada se manda a servicios externos.
-import { numeroALetras } from "./comun.js?v=202611261346";
+import { numeroALetras } from "./comun.js?v=202611261423";
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const PERIODO = { 1: ["mes", "meses", "MENSUALMENTE", "mensual", "un"], 2: ["bimestre", "bimestres", "BIMESTRALMENTE", "bimestral", "dos"], 3: ["trimestre", "trimestres", "TRIMESTRALMENTE", "trimestral", "tres"],
