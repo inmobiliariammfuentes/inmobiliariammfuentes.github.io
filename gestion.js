@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611262117";
-import { iniciarChat } from "./chat.js?v=202611262117";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611262117";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611262117";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611262117";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611262117";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611262117";
-import { iniciarCalculadora } from "./calculadora.js?v=202611262117";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611262117";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611262117";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611262117";
-import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611262117";
+} from "./comun.js?v=202611262134";
+import { iniciarChat } from "./chat.js?v=202611262134";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611262134";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611262134";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611262134";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611262134";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611262134";
+import { iniciarCalculadora } from "./calculadora.js?v=202611262134";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611262134";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611262134";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611262134";
+import { cargarIndices, calcularAumento, indiceAutomatico, FUENTES } from "./indices.js?v=202611262134";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -87,6 +87,7 @@ async function traerTodo(tabla, armar = (q) => q) {
 const agrupar = (filas, campo) => { const m = new Map(); for (const f of filas) { if (!m.has(f[campo])) m.set(f[campo], []); m.get(f[campo]).push(f); } return m; };
 
 async function cargarTodo() {
+  await sb.rpc("limpiar_adelantados", { p_contrato: null }); // períodos adelantados que no se cobraron: se borran
   await sb.rpc("generar_cargos", { p_contrato: null }); // crea los renglones del mes (cuotas y conceptos fijos)
   const [cfg, per, con, aj, ov, pg, liq, st, cg, cf, items, adel, csv, smk, bol, ped, difs] = await Promise.all([
     sb.from("config").select("*").eq("id", 1).single().then((r) => { if (r.error) throw r.error; return r.data; }),
@@ -103,7 +104,7 @@ async function cargarTodo() {
   S.pedidos = new Map(); for (const x of ped) { const y = S.pedidos.get(x.persona_id); if (!y || x.created_at > y.created_at) S.pedidos.set(x.persona_id, x); }
   S.cs = agrupar(csv, "contrato_id"); S.sm = smk; S.boletas = agrupar(bol, "contrato_id");
   // lo que no va al dueño (honorarios, reserva…) no aparece en su liquidación: solo en el recibo del inquilino
-  S.cg = agrupar(cg, "contrato_id"); S.cf = agrupar(cf, "contrato_id"); S.items = items.filter((i) => !(+i.propietario === 0 && Math.abs(+i.neto_propietario || 0) < 0.005 && Math.abs(+i.honorarios || 0) < 0.005)); S.adel = adel;
+  S.cg = agrupar(cg, "contrato_id"); S.cf = agrupar(cf, "contrato_id"); S.items = items.filter((i) => !i.excluido && !(+i.propietario === 0 && Math.abs(+i.neto_propietario || 0) < 0.005 && Math.abs(+i.honorarios || 0) < 0.005)); S.adel = adel;
   S.pagosById = new Map(pg.map((x) => [x.id, x]));
   S.cfg = cfg; S.personas = new Map(per.map((p) => [p.id, p]));
   S.contratos = new Map(con.map((c) => [c.id, c]));
@@ -131,6 +132,12 @@ async function cargarCaja() {
   const fin = ymSumar(S.cajaMes, 1) + "-01";
   const { data } = await sb.from("caja_movimientos").select("*").gte("fecha", S.cajaMes + "-01").lt("fecha", fin).order("fecha");
   S.caja = data || [];
+}
+// si se adelantó un período y no se hizo recibo, al salir de la planilla se borra (queda solo el mes actual)
+async function salirPlanilla(cid) {
+  const c = S.contratos.get(cid); if (!c || !c.generado_hasta || c.generado_hasta <= ymHoy()) return;
+  const { data } = await sb.rpc("limpiar_adelantados", { p_contrato: cid });
+  if (data) { await cargarTodo(); render(); }
 }
 async function recargar(msg) {
   try { await cargarTodo(); render(); if (msg) toast(msg); } catch (e) { toast(mensajeError(e), "bad"); }
@@ -187,6 +194,8 @@ function vMBuscar() {
 }
 function render() {
   if (S.movil && !VISTAS_MOVIL.has(S.view)) S.view = "m-buscar";
+  if (S._plAbierta && (S.view !== "planilla" || S.pl?.cid !== S._plAbierta)) salirPlanilla(S._plAbierta);
+  S._plAbierta = S.view === "planilla" ? S.pl?.cid : null;
   renderNav();
   if (!S.cargado) { $("#main").innerHTML = `<div class="cargando">Cargando contratos…</div>`; return; }
   const v = { "m-buscar": vMBuscar, inicio: vInicio, revisar: vRevisar, contratos: vContratos, cobrar: vCobrar, morosos: vMorosos, ajustes: vAjustes,
@@ -908,7 +917,7 @@ function vPlanilla() {
         <td><input type="number" class="pl-monto" step="0.01" min="0" max="${g.saldo}" value="${g.saldo}" aria-label="Importe a cobrar"></td>
         <td>${g.tipo === "alquiler" ? `<input type="number" class="pl-pun" step="0.01" min="0" value="${pu}" aria-label="Punitorio" title="${x.punitorioSugerido ? "Sugerido " + money(x.punitorioSugerido, cm) : ""}">` : `<input type="number" class="pl-pun" step="0.01" min="0" value="0" aria-label="Punitorio">`}</td>
         <td style="text-align:center"><input type="checkbox" class="pl-adm" aria-label="Aplica administración" ${g.admin ? "checked" : ""}></td>
-        <td class="num pl-tot"></td></tr>`);
+        <td class="num pl-tot"></td><td><button type="button" class="x pl-borrar" data-borrarcargo="${g.id}" title="Borrar este renglón (si está mal cargado)" aria-label="Borrar ${esc(g.descripcion)}">×</button></td></tr>`);
     }
   }
   const banner = e ? `<section class="panel"><div class="ph"><div><b>Envío del portal · ${periodo(e.periodo)}</b><div class="muted">Enviado el ${fecha(e.created_at)} · declaró ${money(e.monto_propietario, c)} al propietario y ${money(e.monto_inmobiliaria, c)} a la inmobiliaria</div></div><button class="btn danger" data-rechazar="${e.id}">Rechazar</button></div>
@@ -919,8 +928,8 @@ function vPlanilla() {
   <form id="f-planilla" class="panel" data-cid="${c.id}" data-mon="${mon}">
     <div class="ph"><label class="check"><input type="checkbox" id="pl-todos" aria-label="Seleccionar todos"> Seleccionar todos</label>
       <div class="row"><button type="button" class="btn small" data-atrasar="${c.id}">← Atrasar período</button><button type="button" class="btn small" data-adelantar="${c.id}">Adelantar período →</button></div></div>
-    <div class="tw"><table class="planilla"><thead><tr><th></th><th>Fecha</th><th>Descripción</th><th class="num">Saldo</th><th>A cobrar</th><th>Punitorios</th><th>Adm.</th><th class="num">Total</th></tr></thead>
-    <tbody>${filas.join("") || `<tr><td colspan="8"><div class="empty">No hay renglones pendientes. Podés adelantar el período si el inquilino paga por adelantado.</div></td></tr>`}</tbody></table></div>
+    <div class="tw"><table class="planilla"><thead><tr><th></th><th>Fecha</th><th>Descripción</th><th class="num">Saldo</th><th>A cobrar</th><th>Punitorios</th><th>Adm.</th><th class="num">Total</th><th></th></tr></thead>
+    <tbody>${filas.join("") || `<tr><td colspan="9"><div class="empty">No hay renglones pendientes. Podés adelantar el período si el inquilino paga por adelantado.</div></td></tr>`}</tbody></table></div>
     ${bloqueConceptos("pl", true)}
     <div class="form">
       <label>Fecha de cobro<input type="date" id="pl-fecha" name="fecha" value="${e ? e.created_at.slice(0, 10) : isoHoy()}" required></label>
@@ -1031,11 +1040,11 @@ function vLiqProp() {
   ${hayUSD && hayARS ? `<div class="row"><div class="seg"><button data-lpmon="ARS" aria-pressed="${mon === "ARS"}">En pesos</button><button data-lpmon="USD" aria-pressed="${mon === "USD"}">En dólares</button></div><span class="muted">Se hace una liquidación para cada moneda.</span></div>` : mon === "USD" ? `<div class="banner">Importes en dólares: la liquidación sale en US$.</div>` : ""}
   <form id="f-liqprop" class="panel" data-pid="${pid}" data-mon="${mon}">
     <label class="check"><input type="checkbox" id="lp-todos" checked> Seleccionar todos</label>
-    <div class="tw"><table class="planilla"><thead><tr><th></th><th>Cuenta</th><th>Fecha</th><th>Descripción</th><th class="num">Monto</th><th class="num">Punitorios</th><th class="num">Administración</th><th class="num">Total</th></tr></thead><tbody>
+    <div class="tw"><table class="planilla"><thead><tr><th></th><th>Cuenta</th><th>Fecha</th><th>Descripción</th><th class="num">Monto</th><th class="num">Punitorios</th><th class="num">Administración</th><th class="num">Total</th><th></th></tr></thead><tbody>
     ${its.map((i) => { const c = conMon(S.contratos.get(i.contrato_id), mon), p = S.pagosById.get(i.pago_id);
       return `<tr data-item="${i.id}" data-neto="${i.neto_propietario}" data-hon="${i.honorarios}"><td><input type="checkbox" class="lp-sel" checked aria-label="Liquidar este renglón"></td><td>Liquidación</td><td class="num">${fecha(p.fecha)}</td>
       <td><span class="acc-t">${esc(c.direccion)}</span>${p.modalidad === "propietario" ? ' <span class="chip warn">Lo cobró el propietario</span>' : ""}<div class="muted">Inquilino: ${esc(inq(c))} · Carpeta: ${c.carpeta || "—"} · Honorarios: ${+i.comision_pct ? +i.comision_pct + "%" : "0"} · Rec. ${pad5(p.recibo_nro)}</div>${esc(i.descripcion)}</td>
-      <td class="num">${money(i.propietario * i.monto, c)}</td><td class="num">${money(i.propietario * i.punitorio, c)}</td><td class="num"><span class="lp-hon">${+i.honorarios < 0 ? "+ " + money(-i.honorarios, c) : "− " + money(i.honorarios, c)}</span>${+i.honorarios > 0 && (i.parcial || cargoAbierto(i)) ? `<label class="check lp-dif-l" title="La administración de este pago parcial se descuenta toda junta cuando el inquilino traiga el saldo"><input type="checkbox" class="lp-dif"> Descontar con el saldo</label>` : ""}</td><td class="num"><b class="lp-neto">${money(i.neto_propietario, c)}</b></td></tr>`; }).join("")}
+      <td class="num">${money(i.propietario * i.monto, c)}</td><td class="num">${money(i.propietario * i.punitorio, c)}</td><td class="num"><span class="lp-hon">${+i.honorarios < 0 ? "+ " + money(-i.honorarios, c) : "− " + money(i.honorarios, c)}</span>${+i.honorarios > 0 && (i.parcial || cargoAbierto(i)) ? `<label class="check lp-dif-l" title="La administración de este pago parcial se descuenta toda junta cuando el inquilino traiga el saldo"><input type="checkbox" class="lp-dif"> Descontar con el saldo</label>` : ""}</td><td class="num"><b class="lp-neto">${money(i.neto_propietario, c)}</b></td><td><button type="button" class="x lp-quitar" data-excluiritem="${i.id}" title="Sacar este renglón de la liquidación (si está mal)" aria-label="Sacar de la liquidación">×</button></td></tr>`; }).join("")}
     ${dfs.map((i) => { const c = conMon(S.contratos.get(i.contrato_id), mon), p = S.pagosById.get(i.pago_id), abierto = cargoAbierto(i);
       return `<tr data-dif="${i.id}" data-neto="${-i.adm_diferida}" data-hon="${i.adm_diferida}"><td><input type="checkbox" class="lp-sel" ${abierto ? "" : "checked"} aria-label="Descontar esta administración"></td><td>Liquidación</td><td class="num">${fecha(p.fecha)}</td>
       <td><span class="acc-t">${esc(c.direccion)}</span> <span class="chip warn">Administración pendiente</span><div class="muted">Inquilino: ${esc(inq(c))} · Rec. ${pad5(p.recibo_nro)}${abierto ? " · el inquilino todavía no trajo el saldo" : " · el inquilino ya completó el pago"}</div>Administración del pago parcial · ${esc(i.descripcion)}</td>
@@ -1953,7 +1962,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611262117");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611262134");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -2005,7 +2014,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611262117");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611262134");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -2128,6 +2137,11 @@ document.addEventListener("click", async (ev) => {
     if (d.liqprop) { abrirLiqProp(d.liqprop, d.liqmon); return; }
     if (d.lpmon) { S.lpMon = d.lpmon; render(); return; }
     if (d.plmon) { S.pl.mon = d.plmon; render(); return; }
+    if (d.borrarcargo) { const g = [...S.cg.values()].flat().find((x) => x.id === +d.borrarcargo);
+      if (!confirmar("¿Borrar?")) return;
+      if (await rpc("borrar_cargo", { p_cargo: +d.borrarcargo }, "Renglón borrado")) await recargar(); return; }
+    if (d.excluiritem) { if (!confirmar("¿Sacar?")) return;
+      if (await rpc("excluir_item_liquidacion", { p_item: +d.excluiritem }, "Renglón quitado de la liquidación")) await recargar(); return; }
     if (d.volver !== undefined) { S.view = (S.view === "planilla" && S.pl?.volver && S.pl.volver !== "planilla") ? S.pl.volver : S.view === "liqprop" ? (S.lpVolver || (S.movil ? "m-buscar" : "contratos")) : S.movil ? "cobrar" : "contratos"; render(); return; }
     if (d.pltab) { S.plTab = d.pltab; render(); return; }
     if (d.dtab) { tabDocumentos(d.dtab); render(); return; }

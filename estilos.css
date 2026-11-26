@@ -974,3 +974,6 @@ section.panel.cfg-mio{flex-direction:row;align-items:center;justify-content:spac
 .rr-conc{display:flex;flex-direction:column;gap:6px}
 .rr-k{display:flex;align-items:center;gap:10px}
 .rr-k span:first-of-type{min-width:180px}
+/* borrar un renglón de la planilla de cobro / sacarlo de la liquidación */
+.pl-borrar,.lp-quitar{width:auto;min-width:28px;height:28px;padding:0 8px;border-radius:999px;color:var(--bad);font-size:16px;white-space:nowrap}
+.pl-borrar[data-confirmado="1"],.lp-quitar[data-confirmado="1"]{font-size:12.5px;font-weight:600;background:var(--bad);color:#fff}
