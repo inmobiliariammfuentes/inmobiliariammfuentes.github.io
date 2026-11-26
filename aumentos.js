@@ -2,8 +2,8 @@
 // · Redondeo de los aumentos calculados (exacto, para arriba o para abajo, de a $ 5.000 u otro paso)
 // · Imagen del aumento para mandarle al inquilino (copiar / compartir / WhatsApp)
 // · Calculadora libre: alquiler inicial + fecha + cada cuántos meses + índice → progresión completa
-import { LOGO_URL } from "./comun.js?v=202611262134";
-import { calcularAumento, FUENTES, masMeses, hoyISO } from "./indices.js?v=202611262134";
+import { LOGO_URL } from "./comun.js?v=202611262157";
+import { calcularAumento, calcularDesdeInicio, FUENTES, masMeses, hoyISO } from "./indices.js?v=202611262157";
 
 const BORDO = "#6e1b2a", BORDO2 = "#8c2a3b";
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -224,7 +224,9 @@ export function progresion(indices, { monto, inicio, meses, indice }, cfg) {
   let ant = inicio, base = +monto, k = 1;
   while (k < 120) {
     const fechaAj = masMeses(inicio, k * +meses);
-    let calc = calcularAumento(indices, indice, base, ant, fechaAj);
+    // como la Calculadora de Alquileres: cada monto sale del alquiler inicial × el índice acumulado desde el inicio
+    const t = calcularDesdeInicio(indices, indice, +monto, inicio, +meses, fechaAj);
+    let calc = t.error ? t : { ...t, pct: Math.round((t.nuevo / base - 1) * 10000) / 100 };
     if (calc.error) { filas.push({ n: k + 1, desde: fechaAj, error: calc.error }); break; }
     const futuro = fechaAj > hoy;
     if (futuro) calc = redondearCalculo(calc, base, cfg);

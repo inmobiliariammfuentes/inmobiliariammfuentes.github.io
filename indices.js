@@ -179,4 +179,24 @@ export function calcularAumento(S, indice, monto, desde, hasta) {
   return { nuevo, pct: Math.round((nuevo / monto - 1) * 10000) / 100, estimado, detalle };
 }
 
+// Igual que la Calculadora de Alquileres ("calcular"): desde el alquiler del PRIMER mes, se recorre período por período
+// (inicio + k × meses) multiplicando el factor de cada tramo, sin redondear en el medio. Solo el último tramo puede
+// ser estimado (si el índice todavía no se publicó). Devuelve { nuevo, factor, estimado, detalle, tramos }.
+export function calcularDesdeInicio(S, indice, monto, inicio, meses, hasta) {
+  const nombre = String(indice || "").toUpperCase(), serie = S && S[nombre], n = Math.max(1, Math.round(+meses || 12));
+  if (!FUENTES[nombre]) return { error: `${indice}: se calcula a mano` };
+  if (!serie) return { error: `No se pudieron bajar los datos del ${nombre}` };
+  let valor = +monto, estimado = false, tramos = 0; const partes = [];
+  for (let k = 1; k < 600; k++) {
+    const dPrev = masMeses(inicio, (k - 1) * n); if (dPrev >= hasta) break;
+    let dCur = masMeses(inicio, k * n); if (dCur > hasta) dCur = hasta;
+    const r = calcularAumento(S, nombre, 1e9, dPrev, dCur); if (r.error) return r;
+    const f = r.nuevo / 1e9; valor *= f; estimado = estimado || r.estimado; tramos++;
+    partes.push(`${dCur.slice(0, 7).split("-").reverse().join("/")}: +${(Math.round((f - 1) * 10000) / 100).toString().replace(".", ",")}%${r.estimado ? " (estimado)" : ""}`);
+  }
+  const nuevo = Math.round(valor);
+  return { nuevo, factor: valor / +monto, pct: Math.round((nuevo / +monto - 1) * 10000) / 100, estimado, tramos,
+    detalle: `${nombre} desde el inicio, período por período (${partes.join(" · ")})` };
+}
+
 export { hoyISO, masDias };
