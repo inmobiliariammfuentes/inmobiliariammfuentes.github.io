@@ -4,7 +4,7 @@ import {
   estadoContrato, contratoActivo, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, vtoDe,
   toast, abrirModal, cerrarModal, copiar, mensajeError, rutaArchivo, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, alternarTema, temaActual, serviciosControl, achicarImagen,
-} from "./comun.js?v=202611261436";
+} from "./comun.js?v=202611262117";
 
 const $ = (s) => document.querySelector(s);
 const S = { cfg: null, contratos: [], yo: [], aj: [], pg: [], ov: [], cargos: [], envios: [], archivos: [], liqs: [], avisos: [], rol: null, anteriores: false, esStaff: false };
@@ -72,7 +72,7 @@ async function cargar(uid) {
 const ajDe = (c) => S.aj.filter((a) => a.contrato_id === c.id);
 const pgDe = (c) => S.pg.filter((p) => p.contrato_id === c.id);
 const ovDe = (c) => Object.fromEntries(S.ov.filter((o) => o.contrato_id === c.id).map((o) => [o.periodo, +o.monto]));
-const deudaDe = (c) => deudaCargos(c, S.cargos.filter((g) => g.contrato_id === c.id), S.cfg, ovDe(c));
+const deudaDe = (c) => deudaCargos(c, S.cargos.filter((g) => g.contrato_id === c.id && (!g.moneda || g.moneda === (c.moneda || "ARS"))), S.cfg, ovDe(c));
 const lineasDe = (x) => { let puesto = false; return x.cargos.map((g) => { const pu = !puesto && g.tipo === "alquiler" ? x.punitorio : 0; if (g.tipo === "alquiler") puesto = true; return { descripcion: g.descripcion, monto: +g.saldo, parcial: +g.saldo < +g.monto - 0.009, punitorio: pu, admin: g.admin, propietario: g.propietario, inquilino: g.inquilino ?? 1 }; }).filter((l) => l.inquilino !== 0); };
 const contratoKey = (c) => ({ ...c, monto_base: +c.monto_base });
 
@@ -142,7 +142,7 @@ function tarjetaInquilino(c) {
     ${pagar}
     ${bloqueServicios(c)}
     <div class="row"><button class="btn" data-servicios="${c.id}">Enviar boletas de servicios pagados</button></div>
-    <details><summary>Recibos (${pagos.length})</summary>${recibos.length ? `<div class="tw"><table><tbody>${recibos.map((p) => `<tr><td>${periodo(p.periodo)}<div class="muted">Recibo ${pad5(p.recibo_nro)} · ${fecha(p.fecha)}</div></td><td class="num">${money(p.total, c)}</td><td class="num"><button class="btn small" data-recibo="${p.id}">PDF</button></td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">Todavía no hay recibos.</p>`}</details>
+    <details><summary>Recibos (${pagos.length})</summary>${recibos.length ? `<div class="tw"><table><tbody>${recibos.map((p) => `<tr><td>${periodo(p.periodo)}<div class="muted">Recibo ${pad5(p.recibo_nro)} · ${fecha(p.fecha)}</div></td><td class="num">${money(p.total, p.moneda || c)}</td><td class="num"><button class="btn small" data-recibo="${p.id}">PDF</button></td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">Todavía no hay recibos.</p>`}</details>
     <details><summary>Mis envíos (${envios.length})</summary>${misEnvios.length ? `<div class="tw"><table><tbody>${misEnvios.map((e) => `<tr><td>${e.tipo === "pago" ? "Pago" : "Servicios"} · ${periodo(e.periodo)}<div class="muted">${fecha(e.created_at)}${e.motivo_rechazo ? " · " + esc(e.motivo_rechazo) : ""}</div></td><td>${e.estado === "pendiente" ? `<span class="chip warn">En revisión</span>` : e.estado === "aprobado" ? `<span class="chip ok">Confirmado</span>` : `<span class="chip bad">Rechazado</span>`}</td><td class="files">${S.archivos.filter((a) => a.envio_id === e.id).map((a) => `<button class="file" data-archivo="${esc(a.path)}">${esc(a.servicio || ETIQUETA_ARCHIVO[a.categoria])}</button>`).join("")}</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">No enviaste nada todavía.</p>`}</details>
   </section>`;
 }
@@ -270,7 +270,7 @@ document.addEventListener("click", async (ev) => {
     if (d.enviar) { modalEnvioPago(d.enviar); return; }
     if (d.servicios) { modalEnvioServicios(d.servicios); return; }
     if (d.archivo) { await verArchivo(d.archivo); return; }
-    if (d.recibo) { const p = S.pg.find((x) => x.id === +d.recibo); const c = S.contratos.find((x) => x.id === p.contrato_id); const r = pdfRecibo(S.cfg, { direccion: c.direccion, inquilino: c.inquilino_nombre, carpeta: c.carpeta, propietario: c.propietario_nombre, moneda: c.moneda }, p); r.doc.save(r.nombre); return; }
+    if (d.recibo) { const p = S.pg.find((x) => x.id === +d.recibo); const c = S.contratos.find((x) => x.id === p.contrato_id); const r = pdfRecibo(S.cfg, { direccion: c.direccion, inquilino: c.inquilino_nombre, carpeta: c.carpeta, propietario: c.propietario_nombre, moneda: p.moneda || c.moneda }, p); r.doc.save(r.nombre); return; }
     if (d.liq) { const l = S.liqs.find((x) => x.id === +d.liq); const yo = S.yo.find((p) => p.id === l.propietario_id) || S.yo[0] || {}; const r = pdfLiquidacion(S.cfg, l, yo); r.doc.save(r.nombre); return; }
     if (d.a === "avisos") {
       abrirModal(`<div class="mh"><h2>Avisos</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div>${S.avisos.length ? S.avisos.map((a) => `<div class="aviso ${a.leida ? "" : "nuevo"}"><b>${esc(a.titulo)}</b><div>${esc(a.texto || "")}</div><div class="muted">${fecha(a.created_at)}</div></div>`).join("") : `<p class="muted">No tenés avisos.</p>`}`);

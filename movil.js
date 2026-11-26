@@ -1,7 +1,7 @@
 // Cobranza Fuentes · Versión para el celular del sistema del equipo
 // En el teléfono el sistema se abre en una versión básica: buscar un contrato, ver y mandar recibos,
 // cobrar (generar el recibo) y liquidar. Se puede instalar como app y siempre se puede pasar a la versión completa.
-import { esc, toast, LOGO_URL } from "./comun.js?v=202611261436";
+import { esc, toast, LOGO_URL } from "./comun.js?v=202611262117";
 
 const UA = navigator.userAgent;
 export const esCelularReal = () => /Android|iPhone|iPod|Mobile/i.test(UA) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1 && innerWidth < 900);
@@ -43,14 +43,14 @@ export function vistaBuscar(ctx) {
   return `<div class="m-buscar"><h1>Buscar contrato</h1>
     <input type="search" id="q" class="m-q" placeholder="Dirección, inquilino, propietario, DNI o carpeta" value="${esc(q)}" autocomplete="off" enterkeyhint="search">
     ${t ? (lista.map(tarjeta).join("") || `<div class="panel empty">No encontramos contratos con "${esc(q)}".</div>`)
-      : `<h2 class="m-sub">Últimos recibos</h2>${ult.map(({ p, c }) => `<button class="m-rec" data-recibo="${p.id}"><span><b>N° ${pad5(p.recibo_nro)}</b> · ${esc(c?.direccion || "")}</span><span class="muted">${fecha(p.fecha)} · ${esc(c ? inq(c) : "")}</span><b class="m-rec-m">${money(p.total, c)}</b></button>`).join("") || `<p class="muted">Todavía no hay recibos.</p>`}`}
+      : `<h2 class="m-sub">Últimos recibos</h2>${ult.map(({ p, c }) => `<button class="m-rec" data-recibo="${p.id}"><span><b>N° ${pad5(p.recibo_nro)}</b> · ${esc(c?.direccion || "")}</span><span class="muted">${fecha(p.fecha)} · ${esc(c ? inq(c) : "")}</span><b class="m-rec-m">${money(p.total, p.moneda || c)}</b></button>`).join("") || `<p class="muted">Todavía no hay recibos.</p>`}`}
   </div>`;
 }
 
 /** Lista de recibos de un contrato (para ver, mandar por WhatsApp o descargar). */
 export function htmlRecibos(c, pagos, { money, fecha, periodo, pad5 }) {
   return `<div class="mh"><div><h2>Recibos</h2><div class="muted">${esc(c.direccion)}</div></div><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
-    ${pagos.length ? `<div class="m-recs">${pagos.slice(0, 24).map((p) => `<button class="m-rec" data-recibo="${p.id}"><span><b>N° ${pad5(p.recibo_nro)}</b>${p.anulado ? ' <span class="chip bad">Anulado</span>' : ""}</span><span class="muted">${fecha(p.fecha)} · ${periodo(p.periodo)}</span><b class="m-rec-m">${money(p.total, c)}</b></button>`).join("")}</div>`
+    ${pagos.length ? `<div class="m-recs">${pagos.slice(0, 24).map((p) => `<button class="m-rec" data-recibo="${p.id}"><span><b>N° ${pad5(p.recibo_nro)}</b>${p.anulado ? ' <span class="chip bad">Anulado</span>' : ""}</span><span class="muted">${fecha(p.fecha)} · ${periodo(p.periodo)}</span><b class="m-rec-m">${money(p.total, p.moneda || c)}</b></button>`).join("")}</div>`
       : `<p class="muted">Este contrato todavía no tiene recibos.</p>`}
     <div class="row"><button class="btn primary" data-cobrar="${c.id}">Cobrar y generar recibo</button></div>`;
 }
