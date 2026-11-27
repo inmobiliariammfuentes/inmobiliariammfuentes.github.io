@@ -3,19 +3,19 @@ import {
   sb, money, r2, pad5, esc, isoHoy, ymHoy, ymDe, ymSumar, ymDif, periodo, fecha, diasEntre, MEDIOS,
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
-  pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611271321";
-import { iniciarChat } from "./chat.js?v=202611271321";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611271321";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611271321";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611271321";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611271321";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611271321";
-import { iniciarCalculadora } from "./calculadora.js?v=202611271321";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611271321";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611271321";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611271321";
-import { cargarIndices, calcularAumento, calcularDesdeInicio, indiceAutomatico, FUENTES } from "./indices.js?v=202611271321";
+  pdfRecibo, pdfLiquidacion, pdfAumentos, lineasRecibo, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
+} from "./comun.js?v=202611271410";
+import { iniciarChat } from "./chat.js?v=202611271410";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611271410";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611271410";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611271410";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611271410";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611271410";
+import { iniciarCalculadora } from "./calculadora.js?v=202611271410";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611271410";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611271410";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611271410";
+import { cargarIndices, calcularAumento, calcularDesdeInicio, indiceAutomatico, FUENTES } from "./indices.js?v=202611271410";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -936,6 +936,8 @@ function vPlanilla() {
       <label>Fecha de cobro<input type="date" id="pl-fecha" name="fecha" value="${e ? e.created_at.slice(0, 10) : isoHoy()}" required></label>
       ${!e && c.forma_pago === "propietario" ? `<label>¿Quién recibió el pago?<select id="pl-modalidad" name="modalidad"><option value="propietario">El propietario (el inquilino le pagó a él)</option><option value="inmobiliaria">La inmobiliaria</option></select></label>` : ""}
       <label>Medio de pago<select id="pl-medio" name="medio">${MEDIOS.map((m) => `<option ${(e || c.forma_pago === "propietario") && m === "Transferencia" ? "selected" : ""}>${m}</option>`).join("")}</select></label>
+      <label class="full pl-acuenta-l">Entrega a cuenta (si no paga el total)<input type="number" step="0.01" min="0" id="pl-acuenta" name="acuenta" placeholder="Dejalo vacío si paga todo" inputmode="decimal">
+        <span class="muted" style="font-size:13px">Poné lo que trajo: el recibo sale con todos los conceptos y su total, lo que abonó a cuenta y el saldo que queda debiendo.</span></label>
       <label class="full">Observaciones (salen en el recibo)<input type="text" id="pl-obs" name="obs" value="${esc(e?.observaciones || "")}"></label>
     </div>
     <div class="resumen" id="pl-resumen"></div>
@@ -946,13 +948,36 @@ function vPlanilla() {
     <div class="row"><button class="btn primary" type="submit" id="pl-ok">${e ? "Aprobar y enviar recibo" : "Confirmar pago"}</button><button class="btn" type="button" data-volver>Cancelar</button><button class="btn pl-detimg" type="button" data-a="detalle-img" title="Imagen con todo lo que tiene que pagar, para mandar por WhatsApp">Imagen del detalle a pagar</button></div>
   </form>`;
 }
+// pago a cuenta: lo que trae el inquilino se aplica en orden a los renglones tildados (primero punitorios, después el importe)
+function repartirACuenta(f) {
+  const v = f.querySelector("#pl-acuenta")?.value;
+  if (v === "" || v == null) {           // se borró la entrega: vuelve todo a su importe completo
+    for (const r of f.querySelectorAll("tr[data-cargo]")) { const pIn = r.querySelector(".pl-pun"); if (pIn.dataset.orig == null) continue;
+      const g = (S.cg.get(+f.dataset.cid) || []).find((x) => x.id === +r.dataset.cargo); pIn.value = pIn.dataset.orig; delete pIn.dataset.orig; if (g) r.querySelector(".pl-monto").value = g.saldo; }
+    return false;
+  }
+  const rows = [...f.querySelectorAll("tr[data-cargo]")].filter((r) => r.querySelector(".pl-sel").checked);
+  const saldoDe = (r) => { const g = (S.cg.get(+f.dataset.cid) || []).find((x) => x.id === +r.dataset.cargo); return g ? +g.saldo : 0; };
+  let resto = r2(+v || 0);
+  for (const r of rows) if (+(r.dataset.inq ?? 1) === -1) resto += saldoDe(r);     // los descuentos se aplican siempre
+  for (const r of rows) {
+    const si = +(r.dataset.inq ?? 1); if (si !== 1) { if (si === -1) r.querySelector(".pl-monto").value = saldoDe(r); continue; }
+    const pIn = r.querySelector(".pl-pun"), mIn = r.querySelector(".pl-monto");
+    if (pIn.dataset.orig == null) pIn.dataset.orig = pIn.value;
+    const pu = Math.min(r2(+pIn.dataset.orig || 0), Math.max(0, resto)); resto = r2(resto - pu);
+    const m = Math.min(saldoDe(r), Math.max(0, resto)); resto = r2(resto - m);
+    pIn.value = pu; mIn.value = m;
+  }
+  return true;
+}
 function leerPlanilla() {
   const f = $("#f-planilla"); if (!f) return null;
+  const aCuenta = repartirACuenta(f);
   const items = [...f.querySelectorAll("tr[data-cargo]")].map((r) => {
     const sel = r.querySelector(".pl-sel").checked, m = r2(r.querySelector(".pl-monto").value), pu = r2(r.querySelector(".pl-pun").value), adm = r.querySelector(".pl-adm").checked;
     const si = +(r.dataset.inq ?? 1);
     r.querySelector(".pl-tot").textContent = sel ? (si === -1 ? "− " : "") + money(si === 0 ? pu : m + pu, conMon(S.contratos.get(+f.dataset.cid), f.dataset.mon)) : "—"; r.classList.toggle("apagado", !sel);
-    return sel ? { cargo_id: +r.dataset.cargo, monto: m, punitorio: pu, admin: adm, propietario: +r.dataset.prop, inquilino: si } : null;
+    return sel ? { cargo_id: +r.dataset.cargo, monto: m, punitorio: pu, admin: adm, propietario: +r.dataset.prop, inquilino: si, ...(aCuenta ? { mostrar: true } : {}) } : null;
   }).filter(Boolean);
   return { f, items, extras: leerConceptos(f) };
 }
@@ -972,6 +997,19 @@ function planillaTotal() {
     <div class="linea"><span>Incluye punitorios</span><span class="mono">${money(pun, c)}</span></div>
     <div class="linea"><span>Honorarios de administración (${base.pct}%) · se le cobran al propietario en su liquidación</span><span class="mono">${money(hon, c)}</span></div>
     <div class="linea muted"><span>La inmobiliaria no recibe dinero ahora: hace el recibo y el propietario abona la administración cuando liquida.</span><span></span></div>`; return; }
+  const acu = $("#pl-acuenta")?.value;
+  if (acu !== "" && acu != null) {
+    const f = x.f; let full = 0;
+    for (const r of f.querySelectorAll("tr[data-cargo]")) { if (!r.querySelector(".pl-sel").checked) continue; const si = +(r.dataset.inq ?? 1);
+      const g = (S.cg.get(+f.dataset.cid) || []).find((y) => y.id === +r.dataset.cargo); full += si * (g ? +g.saldo : 0) + (si === 1 ? +(r.querySelector(".pl-pun").dataset.orig ?? r.querySelector(".pl-pun").value) || 0 : 0); }
+    for (const k of x.extras) full += k.inquilino * k.monto;
+    $("#pl-resumen").innerHTML = `<div class="linea"><span>Monto a abonar (todo lo tildado)</span><span class="mono">${money(full, c)}</span></div>
+    <div class="total-line"><span>Entrega a cuenta</span><span class="mono">${money(total, c)}</span></div>
+    <div class="linea"><span>Saldo que queda debiendo</span><span class="mono">${money(Math.max(0, full - total), c)}</span></div>
+    ${+acu > full + 0.009 ? `<div class="linea" style="color:var(--bad)"><span>Trae más de lo que debe: el excedente no se cobra (agregalo como concepto o adelantá el período)</span><span></span></div>` : ""}
+    <div class="linea"><span>Honorarios de administración (${base.pct}%) sobre lo cobrado</span><span class="mono">${money(hon, c)}</span></div>
+    <div class="linea"><span>Le corresponde al propietario</span><span class="mono">${money(prop, c)}</span></div>`; return;
+  }
   $("#pl-resumen").innerHTML = `<div class="total-line"><span>Total a abonar</span><span class="mono">${money(total, c)}</span></div>
     <div class="linea"><span>Incluye punitorios</span><span class="mono">${money(pun, c)}</span></div>
     <div class="linea"><span>Honorarios de administración (${base.pct}%)</span><span class="mono">${money(hon, c)}</span></div>
@@ -1806,7 +1844,11 @@ function modalRecibo(pid) {
   abrirModal(`<div class="mh"><h2>Recibo ${pad5(p.recibo_nro)}</h2><button class="x" data-cerrar aria-label="Cerrar">×</button></div>
   <div class="recibo"><div class="rt"><div><b>${esc(S.cfg.nombre)}</b><div class="muted">${esc(S.cfg.domicilio)}</div></div><div class="num"><b>N° ${pad5(p.recibo_nro)}</b><div class="muted">${fecha(p.fecha)}</div></div></div>
   <p>Recibimos de <b>${esc(i.nombre)}</b> la suma de <b>${money(p.total, c)}</b> en concepto de alquiler del período <b>${periodo(p.periodo)}</b> de <b>${esc(c.direccion)}</b>.</p>
-  <div class="tw"><table><tbody>${Array.isArray(p.detalle) && p.detalle.length ? "" : `<tr><td>Alquiler</td><td class="num">${money(p.alquiler, c)}</td></tr>${+p.punitorio ? `<tr><td>Punitorios</td><td class="num">${money(p.punitorio, c)}</td></tr>` : ""}`}${filasConceptos(p, c)}<tr><td><b>Total</b> · ${esc(p.medio)}</td><td class="num"><b>${money(p.total, c)}</b></td></tr></tbody></table></div>
+  ${(() => { const R0 = lineasRecibo(p);
+    const fl = R0.lineas.map((k) => `<tr><td>${esc(k.concepto)}${k.inquilino < 0 ? ' <span class="muted">(se descuenta)</span>' : k.inquilino === 0 ? ' <span class="muted">(informativo, no suma)</span>' : ""}</td><td class="num">${k.inquilino < 0 ? "− " : ""}${money(k.monto, c)}</td></tr>${+k.punitorio ? `<tr><td class="muted">&nbsp;&nbsp;Punitorios</td><td class="num">${money(k.punitorio, c)}</td></tr>` : ""}`).join("");
+    const pie = R0.aCuenta ? `<tr><td>Monto a abonar</td><td class="num">${money(R0.aAbonar, c)}</td></tr><tr><td><b>Total abonado (a cuenta)</b> · ${esc(p.medio)}</td><td class="num"><b>${money(p.total, c)}</b></td></tr><tr><td>Saldo deudor</td><td class="num">${money(R0.saldo, c)}</td></tr>`
+      : `<tr><td><b>Total</b> · ${esc(p.medio)}</td><td class="num"><b>${money(p.total, c)}</b></td></tr>`;
+    return `<div class="tw"><table><tbody>${fl}${pie}</tbody></table></div>`; })()}
   ${p.anulado ? `<span class="chip bad">Anulado</span>` : ""}</div>
   <div class="row">${p.token ? `<a class="btn primary" href="${esc(waMensaje(i.telefono, msgRecibo(p, c)))}" target="_blank" rel="noopener">Enviar link por WhatsApp${i.telefono ? "" : " (elegir contacto)"}</a><button class="btn" data-recibotxt="${p.id}">Copiar mensaje con link</button>` : ""}<button class="btn" data-recibopdf="${p.id}">Descargar PDF</button></div>
   <p class="muted" style="margin:0">Con el link, el inquilino ve y descarga el recibo cuando quiera, sin cuenta y sin que ustedes tengan que mandar archivos. ${p.token ? `<button class="link" data-abrirlink="${esc(linkComprobante(p.token))}">Ver cómo lo ve el inquilino</button>` : ""}</p>`);
@@ -1963,7 +2005,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611271321");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611271410");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -2015,7 +2057,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611271321");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611271410");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -2343,7 +2385,8 @@ document.addEventListener("submit", async (ev) => {
     if (f.id === "f-rescindir") { const n = await rpc("rescindir_contrato", { p_contrato: +f.dataset.id, p_desde: v.desde, p_motivo: v.motivo }, `Contrato rescindido desde ${periodo(v.desde)}`); if (n !== null) { cerrarModal(); await recargar(); } return; }
     if (f.id === "f-planilla") {
       const x = leerPlanilla(); if (!x.items.length && !x.extras.length) { toast("Elegí al menos un renglón para cobrar", "bad"); return; }
-      const items = x.items.map(({ cargo_id, monto, punitorio, admin }) => ({ cargo_id, monto, punitorio, admin }));
+      const items = x.items.map(({ cargo_id, monto, punitorio, admin, mostrar }) => ({ cargo_id, monto, punitorio, admin, ...(mostrar ? { mostrar } : {}) }));
+      if (f.acuenta?.value !== "" && !(+f.acuenta.value > 0)) { toast("Poné cuánto entrega a cuenta", "bad"); return; }
       const pg = S.pl.eid ? await rpc("aprobar_envio", { p_envio: S.pl.eid, p_items: items, p_extras: x.extras, p_obs: v.obs, p_fecha: v.fecha }, "Aprobado. Se generó el recibo y avisamos al inquilino y al propietario.")
         : await rpc("registrar_cobro", { p_contrato: +f.dataset.cid, p_items: items, p_extras: x.extras, p_fecha: v.fecha, p_medio: v.medio, p_obs: v.obs, p_modalidad: v.modalidad || null }, "Pago confirmado");
       const c0 = S.contratos.get(+f.dataset.cid);

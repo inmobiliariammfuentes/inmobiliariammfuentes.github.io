@@ -1,5 +1,5 @@
 // Cobranza Fuentes · Página pública de un comprobante (se abre con el link que manda la inmobiliaria)
-import { sb, money, esc, fecha, periodo, pdfRecibo, pdfLiquidacion, LOGO_URL } from "./comun.js?v=202611271321";
+import { sb, money, esc, fecha, periodo, pdfRecibo, pdfLiquidacion, LOGO_URL, lineasRecibo } from "./comun.js?v=202611271410";
 
 const $ = (s) => document.querySelector(s);
 const token = new URLSearchParams(location.search).get("c") || "";
@@ -14,8 +14,7 @@ const fila = (a, b, cls = "") => `<tr class="${cls}"><td>${a}</td><td class="num
 
 function vistaRecibo(d) {
   const p = d.pago, i = d.info;
-  const lineas = Array.isArray(p.detalle) && p.detalle.length ? p.detalle
-    : [{ concepto: "Alquiler " + periodo(p.periodo), monto: p.alquiler, punitorio: p.punitorio, inquilino: 1 }];
+  const R0 = lineasRecibo(p), lineas = R0.lineas;
   return `<section class="panel cp-doc">
     <div class="cp-tit"><div><span class="muted">Recibo</span><h1>N° ${esc(p.recibo_nro)}</h1></div>
       <div class="cp-total"><span class="muted">Total abonado</span><b>${money(p.total, i.moneda)}</b></div></div>
@@ -31,7 +30,7 @@ function vistaRecibo(d) {
     <div class="tw"><table><thead><tr><th>Concepto</th><th class="num">Importe</th></tr></thead><tbody>
       ${lineas.map((k) => fila(esc(k.concepto) + (k.inquilino < 0 ? ' <span class="muted">(descuento)</span>' : k.inquilino === 0 ? ' <span class="muted">(informativo, no suma)</span>' : ""), (k.inquilino < 0 ? "- " : "") + money(k.monto, i.moneda))
         + (+k.punitorio ? fila('<span class="muted">Punitorios</span>', money(k.punitorio, i.moneda)) : "")).join("")}
-      ${fila("<b>Total</b>", `<b>${money(p.total, i.moneda)}</b>`)}
+      ${R0.aCuenta ? fila("Monto a abonar", money(R0.aAbonar, i.moneda)) + fila("<b>Total abonado (a cuenta)</b>", `<b>${money(p.total, i.moneda)}</b>`) + fila("Saldo deudor", money(R0.saldo, i.moneda)) : fila("<b>Total</b>", `<b>${money(p.total, i.moneda)}</b>`)}
     </tbody></table></div>
     ${p.obs ? `<p class="muted">Observaciones: ${esc(p.obs)}</p>` : ""}
     <div class="row cp-btns"><button class="btn primary" id="cp-pdf">Descargar PDF</button><button class="btn" id="cp-ver">Ver para imprimir</button></div>

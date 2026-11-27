@@ -1,6 +1,6 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611271321";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611271410";
 
 // El sistema del equipo y el portal guardan la sesión por separado: entrar al portal con un DNI
 // en la compu de la oficina no cierra la sesión del sistema de gestión.
@@ -326,20 +326,28 @@ function firma(doc, cfg, y) {
 function sello(doc, txt) { doc.setTextColor(190, 30, 40); doc.setFont("helvetica", "bold"); doc.setFontSize(42); doc.text(txt, 105, 150, { align: "center", angle: 20 }); doc.setTextColor(0, 0, 0); }
 const limpio = (s) => String(s || "").replace(/[^\wÁÉÍÓÚÑáéíóúñü ,.-]/g, "").trim();
 
+/* Renglones de un recibo. Si fue un pago a cuenta (o parcial), cada concepto se muestra con su importe COMPLETO
+   y abajo: monto a abonar, total abonado (lo que trajo) y saldo deudor, como en SPOT. */
+export function lineasRecibo(p) {
+  let ls = Array.isArray(p.detalle) && p.detalle.length ? p.detalle : null;
+  if (!ls) {
+    ls = [{ concepto: "Alquiler " + periodo(p.periodo), monto: p.alquiler, punitorio: p.punitorio, inquilino: 1 }];
+    const cs = Array.isArray(p.conceptos) ? p.conceptos : [];
+    if (cs.length) ls.push(...cs.map((k) => ({ ...k, punitorio: 0 })));
+    else if (+p.otros) ls.push({ concepto: p.otros_detalle || "Otros conceptos", monto: p.otros, punitorio: 0, inquilino: 1 });
+  }
+  const aCuenta = ls.some((k) => k.pendiente || (k.saldo != null && +k.saldo > +k.monto + 0.009));
+  const lineas = aCuenta ? ls.map((k) => ({ ...k, concepto: String(k.concepto || "").replace(/^(Pago parcial s\/)+/i, ""), monto: k.saldo != null ? +k.saldo : +k.monto })) : ls;
+  const aAbonar = r2(ls.reduce((s, k) => s + signoInq(k) * (k.saldo != null ? +k.saldo : +k.monto) + (+k.punitorio || 0), 0));
+  return { lineas, aCuenta, aAbonar, abonado: +p.total, saldo: Math.max(0, r2(aAbonar - p.total)) };
+}
+
 /* Recibo: página 1 original, página 2 copia */
 export function pdfRecibo(cfg, info, p) {
   // info: {direccion, inquilino, carpeta, propietario, propietario_doc, moneda}
   MON = (info && info.moneda) || "ARS";
   const { jsPDF } = window.jspdf; const doc = new jsPDF({ unit: "mm", format: "a4" });
-  let lineas = Array.isArray(p.detalle) && p.detalle.length ? p.detalle : null;
-  if (!lineas) {
-    lineas = [{ concepto: "Alquiler " + periodo(p.periodo), monto: p.alquiler, punitorio: p.punitorio, inquilino: 1 }];
-    const cs = Array.isArray(p.conceptos) ? p.conceptos : [];
-    if (cs.length) lineas.push(...cs.map((k) => ({ ...k, punitorio: 0 })));
-    else if (+p.otros) lineas.push({ concepto: p.otros_detalle || "Otros conceptos", monto: p.otros, punitorio: 0, inquilino: 1 });
-  }
-  const aAbonar = lineas.reduce((s, k) => s + signoInq(k) * (k.saldo != null ? +k.saldo : +k.monto) + (+k.punitorio || 0), 0);
-  const saldoDeudor = Math.max(0, r2(aAbonar - p.total));
+  const R0 = lineasRecibo(p), lineas = R0.lineas, aAbonar = R0.aAbonar, saldoDeudor = R0.saldo;
   const cols = [{ t: "Fecha", x: L + 2 }, { t: "Descripción", x: 40 }, { t: "Monto", x: 140, a: "right" }, { t: "Punit", x: 163, a: "right" }, { t: "Total", x: R - 2, a: "right" }];
   const datos = [["Fecha:", fecha(p.fecha), true], ["Recibo:", p.recibo_nro], ["Carpeta:", info.carpeta || "-"]];
   const soloAlquiler = lineas.every((k) => /alquiler/i.test(k.concepto || ""));
