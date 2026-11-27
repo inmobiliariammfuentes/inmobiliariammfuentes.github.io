@@ -1,6 +1,6 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611262209";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611271315";
 
 // El sistema del equipo y el portal guardan la sesión por separado: entrar al portal con un DNI
 // en la compu de la oficina no cierra la sesión del sistema de gestión.
@@ -177,9 +177,14 @@ export function abrirModal(html, ancho) {
   const f = root.querySelector("[autofocus]"); if (f) f.focus();
 }
 export function cerrarModal() { document.getElementById("modal").innerHTML = ""; }
+// la ventana se cierra al tocar el fondo solo si el clic EMPEZÓ y TERMINÓ en el fondo:
+// así, seleccionar texto arrastrando el mouse desde adentro hacia afuera no la cierra
+let abajoEnFondo = false;
+document.addEventListener("mousedown", (e) => { abajoEnFondo = !!e.target.matches?.("[data-cerrar-fondo]"); }, true);
 document.addEventListener("click", (e) => {
   const fondo = e.target.closest("[data-cerrar-fondo]");
-  if (fondo && e.target === fondo) cerrarModal();
+  if (fondo && e.target === fondo && abajoEnFondo && !String(getSelection?.() || "")) cerrarModal();
+  abajoEnFondo = false;
   if (e.target.closest("[data-cerrar]")) cerrarModal();
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") cerrarModal(); });
