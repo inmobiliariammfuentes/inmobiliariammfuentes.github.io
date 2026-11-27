@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611271315";
-import { iniciarChat } from "./chat.js?v=202611271315";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611271315";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611271315";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611271315";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611271315";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611271315";
-import { iniciarCalculadora } from "./calculadora.js?v=202611271315";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611271315";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611271315";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611271315";
-import { cargarIndices, calcularAumento, calcularDesdeInicio, indiceAutomatico, FUENTES } from "./indices.js?v=202611271315";
+} from "./comun.js?v=202611271321";
+import { iniciarChat } from "./chat.js?v=202611271321";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611271321";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611271321";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611271321";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611271321";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611271321";
+import { iniciarCalculadora } from "./calculadora.js?v=202611271321";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611271321";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611271321";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611271321";
+import { cargarIndices, calcularAumento, calcularDesdeInicio, indiceAutomatico, FUENTES } from "./indices.js?v=202611271321";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -303,7 +303,7 @@ function filtrarContratos() {
   return [...S.contratos.values()].filter((c) => pasaFiltro(c, S.filtro) && coincide(c, q)).sort(cmp);
 }
 function vContratos() {
-  const list = filtrarContratos(), shown = list.slice(0, S.limite);
+  const list = filtrarContratos(), shown = list;  // todos: sin "Mostrar más"
   const prox = ymSumar(ymHoy(), 1), proxAj = (c) => seCobra(c) ? proximoAjuste(c, ajDe(c), S.cfg) : null;
   const nServ = S.cs ? controlServicios().filter((x) => x.faltan.length).length : 0;
   const nAum = [...S.contratos.values()].filter((c) => proxAj(c) === prox).length;
@@ -323,7 +323,7 @@ function vContratos() {
     return `<tr><td class="mono"><button class="carpeta" data-contrato="${c.id}" title="Ver y editar el contrato y sus aumentos">${c.carpeta || "—"}</button>${(() => { const pa = proxAj(c); return pa && pa <= prox && pa >= ymHoy() ? `<span class="chip ${pa < prox ? "bad" : "warn"} aum-chip" title="${pa < prox ? "Aumenta este mes y todavía no está cargado" : "Aumenta el mes que viene"}">↑ ${mesCorto(pa)}</span>` : ""; })()}</td><td class="num">${fecha(c.fin)}</td><td>${esc(c.direccion)}${chipUSD(c)}${c.administrado === false ? ' <span class="chip" title="Solo hicimos el contrato: no lo cobramos todos los meses">Solo contrato</span>' : ""}${c.forma_pago === "dividida" ? ' <span class="chip acc">Dividida</span>' : c.forma_pago === "propietario" ? ' <span class="chip acc">Al propietario</span>' : ""}</td>
     <td><span class="con-hist"><button class="hist-btn" data-persona="${c.inquilino_id}" title="Ver y modificar los datos del inquilino" aria-label="Datos de ${esc(inq(c))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="7" r="4"/><path d="M3 21v-1a6 6 0 0 1 9-5.2"/><path d="M16.5 13.5l4 4L16 22h-4v-4z"/></svg></button><button class="link" data-planilla="${c.id}">${esc(inq(c))}</button><button class="hist-btn" data-recibosinq="${c.inquilino_id}" title="Recibos anteriores del inquilino" aria-label="Recibos anteriores de ${esc(inq(c))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z"/><path d="M9 7h6M9 11h6M9 15h4"/></svg></button></span></td><td><span class="con-hist"><button class="hist-btn" data-persona="${c.propietario_id}" title="Ver y modificar los datos del propietario" aria-label="Datos de ${esc(prop(c))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="7" r="4"/><path d="M3 21v-1a6 6 0 0 1 9-5.2"/><path d="M16.5 13.5l4 4L16 22h-4v-4z"/></svg></button><button class="link" data-liqprop="${c.propietario_id}" title="Liquidar al propietario">${esc(prop(c))}</button>${aLiq.has(c.propietario_id) ? `<span class="chip warn lq-pend" title="Tiene cobros sin liquidar: ${aLiq.get(c.propietario_id).map((g) => money(g.neto, g)).join(" + ")}">A liquidar</span>` : ""}<button class="hist-btn" data-liqsprop="${c.propietario_id}" title="Liquidaciones anteriores del propietario" aria-label="Liquidaciones anteriores de ${esc(prop(c))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></button></span></td>
     <td class="num ${venc ? "saldo-venc" : ""}" ${venc ? 'title="Tiene períodos vencidos"' : ""}>${sal ? money(sal, c) : "—"}</td><td>${chipEstado(c)}</td><td class="num">${puedeRenovar(c) ? `<button class="btn small primary" data-renorapida="${c.id}" title="Renovación rápida: mismos inquilino, propietario y conceptos fijos">Renovar</button> ` : ""}<button class="btn small" data-contrato="${c.id}">Contrato</button></td></tr>`; }).join("") || `<tr><td colspan="8"><div class="empty">No hay contratos con ese filtro.</div></td></tr>`}
-  </tbody></table></div>${list.length > shown.length ? `<div class="row"><button class="btn" data-a="mas">Mostrar más</button></div>` : ""}`;
+  </tbody></table></div>`;
 }
 
 function vCobrar() {
@@ -1963,7 +1963,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611271315");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611271321");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -2015,7 +2015,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611271315");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611271321");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];

@@ -1,5 +1,5 @@
 // Cobranza Fuentes · Página pública de un comprobante (se abre con el link que manda la inmobiliaria)
-import { sb, money, esc, fecha, periodo, pdfRecibo, pdfLiquidacion, LOGO_URL } from "./comun.js?v=202611271315";
+import { sb, money, esc, fecha, periodo, pdfRecibo, pdfLiquidacion, LOGO_URL } from "./comun.js?v=202611271321";
 
 const $ = (s) => document.querySelector(s);
 const token = new URLSearchParams(location.search).get("c") || "";
