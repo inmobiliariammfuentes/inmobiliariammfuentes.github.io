@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, lineasRecibo, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611271410";
-import { iniciarChat } from "./chat.js?v=202611271410";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611271410";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611271410";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611271410";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611271410";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611271410";
-import { iniciarCalculadora } from "./calculadora.js?v=202611271410";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611271410";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611271410";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611271410";
-import { cargarIndices, calcularAumento, calcularDesdeInicio, indiceAutomatico, FUENTES } from "./indices.js?v=202611271410";
+} from "./comun.js?v=202611271416";
+import { iniciarChat } from "./chat.js?v=202611271416";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611271416";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611271416";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611271416";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611271416";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611271416";
+import { iniciarCalculadora } from "./calculadora.js?v=202611271416";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611271416";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611271416";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611271416";
+import { cargarIndices, calcularAumento, calcularDesdeInicio, indiceAutomatico, FUENTES } from "./indices.js?v=202611271416";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -927,7 +927,8 @@ function vPlanilla() {
   return cab + banner + `
   ${selMon}
   <form id="f-planilla" class="panel" data-cid="${c.id}" data-mon="${mon}">
-    <div class="ph"><label class="check"><input type="checkbox" id="pl-todos" aria-label="Seleccionar todos"> Seleccionar todos</label>
+    <div class="ph"><div class="row"><label class="check"><input type="checkbox" id="pl-todos" aria-label="Seleccionar todos"> Seleccionar todos</label>
+      <label class="check pl-cobrapun-l" title="Destildalo para no cobrar punitorios en este recibo"><input type="checkbox" id="pl-cobrapun" checked> Cobrar punitorios</label></div>
       <div class="row"><button type="button" class="btn small" data-atrasar="${c.id}">← Atrasar período</button><button type="button" class="btn small" data-adelantar="${c.id}">Adelantar período →</button></div></div>
     <div class="tw"><table class="planilla"><thead><tr><th></th><th>Fecha</th><th>Descripción</th><th class="num">Saldo</th><th>A cobrar</th><th>Punitorios</th><th>Adm.</th><th class="num">Total</th><th></th></tr></thead>
     <tbody>${filas.join("") || `<tr><td colspan="9"><div class="empty">No hay renglones pendientes. Podés adelantar el período si el inquilino paga por adelantado.</div></td></tr>`}</tbody></table></div>
@@ -964,7 +965,8 @@ function repartirACuenta(f) {
     const si = +(r.dataset.inq ?? 1); if (si !== 1) { if (si === -1) r.querySelector(".pl-monto").value = saldoDe(r); continue; }
     const pIn = r.querySelector(".pl-pun"), mIn = r.querySelector(".pl-monto");
     if (pIn.dataset.orig == null) pIn.dataset.orig = pIn.value;
-    const pu = Math.min(r2(+pIn.dataset.orig || 0), Math.max(0, resto)); resto = r2(resto - pu);
+    const cobraPun = f.querySelector("#pl-cobrapun")?.checked !== false;
+    const pu = cobraPun ? Math.min(r2(+pIn.dataset.orig || 0), Math.max(0, resto)) : 0; resto = r2(resto - pu);
     const m = Math.min(saldoDe(r), Math.max(0, resto)); resto = r2(resto - m);
     pIn.value = pu; mIn.value = m;
   }
@@ -1001,7 +1003,7 @@ function planillaTotal() {
   if (acu !== "" && acu != null) {
     const f = x.f; let full = 0;
     for (const r of f.querySelectorAll("tr[data-cargo]")) { if (!r.querySelector(".pl-sel").checked) continue; const si = +(r.dataset.inq ?? 1);
-      const g = (S.cg.get(+f.dataset.cid) || []).find((y) => y.id === +r.dataset.cargo); full += si * (g ? +g.saldo : 0) + (si === 1 ? +(r.querySelector(".pl-pun").dataset.orig ?? r.querySelector(".pl-pun").value) || 0 : 0); }
+      const g = (S.cg.get(+f.dataset.cid) || []).find((y) => y.id === +r.dataset.cargo); full += si * (g ? +g.saldo : 0) + (si === 1 && $("#pl-cobrapun")?.checked !== false ? +(r.querySelector(".pl-pun").dataset.orig ?? r.querySelector(".pl-pun").value) || 0 : 0); }
     for (const k of x.extras) full += k.inquilino * k.monto;
     $("#pl-resumen").innerHTML = `<div class="linea"><span>Monto a abonar (todo lo tildado)</span><span class="mono">${money(full, c)}</span></div>
     <div class="total-line"><span>Entrega a cuenta</span><span class="mono">${money(total, c)}</span></div>
@@ -2005,7 +2007,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611271410");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611271416");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -2057,7 +2059,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611271410");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611271416");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -2360,6 +2362,13 @@ document.addEventListener("change", async (ev) => {
   if (t.id === "nc-inicio" || t.id === "nc-duracion") { const f = $("#f-nuevo"); if (f.duracion.value !== "otra" && f.inicio.value) f.fin.value = isoMas(f.inicio.value, +f.duracion.value, -1); nuevoResumen(); }
   if (t.id === "nc-fin") { const f = $("#f-nuevo"); f.duracion.value = "otra"; }
   if (t.id === "nc-indice") { const f = $("#f-nuevo"); f.ajuste_meses.value = AJUSTE_DEF[t.value] || 12; nuevoResumen(); }
+  if (t.id === "pl-cobrapun") {           // cobrar o no los punitorios en este recibo
+    for (const pIn of document.querySelectorAll("#f-planilla .pl-pun")) {
+      if (!t.checked) { pIn.dataset.sug = pIn.dataset.orig ?? pIn.value; pIn.value = 0; pIn.disabled = true; }
+      else { if (pIn.dataset.sug != null) { pIn.value = pIn.dataset.sug; if (pIn.dataset.orig != null) pIn.dataset.orig = pIn.dataset.sug; delete pIn.dataset.sug; } pIn.disabled = false; }
+    }
+    planillaTotal(); return;
+  }
   if (t.id === "pl-todos") { document.querySelectorAll("#f-planilla .pl-sel").forEach((x) => (x.checked = t.checked)); planillaTotal(); }
   if (t.id === "lp-todos") { document.querySelectorAll("#f-liqprop .lp-sel").forEach((x) => (x.checked = t.checked)); liqPropTotal(); }
   if (t.closest && (t.closest("#f-planilla") || t.closest("#f-liqprop"))) { planillaTotal(); liqPropTotal(); }

@@ -2,7 +2,7 @@
 // Cada persona del equipo elige su color, modo claro/oscuro, tamaño de letra, qué ve en el menú lateral y en qué orden.
 // Se guarda en la base (tabla preferencias_staff, una fila por usuario) y una copia en el navegador para que
 // al abrir el sistema se vea enseguida con su personalización.
-import { esc, toast, abrirModal } from "./comun.js?v=202611271410";
+import { esc, toast, abrirModal } from "./comun.js?v=202611271416";
 
 export const COLORES = [
   ["#7a1f2e", "Bordó (original)"], ["#a3355f", "Frambuesa"], ["#a14a1f", "Terracota"], ["#8a6a12", "Mostaza"],
