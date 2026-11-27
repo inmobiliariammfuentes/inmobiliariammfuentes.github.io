@@ -1,6 +1,6 @@
 // Cobranza Fuentes · funciones compartidas entre el sistema de gestión y el portal
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611271422";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js?v=202611271427";
 
 // El sistema del equipo y el portal guardan la sesión por separado: entrar al portal con un DNI
 // en la compu de la oficina no cierra la sesión del sistema de gestión.
@@ -340,6 +340,14 @@ export function lineasRecibo(p) {
   const lineas = aCuenta ? ls.map((k) => ({ ...k, concepto: String(k.concepto || "").replace(/^(Pago parcial s\/)+/i, ""), monto: k.saldo != null ? +k.saldo : +k.monto })) : ls;
   const aAbonar = r2(ls.reduce((s, k) => s + signoInq(k) * (k.saldo != null ? +k.saldo : +k.monto) + (+k.punitorio || 0), 0));
   return { lineas, aCuenta, aAbonar, abonado: +p.total, saldo: Math.max(0, r2(aAbonar - p.total)) };
+}
+
+// imprimir un PDF armado con jsPDF sin descargarlo: se abre el cuadro de impresión del navegador
+export function imprimirPdf(doc) {
+  const url = doc.output("bloburl"), f = document.createElement("iframe");
+  f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden";
+  f.onload = () => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch { window.open(url, "_blank"); } setTimeout(() => { f.remove(); URL.revokeObjectURL(url); }, 60000); };
+  f.src = url; document.body.appendChild(f);
 }
 
 /* Recibo: página 1 original, página 2 copia */
