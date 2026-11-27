@@ -4,18 +4,18 @@ import {
   estadoContrato, ESTADOS, contratoActivo, ultimoPeriodo, ajustesValidos, montoEn, comisionDe, deuda, deudaCargos, divisionLineas, division, proximoAjuste,
   toast, abrirModal, cerrarModal, copiar, mensajeError, wa, normCel, fmtCel, rutaArchivo, achicarImagen, verArchivo, ETIQUETA_ARCHIVO, ARCHIVOS_OK,
   pdfRecibo, pdfLiquidacion, pdfAumentos, lineasRecibo, alternarTema, botonTema, LOGO_URL, esUSD, serviciosControl, SERVICIOS_SUG, FRECUENCIAS,
-} from "./comun.js?v=202611271416";
-import { iniciarChat } from "./chat.js?v=202611271416";
-import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611271416";
-import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611271416";
-import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611271416";
-import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611271416";
-import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611271416";
-import { iniciarCalculadora } from "./calculadora.js?v=202611271416";
-import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611271416";
-import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611271416";
-import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611271416";
-import { cargarIndices, calcularAumento, calcularDesdeInicio, indiceAutomatico, FUENTES } from "./indices.js?v=202611271416";
+} from "./comun.js?v=202611271422";
+import { iniciarChat } from "./chat.js?v=202611271422";
+import { alternarFlotante, iniciarFlotante } from "./flotante.js?v=202611271422";
+import { revisarDatos, vistaCalidad, corregiblesFormato, csvCalidad } from "./calidad.js?v=202611271422";
+import { modoMovil, esCelularReal, VISTAS_MOVIL, barraMovil, vistaBuscar, htmlRecibos, elegirVersion, mostrarInstalarGestion } from "./movil.js?v=202611271422";
+import { iniciarIntercom, alternarIntercom } from "./intercom.js?v=202611271422";
+import { cargarPerso, perso, persoTema, salirPerso, vistasVisibles, abrirPersonalizar } from "./personalizar.js?v=202611271422";
+import { iniciarCalculadora } from "./calculadora.js?v=202611271422";
+import { redondear, redondearCalculo, controlRedondeo, imagenAumento, imagenDetalle, textoDetalle, textoAumento, enviarImagen, modalImagenHtml, calculadoraHtml, progresion, resultadoHtml } from "./aumentos.js?v=202611271422";
+import { vDocumentos, montarDocumentos, abrirRenovacion as docRenovacion, tabDocumentos } from "./documentos.js?v=202611271422";
+import { leerTextoWord, detectarDatos, claveDireccion } from "./contrato-word.js?v=202611271422";
+import { cargarIndices, calcularAumento, calcularDesdeInicio, indiceAutomatico, FUENTES } from "./indices.js?v=202611271422";
 
 const $ = (s) => document.querySelector(s);
 // usuarios del equipo sin email: "lucia" se guarda como lucia@equipo.inmobiliariammfuentes.com
@@ -202,7 +202,10 @@ function render() {
   const v = { "m-buscar": vMBuscar, inicio: vInicio, revisar: vRevisar, contratos: vContratos, cobrar: vCobrar, morosos: vMorosos, ajustes: vAjustes,
     servicios: vServicios, caja: vCaja, personas: vPersonas, config: vConfig, planilla: vPlanilla, liqprop: vLiqProp, nuevo: vNuevo, contrato: vContrato, documentos: vDocumentos }[S.view] || vInicio;
   $("#main").innerHTML = v();
-  if (S.view === "planilla" && S.plTab === "planilla") planillaTotal();
+  if (S.view === "planilla" && (S.plTab === "planilla" || S.plTab === "particular")) {
+    if (S.plTab === "particular") { const box = $("#pl-conceptos .filas"); if (box && !box.children.length) { box.insertAdjacentHTML("beforeend", filaConcepto()); box.lastElementChild.querySelector("input").focus(); box.closest(".conceptos")?.scrollIntoView({ block: "center" }); } }
+    planillaTotal();
+  }
   if (S.view === "planilla" && S.plTab === "envios") cargarDocsPlanilla();
   if (S.view === "planilla" && S.plTab === "spot") cargarHistorialSpot();
   if (S.view === "documentos") montarDocumentos(ctxDocs());
@@ -886,23 +889,23 @@ function abrirPlanilla(cid, eid) {
   S.pl = { cid: +cid, eid: eid ? +eid : null, volver: S.view, mon: null }; S.plTab = "planilla"; S.view = "planilla"; cerrarModal(); render(); scrollTo(0, 0);
 }
 function vPlanilla() {
+  // pantalla de cobro con el mismo orden que SPOT: datos del inquilino arriba, renglones, notas y la barra de totales abajo
   const c = S.contratos.get(S.pl.cid); if (!c) return `<div class="empty">Contrato no encontrado.</div>`;
   const e = S.pl.eid ? S.envios.find((x) => x.id === S.pl.eid) : null;
-  const t = (k, l) => `<button data-pltab="${k}" aria-selected="${S.plTab === k}">${l}</button>`;
-  const cab = `<div class="head"><div><h1>Cobranza</h1><p><b>${esc(inq(c))}</b> · Carpeta ${c.carpeta || "—"} · ${esc(c.direccion)}${chipUSD(c)}</p>
-    <p class="muted">Paga hasta el día ${c.dia_vto || S.cfg.dia_vto} · ${S.cfg.dias_gracia} días de tolerancia · Honorarios ${comisionDe(c, S.cfg)}% · ${formaDe(c)}</p></div>
-    <div class="row"><button class="btn" data-volver>Volver</button><button class="btn" data-ficha="${c.id}">Ficha del contrato</button><button class="btn" data-liqprop="${c.propietario_id}">Liquidación de ${esc(prop(c).split(",")[0])}</button></div></div>
-    ${(() => { const a = aumentoDe(c); if (!a || a.p > ymHoy()) return "";
+  const t = (k, l, extra = "") => `<button data-pltab="${k}" aria-selected="${S.plTab === k}"${extra}>${l}</button>`;
+  const aum = (() => { const a = aumentoDe(c); if (!a || a.p > ymHoy()) return "";
       return `<div class="banner aum-banner"><b>Corresponde aumento desde ${periodo(a.p)}</b> (${esc(c.indice)} cada ${c.ajuste_meses} meses) y todavía no está cargado. ${a.calc && !a.calc.error ? `Calculado: <b>${money(a.calc.nuevo, c)}</b> (+${String(a.calc.pct).replace(".", ",")}%${a.calc.estimado ? ", estimado" : ""}).` : ""}
-        <span class="row" style="margin-top:6px">${a.calc && !a.calc.error ? `<button class="btn small primary" data-aplicaraumento="${c.id}">Aplicar aumento</button>` : ""}<button class="btn small" data-ajustar="${c.id}">Modificar</button></span></div>`; })()}
-    <div class="tabs" role="tablist">${t("planilla", "Planilla de cobro")}${t("conceptos", "Conceptos fijos")}${t("envios", "Comprobantes del portal")}${t("spot", "Historial de SPOT")}</div>`;
+        <span class="row" style="margin-top:6px">${a.calc && !a.calc.error ? `<button class="btn small primary" data-aplicaraumento="${c.id}">Aplicar aumento</button>` : ""}<button class="btn small" data-ajustar="${c.id}">Modificar</button></span></div>`; })();
+  const cab = `<div class="row sp-top"><button class="btn" data-volver>← Volver</button><span class="grow"></span><button class="btn small" data-ficha="${c.id}">Ficha del contrato</button><button class="btn small" data-liqprop="${c.propietario_id}">Liquidación de ${esc(prop(c).split(",")[0])}</button></div>
+    ${aum}
+    <div class="sp-tabs" role="tablist">${t("planilla", "Datos Principales")}${t("conceptos", "Conceptos Extras")}${t("envios", "Comprobantes")}${t("particular", "Concepto Particular")}${t("spot", "Historial de SPOT")}</div>`;
   if (S.plTab === "spot") return cab + `<section class="panel" id="hist-spot"><h2>Historial de SPOT</h2><p class="muted">Recibos y liquidaciones de este contrato hechos en SPOT (copia guardada al dejar SPOT).</p><div class="empty">Cargando…</div></section>`;
   if (S.plTab === "conceptos") return cab + vConceptosFijos(c);
   if (S.plTab === "envios") return cab + vEnviosContrato(c);
   // un recibo es de una sola moneda: si hay conceptos en la otra moneda, se cobran aparte
   const mon = !e && S.pl.mon ? S.pl.mon : monC(c), otra = mon === "USD" ? "ARS" : "USD", cm = conMon(c, mon);
   const d = deudaDe(c, mon), hasta = e ? e.periodo : ymHoy(), nOtra = deudaDe(c, otra).reduce((s, x) => s + x.cargos.length, 0);
-  const selMon = e ? "" : `<div class="row pl-mon"><div class="seg" role="group" aria-label="Moneda del recibo"><button type="button" data-plmon="ARS" aria-pressed="${mon === "ARS"}">Cobrar en pesos</button><button type="button" data-plmon="USD" aria-pressed="${mon === "USD"}">Cobrar en dólares</button></div>${nOtra ? `<span class="chip warn">${nOtra} concepto${nOtra === 1 ? "" : "s"} pendiente${nOtra === 1 ? "" : "s"} en ${otra === "USD" ? "dólares" : "pesos"}</span>` : `<span class="muted">${mon !== monC(c) ? "Este recibo sale en " + (mon === "USD" ? "dólares (US$)" : "pesos") + ". Agregá abajo el concepto (ej.: diferencia de depósito)." : "Para un concepto en otra moneda (ej.: diferencia de depósito en US$) elegí la moneda acá."}</span>`}</div>`;
+  const sim = mon === "USD" ? "US$" : "ARS";
   const filas = [];
   for (const x of d) {
     let puesto = false;
@@ -910,78 +913,95 @@ function vPlanilla() {
       const pu = !puesto && g.tipo === "alquiler" ? x.punitorio : 0; if (g.tipo === "alquiler") puesto = true;
       const parcial = +g.saldo < +g.monto - 0.009;
       const si = g.inquilino ?? 1;
+      const cuenta = g.tipo === "alquiler" ? "Alquiler" : g.tipo === "concepto" ? "Concepto" : "Particular";
       filas.push(`<tr data-cargo="${g.id}" data-prop="${g.propietario}" data-inq="${si}" data-per="${x.p}" data-vto="${x.vto}" data-dias="${x.vencido && !x.enTolerancia ? x.dias : 0}" data-tipo="${g.tipo}"${x.bonificado ? " data-bonif" : ""}>
-        <td><input type="checkbox" class="pl-sel" aria-label="Cobrar este renglón" ${x.p <= hasta ? "checked" : ""}></td>
+        <td><button type="button" class="pl-borrar" data-borrarcargo="${g.id}" title="Borrar este renglón (si está mal cargado)" aria-label="Borrar ${esc(g.descripcion)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4zM6 9h12l-1 12H7z" fill="currentColor"/></svg></button></td>
         <td class="num">${fechaPer(x.p)}</td>
-        <td>${parcial ? `<span class="chip warn">Saldo s/</span> ` : ""}${esc(g.descripcion)}${g.tipo !== "alquiler" ? ` <button type="button" class="pl-edit" data-editcargo="${g.id}" title="Cambiar el importe de este concepto" aria-label="Cambiar el importe de ${esc(g.descripcion)}">✎ Editar importe</button>` : ""}${si === -1 ? ' <span class="chip acc">Resta al inquilino</span>' : si === 0 ? ' <span class="chip">No afecta al inquilino</span>' : ""}${g.propietario === 0 ? ' <span class="chip">No va al propietario</span>' : g.propietario === -1 ? ' <span class="chip">Resta al propietario</span>' : ""}${x.vencido && g.tipo === "alquiler" ? (x.enTolerancia ? ' <span class="chip warn">En tolerancia</span>' : ` <span class="chip bad">${x.dias} días</span>`) : ""}</td>
-        <td class="num">${si === -1 ? "− " : ""}${money(g.saldo, cm)}</td>
-        <td><input type="number" class="pl-monto" step="0.01" min="0" max="${g.saldo}" value="${g.saldo}" aria-label="Importe a cobrar"></td>
-        <td>${g.tipo === "alquiler" ? `<input type="number" class="pl-pun" step="0.01" min="0" value="${pu}" aria-label="Punitorio" title="${x.punitorioSugerido ? "Sugerido " + money(x.punitorioSugerido, cm) : ""}">` : `<input type="number" class="pl-pun" step="0.01" min="0" value="0" aria-label="Punitorio">`}</td>
+        <td>${cuenta}</td>
+        <td>${parcial ? "Saldo s/" : ""}${esc(g.descripcion)}${g.tipo !== "alquiler" ? ` <button type="button" class="pl-lapiz" data-editcargo="${g.id}" title="Cambiar el importe de este concepto (también los meses que siguen)" aria-label="Editar ${esc(g.descripcion)}">✎</button>` : ""}${si === -1 ? ' <span class="chip acc">Resta al inquilino</span>' : si === 0 ? ' <span class="chip">No afecta al inquilino</span>' : ""}${g.propietario === 0 ? ' <span class="chip">No va al propietario</span>' : g.propietario === -1 ? ' <span class="chip">Resta al propietario</span>' : ""}${x.vencido && g.tipo === "alquiler" ? (x.enTolerancia ? ' <span class="chip warn">En tolerancia</span>' : ` <span class="chip bad">${x.dias} días</span>`) : ""}</td>
+        <td style="text-align:center"><input type="checkbox" disabled ${parcial ? "checked" : ""} aria-label="Es saldo de un pago anterior" title="${parcial ? "Saldo de un pago parcial anterior (total original " + money(g.monto, cm) + ")" : ""}"></td>
+        <td class="pl-mcel">${si === -1 ? "− " : ""}<span class="pl-mtxt">${money(g.saldo, cm)}</span><input type="number" class="pl-monto" step="0.01" min="0" max="${g.saldo}" value="${g.saldo}" hidden aria-label="Importe a cobrar"><button type="button" class="pl-lapiz" data-editmonto title="Cobrar otro importe en este renglón" aria-label="Cambiar el importe a cobrar">✎</button></td>
+        <td class="pl-pcel"><input type="number" class="pl-pun" step="0.01" min="0" value="${pu}" aria-label="Punitorio" title="${x.punitorioSugerido ? "Sugerido " + money(x.punitorioSugerido, cm) : ""}"><input type="checkbox" class="pl-punchk" ${+pu > 0 ? "checked" : ""} aria-label="Cobrar punitorio de este renglón"></td>
         <td style="text-align:center"><input type="checkbox" class="pl-adm" aria-label="Aplica administración" ${g.admin ? "checked" : ""}></td>
-        <td class="num pl-tot"></td><td><button type="button" class="x pl-borrar" data-borrarcargo="${g.id}" title="Borrar este renglón (si está mal cargado)" aria-label="Borrar ${esc(g.descripcion)}">×</button></td></tr>`);
+        <td class="num"><span class="pl-tot"></span> <input type="checkbox" class="pl-sel" aria-label="Cobrar este renglón" ${x.p <= hasta ? "checked" : ""}></td></tr>`);
     }
   }
   const banner = e ? `<section class="panel"><div class="ph"><div><b>Envío del portal · ${periodo(e.periodo)}</b><div class="muted">Enviado el ${fecha(e.created_at)} · declaró ${money(e.monto_propietario, c)} al propietario y ${money(e.monto_inmobiliaria, c)} a la inmobiliaria</div></div><button class="btn danger" data-rechazar="${e.id}">Rechazar</button></div>
       ${e.observaciones ? `<div><span class="muted">Observaciones:</span> ${esc(e.observaciones)}</div>` : ""}
       <div class="files">${(S.archEnvio.get(e.id) || []).map((a) => `<button class="file" data-archivo="${esc(a.path)}">📄 ${esc(ETIQUETA_ARCHIVO[a.categoria])}${a.servicio ? " · " + esc(a.servicio) : ""}</button>`).join("") || `<span class="muted">Sin archivos.</span>`}</div></section>` : "";
-  return cab + banner + `
-  ${selMon}
-  <form id="f-planilla" class="panel" data-cid="${c.id}" data-mon="${mon}">
-    <div class="ph"><div class="row"><label class="check"><input type="checkbox" id="pl-todos" aria-label="Seleccionar todos"> Seleccionar todos</label>
-      <label class="check pl-cobrapun-l" title="Destildalo para no cobrar punitorios en este recibo"><input type="checkbox" id="pl-cobrapun" checked> Cobrar punitorios</label></div>
-      <div class="row"><button type="button" class="btn small" data-atrasar="${c.id}">← Atrasar período</button><button type="button" class="btn small" data-adelantar="${c.id}">Adelantar período →</button></div></div>
-    <div class="tw"><table class="planilla"><thead><tr><th></th><th>Fecha</th><th>Descripción</th><th class="num">Saldo</th><th>A cobrar</th><th>Punitorios</th><th>Adm.</th><th class="num">Total</th><th></th></tr></thead>
-    <tbody>${filas.join("") || `<tr><td colspan="9"><div class="empty">No hay renglones pendientes. Podés adelantar el período si el inquilino paga por adelantado.</div></td></tr>`}</tbody></table></div>
-    ${bloqueConceptos("pl", true)}
-    <div class="form">
-      <label>Fecha de cobro<input type="date" id="pl-fecha" name="fecha" value="${e ? e.created_at.slice(0, 10) : isoHoy()}" required></label>
-      ${!e && c.forma_pago === "propietario" ? `<label>¿Quién recibió el pago?<select id="pl-modalidad" name="modalidad"><option value="propietario">El propietario (el inquilino le pagó a él)</option><option value="inmobiliaria">La inmobiliaria</option></select></label>` : ""}
-      <label>Medio de pago<select id="pl-medio" name="medio">${MEDIOS.map((m) => `<option ${(e || c.forma_pago === "propietario") && m === "Transferencia" ? "selected" : ""}>${m}</option>`).join("")}</select></label>
-      <label class="full pl-acuenta-l">Entrega a cuenta (si no paga el total)<input type="number" step="0.01" min="0" id="pl-acuenta" name="acuenta" placeholder="Dejalo vacío si paga todo" inputmode="decimal">
-        <span class="muted" style="font-size:13px">Poné lo que trajo: el recibo sale con todos los conceptos y su total, lo que abonó a cuenta y el saldo que queda debiendo.</span></label>
-      <label class="full">Observaciones (salen en el recibo)<input type="text" id="pl-obs" name="obs" value="${esc(e?.observaciones || "")}"></label>
-    </div>
-    <div class="resumen" id="pl-resumen"></div>
-    ${(() => { const ps = pgDe(c), hace30 = ymSumar(ymHoy(), -1) + isoHoy().slice(7);
+  const reusar = (() => { const ps = pgDe(c), hace30 = ymSumar(ymHoy(), -1) + isoHoy().slice(7);
       // el recibo eliminado hace poco (y todavía no regenerado) cuyo número se puede volver a usar
       const el = ps.filter((p) => p.anulado && +p.recibo_nro >= 1000 && +p.recibo_nro < 1000000 && p.fecha >= hace30).sort((a, b) => b.recibo_nro - a.recibo_nro)[0];
-      return el && !ps.some((p) => !p.anulado && +p.recibo_nro > +el.recibo_nro) ? `<label class="check pl-reusar"><input type="checkbox" name="reusar" value="${el.recibo_nro}" checked> Usar el número <b>N° ${pad5(el.recibo_nro)}</b> del recibo eliminado (${fecha(el.fecha)} · ${money(el.total, c)})</label>` : ""; })()}
-    <div class="row"><button class="btn primary" type="submit" id="pl-ok">${e ? "Aprobar y enviar recibo" : "Confirmar pago"}</button><button class="btn" type="button" data-volver>Cancelar</button><button class="btn pl-detimg" type="button" data-a="detalle-img" title="Imagen con todo lo que tiene que pagar, para mandar por WhatsApp">Imagen del detalle a pagar</button></div>
+      return el && !ps.some((p) => !p.anulado && +p.recibo_nro > +el.recibo_nro) ? `<label class="check pl-reusar"><input type="checkbox" name="reusar" value="${el.recibo_nro}" checked> Usar el número <b>N° ${pad5(el.recibo_nro)}</b> del recibo eliminado (${fecha(el.fecha)} · ${money(el.total, c)})</label>` : ""; })();
+  return cab + banner + `
+  <form id="f-planilla" class="sp-form" data-cid="${c.id}" data-mon="${mon}">
+    <section class="panel sp-datos">
+      <div class="sp-datos-izq">
+        <p><b>Inquilino:</b> ${esc(inq(c))} <span class="sp-sep">|</span> <b>Carpeta:</b> ${c.carpeta || "—"} <span class="sp-sep">|</span> <b>Propiedad:</b> ${esc(c.direccion)}${chipUSD(c)}</p>
+        <p><b>Días de gracia:</b> ${S.cfg.dias_gracia} <span class="sp-sep">|</span> <b>Paga hasta el día:</b> ${c.dia_vto || S.cfg.dia_vto} <span class="sp-sep">|</span> <b>Honorarios:</b> ${comisionDe(c, S.cfg)}% <span class="sp-sep">|</span> ${formaDe(c)}</p>
+        ${nOtra ? `<p><span class="chip warn">${nOtra} concepto${nOtra === 1 ? "" : "s"} pendiente${nOtra === 1 ? "" : "s"} en ${otra === "USD" ? "dólares" : "pesos"}</span></p>` : ""}
+        <div class="sp-checks">
+          ${e ? "" : `<label class="check"><input type="checkbox" data-plmon="ARS" ${mon === "ARS" ? "checked" : ""}> Conceptos en Pesos</label>
+          <label class="check"><input type="checkbox" data-plmon="USD" ${mon === "USD" ? "checked" : ""}> Conceptos en Dólares</label>`}
+          <label class="check"><input type="checkbox" id="pl-cobrapun" checked> Seleccionar todos los punitorios</label>
+          <label class="check"><input type="checkbox" id="pl-todos"> Seleccionar todos</label>
+        </div>
+      </div>
+      <div class="sp-datos-der">
+        <label>Fecha de alta<input type="date" id="pl-fecha" name="fecha" value="${e ? e.created_at.slice(0, 10) : isoHoy()}" required></label>
+        <label>Medio de pago<select id="pl-medio" name="medio">${MEDIOS.map((m) => `<option ${(e || c.forma_pago === "propietario") && m === "Transferencia" ? "selected" : ""}>${m}</option>`).join("")}</select></label>
+        ${!e && c.forma_pago === "propietario" ? `<label>¿Quién recibió el pago?<select id="pl-modalidad" name="modalidad"><option value="propietario">El propietario</option><option value="inmobiliaria">La inmobiliaria</option></select></label>` : ""}
+      </div>
+    </section>
+    <section class="panel sp-tabla">
+      <div class="tw"><table class="planilla sp-planilla"><thead><tr><th></th><th>Fecha</th><th>Cuenta</th><th>Descripción</th><th>Saldo</th><th>Monto</th><th>Punitorios</th><th>Adm.</th><th class="num">Total</th></tr></thead>
+      <tbody>${filas.join("") || `<tr><td colspan="9"><div class="empty">No hay renglones pendientes. Podés adelantar el período si el inquilino paga por adelantado.</div></td></tr>`}</tbody></table></div>
+      ${bloqueConceptos("pl", true)}
+    </section>
+    <section class="panel sp-notas">
+      <label>NOTAS<input type="text" id="pl-obs" name="obs" maxlength="200" value="${esc(e?.observaciones || "")}"></label>
+      <p class="muted">Hasta 200 caracteres. Salen en el recibo.</p>
+      ${reusar}
+    </section>
+    <div class="sp-barra">
+      <div class="sp-tots">
+        <label>TOTAL A ABONAR (${sim})<output id="pl-t-abonar" class="sp-caja"></output></label>
+        <label>TOTAL PUNITORIOS (${sim})<output id="pl-t-pun" class="sp-caja"></output></label>
+        <label>TOTAL ABONADO (${sim})<input type="number" step="0.01" min="0" id="pl-acuenta" name="acuenta" class="sp-caja sp-abonado" inputmode="decimal" title="Si trae menos del total, poné lo que trajo: queda a cuenta y el resto como saldo"></label>
+        <label>SALDO (${sim})<output id="pl-t-saldo" class="sp-caja"></output></label>
+      </div>
+      <div class="resumen sp-resumen" id="pl-resumen"></div>
+      <div class="row sp-botones">
+        <button class="btn" type="button" data-volver>⌂ Volver al Menú</button><span class="grow"></span>
+        <button type="button" class="btn" data-atrasar="${c.id}">← Atrasar Período</button>
+        <button class="btn" type="button" data-a="detalle-img" title="Detalle de lo que tiene que pagar, para imprimir o mandar por WhatsApp">🖨 Solo Imprimir</button>
+        <button type="button" class="btn" data-adelantar="${c.id}">Adelantar Período →</button>
+        <button class="btn primary" type="submit" id="pl-ok">✓ ${e ? "Aprobar y enviar recibo" : "Confirmar Pago"}</button>
+      </div>
+    </div>
   </form>`;
 }
-// pago a cuenta: lo que trae el inquilino se aplica en orden a los renglones tildados (primero punitorios, después el importe)
-function repartirACuenta(f) {
-  const v = f.querySelector("#pl-acuenta")?.value;
-  if (v === "" || v == null) {           // se borró la entrega: vuelve todo a su importe completo
-    for (const r of f.querySelectorAll("tr[data-cargo]")) { const pIn = r.querySelector(".pl-pun"); if (pIn.dataset.orig == null) continue;
-      const g = (S.cg.get(+f.dataset.cid) || []).find((x) => x.id === +r.dataset.cargo); pIn.value = pIn.dataset.orig; delete pIn.dataset.orig; if (g) r.querySelector(".pl-monto").value = g.saldo; }
-    return false;
-  }
-  const rows = [...f.querySelectorAll("tr[data-cargo]")].filter((r) => r.querySelector(".pl-sel").checked);
-  const saldoDe = (r) => { const g = (S.cg.get(+f.dataset.cid) || []).find((x) => x.id === +r.dataset.cargo); return g ? +g.saldo : 0; };
-  let resto = r2(+v || 0);
-  for (const r of rows) if (+(r.dataset.inq ?? 1) === -1) resto += saldoDe(r);     // los descuentos se aplican siempre
-  for (const r of rows) {
-    const si = +(r.dataset.inq ?? 1); if (si !== 1) { if (si === -1) r.querySelector(".pl-monto").value = saldoDe(r); continue; }
-    const pIn = r.querySelector(".pl-pun"), mIn = r.querySelector(".pl-monto");
-    if (pIn.dataset.orig == null) pIn.dataset.orig = pIn.value;
-    const cobraPun = f.querySelector("#pl-cobrapun")?.checked !== false;
-    const pu = cobraPun ? Math.min(r2(+pIn.dataset.orig || 0), Math.max(0, resto)) : 0; resto = r2(resto - pu);
-    const m = Math.min(saldoDe(r), Math.max(0, resto)); resto = r2(resto - m);
-    pIn.value = pu; mIn.value = m;
-  }
-  return true;
-}
+// Lee la planilla. Si en "Total abonado" se puso menos que el total, lo que trajo se aplica en orden a los renglones
+// tildados (primero el punitorio, después el importe; los descuentos siempre) y el recibo sale "a cuenta".
 function leerPlanilla() {
   const f = $("#f-planilla"); if (!f) return null;
-  const aCuenta = repartirACuenta(f);
-  const items = [...f.querySelectorAll("tr[data-cargo]")].map((r) => {
-    const sel = r.querySelector(".pl-sel").checked, m = r2(r.querySelector(".pl-monto").value), pu = r2(r.querySelector(".pl-pun").value), adm = r.querySelector(".pl-adm").checked;
-    const si = +(r.dataset.inq ?? 1);
-    r.querySelector(".pl-tot").textContent = sel ? (si === -1 ? "− " : "") + money(si === 0 ? pu : m + pu, conMon(S.contratos.get(+f.dataset.cid), f.dataset.mon)) : "—"; r.classList.toggle("apagado", !sel);
-    return sel ? { cargo_id: +r.dataset.cargo, monto: m, punitorio: pu, admin: adm, propietario: +r.dataset.prop, inquilino: si, ...(aCuenta ? { mostrar: true } : {}) } : null;
+  const cm = conMon(S.contratos.get(+f.dataset.cid), f.dataset.mon);
+  const rows = [...f.querySelectorAll("tr[data-cargo]")].map((r) => ({ r, sel: r.querySelector(".pl-sel").checked, si: +(r.dataset.inq ?? 1),
+    m: r2(r.querySelector(".pl-monto").value), pu: r2(r.querySelector(".pl-pun").value), adm: r.querySelector(".pl-adm").checked }));
+  const extras = leerConceptos(f);
+  const full = r2(rows.filter((x) => x.sel).reduce((s, x) => s + x.si * x.m + (x.si === 1 ? x.pu : 0), 0) + extras.reduce((s, k) => s + k.inquilino * k.monto, 0));
+  const ab = f.querySelector("#pl-acuenta"), tocado = ab && ab.dataset.tocado === "1" && ab.value !== "";
+  const aCuenta = tocado && +ab.value < full - 0.009;
+  if (aCuenta) {
+    let resto = r2(+ab.value || 0) - extras.reduce((s, k) => s + k.inquilino * k.monto, 0);
+    for (const x of rows) if (x.sel && x.si === -1) resto += x.m;
+    for (const x of rows) { if (!x.sel || x.si !== 1) continue; const pu = Math.min(x.pu, Math.max(0, resto)); resto = r2(resto - pu); const m = Math.min(x.m, Math.max(0, resto)); resto = r2(resto - m); x.m = m; x.pu = pu; }
+  }
+  const items = rows.map((x) => {
+    x.r.querySelector(".pl-tot").textContent = x.sel ? (x.si === -1 ? "− " : "") + money(x.si === 0 ? x.pu : x.m + x.pu, cm) : "—"; x.r.classList.toggle("apagado", !x.sel);
+    return x.sel ? { cargo_id: +x.r.dataset.cargo, monto: x.m, punitorio: x.pu, admin: x.adm, propietario: +x.r.dataset.prop, inquilino: x.si, ...(aCuenta ? { mostrar: true } : {}) } : null;
   }).filter(Boolean);
-  return { f, items, extras: leerConceptos(f) };
+  return { f, items, extras, full, aCuenta, punFull: r2(rows.filter((x) => x.sel && x.si === 1).reduce((s, x) => s + +x.r.querySelector(".pl-pun").value, 0)) };
 }
 // totales de lo tildado en la planilla: total que paga el inquilino, lo que le toca al propietario y los honorarios
 function totalesPlanilla() {
@@ -993,29 +1013,16 @@ function totalesPlanilla() {
 }
 function planillaTotal() {
   const t = totalesPlanilla(); if (!t) return; const { x, c, base, total, prop, hon } = t;
-  const pun = x.items.reduce((s, i) => s + i.punitorio, 0);
+  const num = (n) => money(n, c);
+  const ab = $("#pl-acuenta"); if (ab && ab.dataset.tocado !== "1") ab.value = x.full;
+  if ($("#pl-t-abonar")) $("#pl-t-abonar").textContent = num(x.full);
+  if ($("#pl-t-pun")) $("#pl-t-pun").textContent = num(x.punFull);
+  if ($("#pl-t-saldo")) $("#pl-t-saldo").textContent = num(Math.max(0, x.full - total));
   const alProp = S.pl.eid ? c.forma_pago === "propietario" : $("#pl-modalidad")?.value === "propietario";
-  if (alProp) { $("#pl-resumen").innerHTML = `<div class="total-line"><span>Total que el inquilino le pagó al propietario</span><span class="mono">${money(total, c)}</span></div>
-    <div class="linea"><span>Incluye punitorios</span><span class="mono">${money(pun, c)}</span></div>
-    <div class="linea"><span>Honorarios de administración (${base.pct}%) · se le cobran al propietario en su liquidación</span><span class="mono">${money(hon, c)}</span></div>
-    <div class="linea muted"><span>La inmobiliaria no recibe dinero ahora: hace el recibo y el propietario abona la administración cuando liquida.</span><span></span></div>`; return; }
-  const acu = $("#pl-acuenta")?.value;
-  if (acu !== "" && acu != null) {
-    const f = x.f; let full = 0;
-    for (const r of f.querySelectorAll("tr[data-cargo]")) { if (!r.querySelector(".pl-sel").checked) continue; const si = +(r.dataset.inq ?? 1);
-      const g = (S.cg.get(+f.dataset.cid) || []).find((y) => y.id === +r.dataset.cargo); full += si * (g ? +g.saldo : 0) + (si === 1 && $("#pl-cobrapun")?.checked !== false ? +(r.querySelector(".pl-pun").dataset.orig ?? r.querySelector(".pl-pun").value) || 0 : 0); }
-    for (const k of x.extras) full += k.inquilino * k.monto;
-    $("#pl-resumen").innerHTML = `<div class="linea"><span>Monto a abonar (todo lo tildado)</span><span class="mono">${money(full, c)}</span></div>
-    <div class="total-line"><span>Entrega a cuenta</span><span class="mono">${money(total, c)}</span></div>
-    <div class="linea"><span>Saldo que queda debiendo</span><span class="mono">${money(Math.max(0, full - total), c)}</span></div>
-    ${+acu > full + 0.009 ? `<div class="linea" style="color:var(--bad)"><span>Trae más de lo que debe: el excedente no se cobra (agregalo como concepto o adelantá el período)</span><span></span></div>` : ""}
-    <div class="linea"><span>Honorarios de administración (${base.pct}%) sobre lo cobrado</span><span class="mono">${money(hon, c)}</span></div>
-    <div class="linea"><span>Le corresponde al propietario</span><span class="mono">${money(prop, c)}</span></div>`; return;
-  }
-  $("#pl-resumen").innerHTML = `<div class="total-line"><span>Total a abonar</span><span class="mono">${money(total, c)}</span></div>
-    <div class="linea"><span>Incluye punitorios</span><span class="mono">${money(pun, c)}</span></div>
-    <div class="linea"><span>Honorarios de administración (${base.pct}%)</span><span class="mono">${money(hon, c)}</span></div>
-    <div class="linea"><span>Le corresponde al propietario</span><span class="mono">${money(prop, c)}</span></div>`;
+  const extra = ab && ab.dataset.tocado === "1" && +ab.value > x.full + 0.009 ? ` · <b style="color:var(--bad)">Trae más de lo que debe: el excedente no se cobra (agregalo como concepto o adelantá el período)</b>` : "";
+  $("#pl-resumen").innerHTML = alProp
+    ? `<span class="muted">Lo cobró el propietario: la inmobiliaria hace el recibo y la administración (${base.pct}% · ${num(hon)}) se le descuenta cuando liquida.</span>${extra}`
+    : `<span class="muted">${x.aCuenta ? "Pago a cuenta · " : ""}Honorarios de administración (${base.pct}%): <b>${num(hon)}</b> · Le corresponde al propietario: <b>${num(prop)}</b></span>${extra}`;
 }
 
 const MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
@@ -2007,7 +2014,7 @@ async function leerComprobantes(files) {
       ${hechos === S.lc.length ? `<div class="row"><button class="btn primary" data-a="lc-guardar">Guardar los marcados</button><span class="muted">Solo se completan los datos que el propietario no tiene cargados.</span></div>` : ""}`;
   };
   pintar();
-  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611271416");
+  const { leerComprobante } = await import("./comprobante-ocr.js?v=202611271422");
   const nombresProp = props.map((p) => p.nombre);
   for (const x of S.lc) {
     if (!$("#lc-res")) return;
@@ -2059,7 +2066,7 @@ async function ocrPersona(file) {
   const res = $("#pe-ocr-res"), f = $("#f-persona"); if (!res || !f) return;
   res.innerHTML = `<span class="muted">Leyendo el comprobante…</span>`;
   try {
-    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611271416");
+    const { leerComprobante } = await import("./comprobante-ocr.js?v=202611271422");
     const r = await leerComprobante(file, (p) => { if (res.isConnected) res.innerHTML = `<span class="muted">Leyendo el comprobante… ${p}%</span>`; }, [f.elements.nombre?.value || ""]);
     S.ocrOpc = r.opciones || [];
     const campos = [["cbu", "CBU / CVU", r.cbu], ["alias", "Alias", r.alias], ["titular", "Titular", r.titular], ["banco", "Banco", r.banco]];
@@ -2182,6 +2189,7 @@ document.addEventListener("click", async (ev) => {
     if (d.liqprop) { abrirLiqProp(d.liqprop, d.liqmon); return; }
     if (d.lpmon) { S.lpMon = d.lpmon; render(); return; }
     if (d.plmon) { S.pl.mon = d.plmon; render(); return; }
+    if (d.editmonto !== undefined) { const td = el.closest("td"), i = td.querySelector(".pl-monto"); td.querySelector(".pl-mtxt").hidden = true; i.hidden = false; i.focus(); i.select(); return; }
     if (d.borrarcargo) { const g = [...S.cg.values()].flat().find((x) => x.id === +d.borrarcargo);
       if (!confirmar("¿Borrar?")) return;
       if (await rpc("borrar_cargo", { p_cargo: +d.borrarcargo }, "Renglón borrado")) await recargar(); return; }
@@ -2329,6 +2337,7 @@ document.addEventListener("input", (e) => { if (e.target.id === "pe-tel") { cons
 document.addEventListener("input", (ev) => {
   const t = ev.target;
   if (t.id === "q") { S.q = t.value; S.limite = 150; const pos = t.selectionStart; render(); const n = $("#q"); if (n) { n.focus(); n.setSelectionRange(pos, pos); } return; }
+  if (t.id === "pl-acuenta") t.dataset.tocado = t.value === "" ? "" : "1";
   if (t.closest("#f-planilla")) { planillaTotal(); return; }
   if (t.closest("#f-ct")) {
     if (t.id === "ct-primer") t.dataset.auto = "0";
@@ -2362,13 +2371,14 @@ document.addEventListener("change", async (ev) => {
   if (t.id === "nc-inicio" || t.id === "nc-duracion") { const f = $("#f-nuevo"); if (f.duracion.value !== "otra" && f.inicio.value) f.fin.value = isoMas(f.inicio.value, +f.duracion.value, -1); nuevoResumen(); }
   if (t.id === "nc-fin") { const f = $("#f-nuevo"); f.duracion.value = "otra"; }
   if (t.id === "nc-indice") { const f = $("#f-nuevo"); f.ajuste_meses.value = AJUSTE_DEF[t.value] || 12; nuevoResumen(); }
-  if (t.id === "pl-cobrapun") {           // cobrar o no los punitorios en este recibo
-    for (const pIn of document.querySelectorAll("#f-planilla .pl-pun")) {
-      if (!t.checked) { pIn.dataset.sug = pIn.dataset.orig ?? pIn.value; pIn.value = 0; pIn.disabled = true; }
-      else { if (pIn.dataset.sug != null) { pIn.value = pIn.dataset.sug; if (pIn.dataset.orig != null) pIn.dataset.orig = pIn.dataset.sug; delete pIn.dataset.sug; } pIn.disabled = false; }
-    }
+  if (t.id === "pl-cobrapun" || t.classList?.contains("pl-punchk")) {     // cobrar o no los punitorios (todos o de un renglón)
+    const filas = t.id === "pl-cobrapun" ? [...document.querySelectorAll("#f-planilla tr[data-cargo]")] : [t.closest("tr")];
+    for (const r of filas) { const pIn = r.querySelector(".pl-pun"), chk = r.querySelector(".pl-punchk"); chk.checked = t.checked;
+      if (!t.checked) { if (+pIn.value) pIn.dataset.sug = pIn.value; pIn.value = 0; pIn.disabled = true; }
+      else { if (pIn.dataset.sug != null) pIn.value = pIn.dataset.sug; pIn.disabled = false; } }
     planillaTotal(); return;
   }
+  if (t.dataset?.plmon) { S.pl.mon = t.dataset.plmon; render(); return; }
   if (t.id === "pl-todos") { document.querySelectorAll("#f-planilla .pl-sel").forEach((x) => (x.checked = t.checked)); planillaTotal(); }
   if (t.id === "lp-todos") { document.querySelectorAll("#f-liqprop .lp-sel").forEach((x) => (x.checked = t.checked)); liqPropTotal(); }
   if (t.closest && (t.closest("#f-planilla") || t.closest("#f-liqprop"))) { planillaTotal(); liqPropTotal(); }
@@ -2395,7 +2405,7 @@ document.addEventListener("submit", async (ev) => {
     if (f.id === "f-planilla") {
       const x = leerPlanilla(); if (!x.items.length && !x.extras.length) { toast("Elegí al menos un renglón para cobrar", "bad"); return; }
       const items = x.items.map(({ cargo_id, monto, punitorio, admin, mostrar }) => ({ cargo_id, monto, punitorio, admin, ...(mostrar ? { mostrar } : {}) }));
-      if (f.acuenta?.value !== "" && !(+f.acuenta.value > 0)) { toast("Poné cuánto entrega a cuenta", "bad"); return; }
+      if (f.acuenta?.dataset.tocado === "1" && !(+f.acuenta.value > 0)) { toast("Poné cuánto abonó en «Total abonado»", "bad"); return; }
       const pg = S.pl.eid ? await rpc("aprobar_envio", { p_envio: S.pl.eid, p_items: items, p_extras: x.extras, p_obs: v.obs, p_fecha: v.fecha }, "Aprobado. Se generó el recibo y avisamos al inquilino y al propietario.")
         : await rpc("registrar_cobro", { p_contrato: +f.dataset.cid, p_items: items, p_extras: x.extras, p_fecha: v.fecha, p_medio: v.medio, p_obs: v.obs, p_modalidad: v.modalidad || null }, "Pago confirmado");
       const c0 = S.contratos.get(+f.dataset.cid);
